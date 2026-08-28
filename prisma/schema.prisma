@@ -1,0 +1,95 @@
+datasource db {
+  provider = "sqlite"            // change to "postgresql" for deploy
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Role {
+  id          String      @id @default(cuid())
+  title       String
+  client      String?
+  jobDesc     String?
+  status      String      @default("open")   // "open" | "closed"
+  briefing    Briefing?
+  candidates  Candidate[]
+  searches    SavedSearch[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Briefing {
+  id                 String   @id @default(cuid())
+  role               Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId             String   @unique
+  dayToDay           String
+  keySkills          String   // JSON string: [{ skill, real_vs_buzzword }]
+  searchTitles       String   // JSON string: [string]
+  targetCompanies    String   // JSON string: [string]
+  salaryRange        String
+  firstCallQuestions String   // JSON string: [{ question, strong_answer, weak_answer }]
+  createdAt          DateTime @default(now())
+}
+
+model SavedSearch {
+  id          String   @id @default(cuid())
+  name        String
+  role        Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  roleId      String?
+  groupLabel  String?              // grouping by client or role type
+  titles      String   @default("[]")  // JSON string: [string]
+  keywords    String   @default("")
+  industries  String   @default("[]")  // JSON string, shown as re-apply checklist
+  locations   String   @default("[]")  // JSON string, shown as re-apply checklist
+  filterNotes String?
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Candidate {
+  id             String   @id @default(cuid())
+  role           Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId         String
+  fullName       String
+  profileUrl     String?              // pasted by the recruiter
+  headline       String?
+  notes          String?
+  stage          String   @default("sourced")
+  // stages: sourced | contacted | replied | booking_pending | booked | rejected | placed
+  lastActivityAt DateTime @default(now())
+  lastNudgeAt    DateTime?
+  nudgeCount     Int      @default(0)
+  outreach       OutreachLog[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  body      String   // contains {{first_name}}, {{role_title}}, {{calendar_link}}
+  outreach  OutreachLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OutreachLog {
+  id           String   @id @default(cuid())
+  candidate    Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateId  String
+  template     MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateId   String?
+  renderedBody String
+  sentAt       DateTime @default(now())   // when the recruiter marked it sent
+}
+
+model Settings {
+  id               Int    @id @default(1)   // single row
+  recruiterName    String @default("")
+  calendarLink     String @default("")
+  bookingChaseDays Int    @default(2)
+  quietNudgeDays   Int    @default(5)
+}

@@ -1,0 +1,145 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { db } from "@/lib/db";
+import { getSettings } from "@/lib/settings";
+import { firstName, renderTemplate } from "@/lib/render";
+import { formatWhen } from "@/lib/dates";
+import { markAsSent } from "@/app/actions/outreach";
+import { CopyButton } from "@/components/CopyButton";
+import { StageBadge } from "@/components/StageBadge";
+
+export const dynamic = "force-dynamic";
+
+export default async function OutreachPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { template?: string };
+}) {
+  const [candidate, templates, settings] = await Promise.all([
+    db.candidate.findUnique({
+      where: { id: params.id },
+      include: {
+        role: { select: { id: true, title: true } },
+        outreach: { orderBy: { sentAt: "desc" }, take: 3 },
+      },
+    }),
+    db.messageTemplate.findMany({ orderBy: { updatedAt: "desc" } }),
+    getSettings(),
+  ]);
+  if (!candidate) notFound();
+
+  const selected =
+    templates.find((t) => t.id === searchParams.template) ?? templates[0] ?? null;
+
+  const rendered = selected
+    ? renderTemplate(selected.body, {
+        first_name: firstName(candidate.fullName),
+        role_title: candidate.role.title,
+        calendar_link: settings.calendarLink,
+      })
+    : "";
+  const hasGaps = rendered.includes("[MISSING:");
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-3xl">Outreach</h1>
+        <p className="mt-1 text-ink/70">
+          {candidate.fullName} ·{" "}
+          <Link href={`/roles/${candidate.role.id}`} className="underline">
+            {candidate.role.title}
+          </Link>{" "}
+          · <StageBadge stage={candidate.stage} />
+        </p>
+      </div>
+
+      {templates.length === 0 ? (
+        <div className="card text-ink/70">
+          <p>
+            You have no message templates yet.{" "}
+            <Link href="/templates" className="underline">
+              Create one first
+            </Link>
+            .
+          </p>
+        </div>
+      ) : (
+        <>
+          <nav aria-label="Pick a template" className="card">
+            <h2 className="field-label">Template</h2>
+            <ul className="flex flex-wrap gap-2">
+              {templates.map((t) => (
+                <li key={t.id}>
+                  <Link
+                    href={`/candidates/${candidate.id}/outreach?template=${t.id}`}
+                    className={t.id === selected?.id ? "btn-secondary border-brass" : "btn-quiet"}
+                    aria-current={t.id === selected?.id ? "true" : undefined}
+                  >
+                    {t.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <section aria-label="Message preview" className="card space-y-4">
+            <div className="whitespace-pre-wrap rounded border border-line bg-cream p-4">
+              {rendered}
+            </div>
+            {hasGaps && (
+              <p role="alert" className="text-sm text-red-800">
+                This message has gaps marked [MISSING]. Fill in the missing details (for
+                example the calendar link in Settings) before you paste it.
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <CopyButton text={rendered} label="Copy message" />
+              {candidate.profileUrl ? (
+                <a
+                  href={candidate.profileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary"
+                >
+                  Open profile
+                </a>
+              ) : (
+                <span className="text-sm text-ink/60">No profile link saved for this candidate.</span>
+              )}
+            </div>
+            <p className="text-sm text-ink/60">
+              You send this yourself on LinkedIn. This app never messages anyone.
+            </p>
+            <form action={markAsSent}>
+              <input type="hidden" name="candidateId" value={candidate.id} />
+              <input type="hidden" name="templateId" value={selected?.id ?? ""} />
+              <input type="hidden" name="renderedBody" value={rendered} />
+              <button type="submit" className="btn-secondary">
+                Mark as sent
+              </button>
+              <span className="ml-2 text-sm text-ink/60">
+                Click this after you have sent the message on LinkedIn.
+              </span>
+            </form>
+          </section>
+        </>
+      )}
+
+      {candidate.outreach.length > 0 && (
+        <section aria-label="Past outreach" className="card">
+          <h2 className="mb-2 text-lg">Past outreach</h2>
+          <ul className="space-y-2">
+            {candidate.outreach.map((o) => (
+              <li key={o.id} className="rounded border border-line bg-cream p-3 text-sm">
+                <p className="mb-1 text-ink/60">Sent {formatWhen(o.sentAt)}</p>
+                <p className="whitespace-pre-wrap">{o.renderedBody}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}

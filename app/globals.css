@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Colour */
+  --color-ink:        #141311;  /* near-black, primary text */
+  --color-ink-soft:   #1a1a18;
+  --color-cream:      #f7f4ec;  /* warm off-white background */
+  --color-brass:      #A9862C;  /* brass-gold, primary accent */
+  --color-brass-lite: #E6BE55;  /* lighter brass for hover and highlights */
+  --color-line:       #e2ddd0;  /* hairline borders on cream */
+
+  /* RGB channels of the colours above, so Tailwind opacity modifiers work */
+  --rgb-ink:        20 19 17;
+  --rgb-ink-soft:   26 26 24;
+  --rgb-cream:      247 244 236;
+  --rgb-brass:      169 134 44;
+  --rgb-brass-lite: 230 190 85;
+  --rgb-line:       226 221 208;
+
+  /* Space and shape */
+  --radius: 10px;
+  --gap:    16px;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-brass);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .card {
+    @apply bg-white border border-line rounded p-4;
+  }
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded bg-brass px-4 py-2 text-cream font-medium hover:bg-brass-lite hover:text-ink transition-colors;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded border border-line bg-white px-4 py-2 text-ink font-medium hover:border-brass transition-colors;
+  }
+  .btn-quiet {
+    @apply inline-flex items-center rounded border border-line bg-white px-2.5 py-1 text-sm text-ink hover:border-brass transition-colors;
+  }
+  .chip {
+    @apply inline-flex items-center rounded border border-line bg-cream px-2 py-0.5 font-mono text-xs tracking-wide;
+  }
+  .field-label {
+    @apply block font-mono text-xs tracking-wide uppercase text-ink mb-1;
+  }
+  .field-input {
+    @apply w-full rounded border border-line bg-white px-3 py-2 text-ink placeholder:text-ink/40;
+  }
+}

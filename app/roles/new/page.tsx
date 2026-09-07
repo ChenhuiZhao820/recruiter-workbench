@@ -1,10 +1,11 @@
 import { createRole } from "@/app/actions/roles";
+import { ActionForm } from "@/components/ActionForm";
 
 export default function NewRolePage() {
   return (
     <div className="max-w-2xl">
       <h1 className="mb-6 text-3xl">New role</h1>
-      <form action={createRole} className="card space-y-4">
+      <ActionForm action={createRole} className="card space-y-4">
         <div>
           <label htmlFor="title" className="field-label">
             Job title
@@ -32,7 +33,7 @@ export default function NewRolePage() {
         <button type="submit" className="btn-primary">
           Create role
         </button>
-      </form>
+      </ActionForm>
     </div>
   );
 }

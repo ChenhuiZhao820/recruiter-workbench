@@ -5,10 +5,16 @@ import { getFollowUpBuckets } from "@/lib/followups";
 export const dynamic = "force-dynamic";
 
 export default async function RolesPage() {
-  const [roles, buckets] = await Promise.all([
+  const [roles, closedRoles, buckets] = await Promise.all([
     db.role.findMany({
       where: { status: "open" },
       orderBy: { createdAt: "desc" },
+      include: { _count: { select: { candidates: true } } },
+    }),
+    // Closed roles stay off the main list but must remain reachable.
+    db.role.findMany({
+      where: { status: "closed" },
+      orderBy: { updatedAt: "desc" },
       include: { _count: { select: { candidates: true } } },
     }),
     getFollowUpBuckets(),
@@ -46,9 +52,9 @@ export default async function RolesPage() {
             const followUps = followUpsByRole.get(role.id) ?? 0;
             return (
               <li key={role.id}>
-                <Link href={`/roles/${role.id}`} className="card block hover:border-brass">
+                <Link href={`/roles/${role.id}`} className="card block hover:border-accent">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-display text-xl">{role.title}</span>
+                    <span className="text-lg font-semibold tracking-tight">{role.title}</span>
                     {role.client && <span className="text-ink/70">{role.client}</span>}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -67,6 +73,33 @@ export default async function RolesPage() {
             );
           })}
         </ul>
+      )}
+
+      {closedRoles.length > 0 && (
+        <details className="mt-8">
+          <summary className="cursor-pointer font-mono text-sm uppercase tracking-wide text-ink/70">
+            Closed roles ({closedRoles.length})
+          </summary>
+          <ul className="mt-3 space-y-3">
+            {closedRoles.map((role) => (
+              <li key={role.id}>
+                <Link href={`/roles/${role.id}`} className="card block hover:border-accent">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-lg font-semibold tracking-tight">{role.title}</span>
+                    {role.client && <span className="text-ink/70">{role.client}</span>}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className="chip">
+                      {role._count.candidates}{" "}
+                      {role._count.candidates === 1 ? "candidate" : "candidates"}
+                    </span>
+                    <span className="chip">Closed - not in Follow-ups</span>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </div>
   );

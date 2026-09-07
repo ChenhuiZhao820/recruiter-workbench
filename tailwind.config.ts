@@ -11,10 +11,13 @@ const config: Config = {
       colors: {
         ink: "rgb(var(--rgb-ink) / <alpha-value>)",
         "ink-soft": "rgb(var(--rgb-ink-soft) / <alpha-value>)",
-        cream: "rgb(var(--rgb-cream) / <alpha-value>)",
-        brass: "rgb(var(--rgb-brass) / <alpha-value>)",
-        "brass-lite": "rgb(var(--rgb-brass-lite) / <alpha-value>)",
+        paper: "rgb(var(--rgb-paper) / <alpha-value>)",
+        surface: "rgb(var(--rgb-surface) / <alpha-value>)",
+        sunken: "rgb(var(--rgb-sunken) / <alpha-value>)",
         line: "rgb(var(--rgb-line) / <alpha-value>)",
+        accent: "rgb(var(--rgb-accent) / <alpha-value>)",
+        "accent-hard": "rgb(var(--rgb-accent-hard) / <alpha-value>)",
+        "accent-soft": "rgb(var(--rgb-accent-soft) / <alpha-value>)",
       },
       fontFamily: {
         display: "var(--font-display)",

@@ -9,9 +9,11 @@ export default async function NewSearchPage({
   searchParams: { roleId?: string; titles?: string; companies?: string; name?: string };
 }) {
   const roles = await db.role.findMany({
-    where: { status: "open" },
+    where: searchParams.roleId
+      ? { OR: [{ status: "open" }, { id: searchParams.roleId }] }
+      : { status: "open" },
     orderBy: { createdAt: "desc" },
-    select: { id: true, title: true, client: true },
+    select: { id: true, title: true, client: true, status: true },
   });
 
   return (

@@ -33,6 +33,14 @@ yarn-error.log*
 prisma/dev.db
 prisma/dev.db-journal
 
+# tests
+/.next-test/
+/test-results/
+/playwright-report/
+prisma/test.db
+prisma/test.db-journal
+tests/findings.log
+
 # vercel
 .vercel
 

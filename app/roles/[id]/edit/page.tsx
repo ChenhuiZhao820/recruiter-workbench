@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { updateRole } from "@/app/actions/roles";
+import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function EditRolePage({ params }: { params: { id: string } 
   return (
     <div className="max-w-2xl">
       <h1 className="mb-6 text-3xl">Edit role</h1>
-      <form action={updateRole} className="card space-y-4">
+      <ActionForm action={updateRole} className="card space-y-4">
         <input type="hidden" name="id" value={role.id} />
         <div>
           <label htmlFor="title" className="field-label">
@@ -55,7 +56,7 @@ export default async function EditRolePage({ params }: { params: { id: string } 
             Back to role
           </Link>
         </div>
-      </form>
+      </ActionForm>
     </div>
   );
 }

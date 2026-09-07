@@ -6,15 +6,16 @@ import { SearchForm } from "@/components/SearchForm";
 export const dynamic = "force-dynamic";
 
 export default async function EditSearchPage({ params }: { params: { id: string } }) {
-  const [search, roles] = await Promise.all([
-    db.savedSearch.findUnique({ where: { id: params.id } }),
-    db.role.findMany({
-      where: { status: "open" },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, title: true, client: true },
-    }),
-  ]);
+  const search = await db.savedSearch.findUnique({ where: { id: params.id } });
   if (!search) notFound();
+
+  // Open roles, plus this search's own role even if it has been closed. Without
+  // it the select would fall back to "No role" and saving would wipe the link.
+  const roles = await db.role.findMany({
+    where: search.roleId ? { OR: [{ status: "open" }, { id: search.roleId }] } : { status: "open" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, title: true, client: true, status: true },
+  });
 
   return (
     <div className="max-w-2xl">

@@ -1,19 +1,18 @@
 import { db } from "@/lib/db";
 import { createTemplate, deleteTemplate, updateTemplate } from "@/app/actions/templates";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { KNOWN_PLACEHOLDERS, isKnownPlaceholder, placeholderSplitPattern } from "@/lib/render";
+import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
-const PLACEHOLDER_SPLIT = /(\{\{\s*(?:first_name|role_title|calendar_link)\s*\}\})/g;
-const PLACEHOLDER_EXACT = /^\{\{\s*(?:first_name|role_title|calendar_link)\s*\}\}$/;
-
 function BodyWithHighlights({ body }: { body: string }) {
-  const parts = body.split(PLACEHOLDER_SPLIT);
+  const parts = body.split(placeholderSplitPattern());
   return (
     <p className="whitespace-pre-wrap">
       {parts.map((part, i) =>
-        PLACEHOLDER_EXACT.test(part) ? (
-          <mark key={i} className="rounded bg-brass-lite/40 px-1 font-mono text-sm">
+        isKnownPlaceholder(part) ? (
+          <mark key={i} className="rounded bg-accent-soft/40 px-1 font-mono text-sm">
             {part}
           </mark>
         ) : (
@@ -32,9 +31,13 @@ export default async function TemplatesPage() {
       <h1 className="mb-2 text-3xl">Templates</h1>
       <p className="mb-6 text-ink/70">
         Write a message once, with gaps for the details. Available gaps:{" "}
-        <code className="font-mono text-sm">{"{{first_name}}"}</code>,{" "}
-        <code className="font-mono text-sm">{"{{role_title}}"}</code>,{" "}
-        <code className="font-mono text-sm">{"{{calendar_link}}"}</code>.
+        {KNOWN_PLACEHOLDERS.map((name, i) => (
+          <span key={name}>
+            {i > 0 ? ", " : ""}
+            <code className="font-mono text-sm">{`{{${name}}}`}</code>
+          </span>
+        ))}
+        . Anything else is left as a visible [UNKNOWN] gap.
       </p>
 
       {templates.length === 0 && (
@@ -59,7 +62,7 @@ export default async function TemplatesPage() {
             </div>
             <details className="mt-2">
               <summary className="cursor-pointer text-sm text-ink/70">Edit</summary>
-              <form action={updateTemplate} className="mt-2 space-y-2">
+              <ActionForm action={updateTemplate} className="mt-2 space-y-2">
                 <input type="hidden" name="id" value={t.id} />
                 <div>
                   <label htmlFor={`tname-${t.id}`} className="field-label">
@@ -89,7 +92,7 @@ export default async function TemplatesPage() {
                 <button type="submit" className="btn-secondary">
                   Save template
                 </button>
-              </form>
+              </ActionForm>
             </details>
           </li>
         ))}
@@ -97,7 +100,7 @@ export default async function TemplatesPage() {
 
       <div className="card mt-6">
         <h2 className="mb-3 text-lg">New template</h2>
-        <form action={createTemplate} className="space-y-3">
+        <ActionForm action={createTemplate} className="space-y-3">
           <div>
             <label htmlFor="new-tname" className="field-label">
               Name
@@ -128,7 +131,7 @@ export default async function TemplatesPage() {
           <button type="submit" className="btn-primary">
             Create template
           </button>
-        </form>
+        </ActionForm>
       </div>
     </div>
   );

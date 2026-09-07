@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getFollowUpBuckets, type FollowUpRow } from "@/lib/followups";
 import { getSettings } from "@/lib/settings";
 import { formatWhen } from "@/lib/dates";
+import { profileHref } from "@/lib/urls";
 import { setCandidateStage } from "@/app/actions/candidates";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +60,9 @@ function Bucket({
                 {row.lastEvent} · {formatWhen(row.lastEventAt)}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {row.profileUrl && (
+                {profileHref(row.profileUrl) && (
                   <a
-                    href={row.profileUrl}
+                    href={profileHref(row.profileUrl)!}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn-quiet"

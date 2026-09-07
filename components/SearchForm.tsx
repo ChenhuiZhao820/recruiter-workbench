@@ -1,6 +1,7 @@
 import { createSearch, updateSearch } from "@/app/actions/searches";
+import { ActionForm } from "@/components/ActionForm";
 
-type RoleOption = { id: string; title: string; client: string | null };
+type RoleOption = { id: string; title: string; client: string | null; status?: string };
 
 export function SearchForm({
   roles,
@@ -21,7 +22,7 @@ export function SearchForm({
   searchId?: string;
 }) {
   return (
-    <form action={searchId ? updateSearch : createSearch} className="card space-y-4">
+    <ActionForm action={searchId ? updateSearch : createSearch} className="card space-y-4">
       {searchId && <input type="hidden" name="id" value={searchId} />}
       <div>
         <label htmlFor="s-name" className="field-label">
@@ -47,6 +48,7 @@ export function SearchForm({
               <option key={r.id} value={r.id}>
                 {r.title}
                 {r.client ? ` (${r.client})` : ""}
+                {r.status === "closed" ? " - closed" : ""}
               </option>
             ))}
           </select>
@@ -129,6 +131,6 @@ export function SearchForm({
       <button type="submit" className="btn-primary">
         {searchId ? "Save search" : "Create search"}
       </button>
-    </form>
+    </ActionForm>
   );
 }

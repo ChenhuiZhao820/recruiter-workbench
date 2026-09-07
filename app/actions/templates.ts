@@ -1,23 +1,43 @@
 "use server";
 
 import { db } from "@/lib/db";
+import type { FormState } from "@/lib/formState";
+import { unknownPlaceholders } from "@/lib/render";
 import { revalidatePath } from "next/cache";
 
-export async function createTemplate(formData: FormData) {
-  const name = String(formData.get("name") ?? "").trim();
-  const body = String(formData.get("body") ?? "").trim();
-  if (!name || !body) return;
-  await db.messageTemplate.create({ data: { name, body } });
-  revalidatePath("/templates");
+// Warns about {{gaps}} this app cannot fill, so a typo is caught while
+// writing the template rather than in a message to a candidate.
+function placeholderNotice(body: string, prefix: string): string {
+  const unknown = unknownPlaceholders(body);
+  if (unknown.length === 0) return prefix;
+  const list = unknown.map((name) => `{{${name}}}`).join(", ");
+  return `${prefix} Heads up: ${list} ${
+    unknown.length === 1 ? "is not a gap" : "are not gaps"
+  } this app can fill, so it will show as [UNKNOWN] in the message.`;
 }
 
-export async function updateTemplate(formData: FormData) {
+export async function createTemplate(_prev: FormState, formData: FormData): Promise<FormState> {
+  const name = String(formData.get("name") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
+  if (!name) return { error: "Give the template a name." };
+  if (!body) return { error: "Write the message before saving the template." };
+
+  await db.messageTemplate.create({ data: { name, body } });
+  revalidatePath("/templates");
+  return { notice: placeholderNotice(body, `Template "${name}" created.`) };
+}
+
+export async function updateTemplate(_prev: FormState, formData: FormData): Promise<FormState> {
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
-  if (!id || !name || !body) return;
+  if (!id) return { error: "That template could not be found." };
+  if (!name) return { error: "A template needs a name. Nothing was saved." };
+  if (!body) return { error: "A template needs a message. Nothing was saved." };
+
   await db.messageTemplate.update({ where: { id }, data: { name, body } });
   revalidatePath("/templates");
+  return { notice: placeholderNotice(body, "Template saved.") };
 }
 
 export async function deleteTemplate(formData: FormData) {

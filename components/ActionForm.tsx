@@ -22,7 +22,7 @@ export function ActionForm({
         <p
           role="alert"
           data-form-message="error"
-          className="rounded border border-red-800/40 bg-red-50 px-3 py-2 text-sm text-red-800"
+          className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-900"
         >
           {state.error}
         </p>
@@ -31,7 +31,7 @@ export function ActionForm({
         <p
           role="status"
           data-form-message="notice"
-          className="rounded border border-brass/40 bg-brass-lite/20 px-3 py-2 text-sm text-ink/80"
+          className="rounded border border-accent/30 bg-accent-soft px-3 py-2 text-sm text-ink"
         >
           {state.notice}
         </p>

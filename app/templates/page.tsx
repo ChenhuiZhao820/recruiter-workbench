@@ -12,7 +12,7 @@ function BodyWithHighlights({ body }: { body: string }) {
     <p className="whitespace-pre-wrap">
       {parts.map((part, i) =>
         isKnownPlaceholder(part) ? (
-          <mark key={i} className="rounded bg-brass-lite/40 px-1 font-mono text-sm">
+          <mark key={i} className="rounded bg-accent-soft/40 px-1 font-mono text-sm">
             {part}
           </mark>
         ) : (

@@ -52,9 +52,9 @@ export default async function RolesPage() {
             const followUps = followUpsByRole.get(role.id) ?? 0;
             return (
               <li key={role.id}>
-                <Link href={`/roles/${role.id}`} className="card block hover:border-brass">
+                <Link href={`/roles/${role.id}`} className="card block hover:border-accent">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-display text-xl">{role.title}</span>
+                    <span className="text-lg font-semibold tracking-tight">{role.title}</span>
                     {role.client && <span className="text-ink/70">{role.client}</span>}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -83,9 +83,9 @@ export default async function RolesPage() {
           <ul className="mt-3 space-y-3">
             {closedRoles.map((role) => (
               <li key={role.id}>
-                <Link href={`/roles/${role.id}`} className="card block hover:border-brass">
+                <Link href={`/roles/${role.id}`} className="card block hover:border-accent">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-display text-xl">{role.title}</span>
+                    <span className="text-lg font-semibold tracking-tight">{role.title}</span>
                     {role.client && <span className="text-ink/70">{role.client}</span>}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">

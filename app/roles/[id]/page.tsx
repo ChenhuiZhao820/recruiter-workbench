@@ -155,7 +155,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               <h3 className="mb-1 text-lg">First-call questions</h3>
               <ul className="space-y-3">
                 {questions.map((q, i) => (
-                  <li key={i} className="rounded border border-line bg-cream p-3">
+                  <li key={i} className="rounded border border-line bg-sunken p-3">
                     <p className="font-medium">{q.question}</p>
                     <p className="mt-1 text-sm">
                       <span className="font-mono text-xs uppercase tracking-wide">Strong:</span>{" "}

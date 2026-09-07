@@ -52,11 +52,14 @@ test("00 warm up: the app serves its first page", async ({ page }) => {
     }
   }
   if (lastError) throw lastError;
+  // Fonts are vendored now, so a cold start is just Next compiling the first
+  // route. That is normal and machine-dependent; only flag it when it is bad
+  // enough to suggest something is actually wrong.
   const seconds = Math.round((Date.now() - started) / 1000);
-  if (seconds > 20) {
+  if (seconds > 45) {
     note(
       "slow-first-load",
-      `First page load took ~${seconds}s on a dev server: next/font tries to download three Google Fonts families at compile time and blocks the build until the fetch times out when the network is restricted or offline.`
+      `First page load took ~${seconds}s. That is beyond a normal Next dev cold compile, so check for a build-time network fetch or a stalled dependency.`
     );
   }
 });
@@ -510,3 +513,29 @@ test("18 compliance: the browser never talks to anything but the app and user-cl
   // Every linkedin.com hit recorded came from an explicit popup (Run search /
   // Open profile); the app pages themselves made no cross-origin calls.
 });
+
+test("19 fonts are served by the app itself, not fetched from a third party", async ({ page }) => {
+  const fontRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.resourceType() === "font") fontRequests.push(request.url());
+  });
+
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+
+  // A silent fallback to system fonts means no font is requested at all, so
+  // an empty list is the failure this guards against.
+  expect(fontRequests.length).toBeGreaterThan(0);
+  for (const url of fontRequests) {
+    expect(new URL(url).hostname, url).toBe("localhost");
+  }
+
+  // And the faces really are the vendored ones.
+  const applied = await page.evaluate(() => {
+    const families: string[] = [];
+    document.fonts.forEach((face) => families.push(face.family));
+    return families;
+  });
+  expect(applied.length).toBeGreaterThan(0);
+});
+

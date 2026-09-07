@@ -47,7 +47,7 @@ export function GenerateBriefingButton({
         {pending ? "This usually takes under a minute." : ""}
       </p>
       {error && (
-        <p role="alert" className="mt-2 text-sm text-red-800">
+        <p role="alert" className="mt-2 text-sm text-rose-900">
           {error}{" "}
           <button type="button" className="underline" onClick={run}>
             Try again

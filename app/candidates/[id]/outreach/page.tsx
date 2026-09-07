@@ -78,7 +78,11 @@ export default async function OutreachPage({
                 <li key={t.id}>
                   <Link
                     href={`/candidates/${candidate.id}/outreach?template=${t.id}`}
-                    className={t.id === selected?.id ? "btn-secondary border-brass" : "btn-quiet"}
+                    className={
+                      t.id === selected?.id
+                        ? "btn-secondary border-accent bg-accent-soft text-accent"
+                        : "btn-quiet"
+                    }
                     aria-current={t.id === selected?.id ? "true" : undefined}
                   >
                     {t.name}
@@ -89,11 +93,11 @@ export default async function OutreachPage({
           </nav>
 
           <section aria-label="Message preview" className="card space-y-4">
-            <div className="whitespace-pre-wrap rounded border border-line bg-cream p-4">
+            <div className="whitespace-pre-wrap rounded border border-line bg-sunken p-4">
               {rendered}
             </div>
             {hasGaps && (
-              <p role="alert" className="text-sm text-red-800">
+              <p role="alert" className="text-sm text-rose-900">
                 This message still has gaps. Anything marked [MISSING] needs a detail
                 filling in — the calendar link lives in{" "}
                 <Link href="/settings" className="underline">
@@ -149,7 +153,7 @@ export default async function OutreachPage({
           </h2>
           <ul className="space-y-2">
             {recentOutreach.map((o) => (
-              <li key={o.id} className="rounded border border-line bg-cream p-3 text-sm">
+              <li key={o.id} className="rounded border border-line bg-sunken p-3 text-sm">
                 <p className="mb-1 text-ink/60">Sent {formatWhen(o.sentAt)}</p>
                 <p className="whitespace-pre-wrap">{o.renderedBody}</p>
               </li>
@@ -163,7 +167,7 @@ export default async function OutreachPage({
               </summary>
               <ul className="mt-2 space-y-2">
                 {olderOutreach.map((o) => (
-                  <li key={o.id} className="rounded border border-line bg-cream p-3 text-sm">
+                  <li key={o.id} className="rounded border border-line bg-sunken p-3 text-sm">
                     <p className="mb-1 text-ink/60">Sent {formatWhen(o.sentAt)}</p>
                     <p className="whitespace-pre-wrap">{o.renderedBody}</p>
                   </li>

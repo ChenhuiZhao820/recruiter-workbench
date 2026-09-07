@@ -2,63 +2,109 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  A quiet instrument, not a brochure.
+
+  One typeface does the talking (Schibsted Grotesk), with a mono face for the
+  things that are really data: stage labels, counts, timestamps, field labels.
+  The palette is deliberately almost colourless - cool neutrals carrying a
+  faint blue cast - so the single accent means something wherever it appears.
+  Surfaces are separated by hairlines and a change of tone rather than by
+  shadows, which keeps dense screens calm.
+*/
+
 :root {
-  /* Colour */
-  --color-ink:        #141311;  /* near-black, primary text */
-  --color-ink-soft:   #1a1a18;
-  --color-cream:      #f7f4ec;  /* warm off-white background */
-  --color-brass:      #A9862C;  /* brass-gold, primary accent */
-  --color-brass-lite: #E6BE55;  /* lighter brass for hover and highlights */
-  --color-line:       #e2ddd0;  /* hairline borders on cream */
+  /* Neutrals, biased a few degrees cool so they read as chosen, not default */
+  --color-ink:      #10161c;  /* primary text: near-black with a blue cast */
+  --color-ink-soft: #55636f;  /* secondary text and captions */
+  --color-paper:    #f6f7f9;  /* the page itself */
+  --color-surface:  #ffffff;  /* cards and inputs sit above the page */
+  --color-sunken:   #eff2f5;  /* recessed panels: quotes, previews, history */
+  --color-line:     #dfe4ea;  /* hairlines */
 
-  /* RGB channels of the colours above, so Tailwind opacity modifiers work */
-  --rgb-ink:        20 19 17;
-  --rgb-ink-soft:   26 26 24;
-  --rgb-cream:      247 244 236;
-  --rgb-brass:      169 134 44;
-  --rgb-brass-lite: 230 190 85;
-  --rgb-line:       226 221 208;
+  /* The one colour in the system */
+  --color-accent:      #0f6b5c;
+  --color-accent-hard: #0b564a;  /* hover and active */
+  --color-accent-soft: #dcede9;  /* tints and highlights */
 
-  /* Space and shape */
-  --radius: 10px;
-  --gap:    16px;
+  /* RGB channels so Tailwind's opacity modifiers keep working */
+  --rgb-ink:         16 22 28;
+  --rgb-ink-soft:    85 99 111;
+  --rgb-paper:      246 247 249;
+  --rgb-surface:    255 255 255;
+  --rgb-sunken:     239 242 245;
+  --rgb-line:       223 228 234;
+  --rgb-accent:      15 107 92;
+  --rgb-accent-hard: 11 86 74;
+  --rgb-accent-soft: 220 237 233;
+
+  --radius: 8px;
+  --gap: 16px;
 }
 
 body {
-  background-color: var(--color-cream);
+  background-color: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Headings are the same face, distinguished by weight and tighter tracking
+   rather than by a second family. */
 h1, h2, h3 {
   font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+h1 { letter-spacing: -0.03em; }
+
+/* Numbers that sit in columns should line up. */
+time, .tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 *:focus-visible {
-  outline: 2px solid var(--color-brass);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+  border-radius: 2px;
 }
 
 @layer components {
   .card {
-    @apply bg-white border border-line rounded p-4;
+    @apply rounded border border-line bg-surface p-4;
   }
+
   .btn-primary {
-    @apply inline-flex items-center gap-2 rounded bg-brass px-4 py-2 text-cream font-medium hover:bg-brass-lite hover:text-ink transition-colors;
+    @apply inline-flex items-center gap-2 rounded bg-accent px-4 py-2 font-medium text-white
+           transition-colors hover:bg-accent-hard
+           disabled:cursor-not-allowed disabled:bg-ink/20 disabled:text-white;
   }
+
   .btn-secondary {
-    @apply inline-flex items-center gap-2 rounded border border-line bg-white px-4 py-2 text-ink font-medium hover:border-brass transition-colors;
+    @apply inline-flex items-center gap-2 rounded border border-line bg-surface px-4 py-2
+           font-medium text-ink transition-colors hover:border-accent hover:text-accent
+           disabled:cursor-not-allowed disabled:border-line disabled:text-ink/35
+           disabled:hover:border-line disabled:hover:text-ink/35;
   }
+
   .btn-quiet {
-    @apply inline-flex items-center rounded border border-line bg-white px-2.5 py-1 text-sm text-ink hover:border-brass transition-colors;
+    @apply inline-flex items-center rounded border border-line bg-surface px-2.5 py-1 text-sm
+           text-ink-soft transition-colors hover:border-accent hover:text-accent
+           disabled:cursor-not-allowed disabled:text-ink/35 disabled:hover:border-line;
   }
+
   .chip {
-    @apply inline-flex items-center rounded border border-line bg-cream px-2 py-0.5 font-mono text-xs tracking-wide;
+    @apply inline-flex items-center rounded-full border border-line bg-sunken px-2.5 py-0.5
+           font-mono text-xs uppercase tracking-wider text-ink-soft;
   }
+
   .field-label {
-    @apply block font-mono text-xs tracking-wide uppercase text-ink mb-1;
+    @apply mb-1 block font-mono text-xs uppercase tracking-wider text-ink-soft;
   }
+
   .field-input {
-    @apply w-full rounded border border-line bg-white px-3 py-2 text-ink placeholder:text-ink/40;
+    @apply w-full rounded border border-line bg-surface px-3 py-2 text-ink transition-colors
+           placeholder:text-ink/35 focus:border-accent;
   }
 }

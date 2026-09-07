@@ -99,4 +99,7 @@ model Settings {
   calendarLink     String @default("")
   bookingChaseDays Int    @default(2)
   quietNudgeDays   Int    @default(5)
+  // Shared secret for the browser extension's capture endpoint. Empty means
+  // capture is switched off, so an unset token cannot be guessed as "".
+  captureToken     String @default("")
 }

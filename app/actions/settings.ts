@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { newCaptureToken } from "@/lib/capture";
 import type { FormState } from "@/lib/formState";
 import { revalidatePath } from "next/cache";
 
@@ -40,4 +41,20 @@ export async function updateSettings(_prev: FormState, formData: FormData): Prom
   revalidatePath("/settings");
   revalidatePath("/followups");
   return { notice: "Settings saved." };
+}
+
+// Generates (or replaces) the secret the browser extension uses. Replacing it
+// immediately stops the old one working, which is the point.
+export async function regenerateCaptureToken(): Promise<FormState> {
+  await db.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+  await db.settings.update({ where: { id: 1 }, data: { captureToken: newCaptureToken() } });
+  revalidatePath("/settings");
+  return { notice: "New capture key generated. Paste it into the extension; the old key has stopped working." };
+}
+
+export async function clearCaptureToken(): Promise<FormState> {
+  await db.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+  await db.settings.update({ where: { id: 1 }, data: { captureToken: "" } });
+  revalidatePath("/settings");
+  return { notice: "Capture switched off. The extension can no longer save to this workbench." };
 }

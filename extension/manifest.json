@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Basanite Capture",
+  "version": "1.0.0",
+  "description": "Save the LinkedIn profile you are looking at to your Basanite workbench, in one click.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+  "action": {
+    "default_title": "Save this profile to Basanite",
+    "default_popup": "popup.html"
+  }
+}

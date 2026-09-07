@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div id="setup" class="screen" hidden>
+      <h1>Connect to your workbench</h1>
+      <label for="url">Workbench address</label>
+      <input id="url" type="url" value="http://localhost:3000" spellcheck="false" />
+      <label for="token">Capture key</label>
+      <input id="token" type="password" placeholder="From Settings in the workbench" spellcheck="false" />
+      <p class="hint">Settings &rarr; Browser extension &rarr; Generate a capture key.</p>
+      <button id="connect" class="primary" type="button">Connect</button>
+      <p id="setup-message" class="message" role="status"></p>
+    </div>
+
+    <div id="capture" class="screen" hidden>
+      <div class="row">
+        <h1>Save profile</h1>
+        <button id="settings" class="link" type="button">Settings</button>
+      </div>
+
+      <label for="role">Role</label>
+      <select id="role"></select>
+
+      <label for="name">Name</label>
+      <input id="name" type="text" spellcheck="false" />
+
+      <label for="headline">Headline</label>
+      <input id="headline" type="text" spellcheck="false" />
+
+      <label for="profile">Profile link</label>
+      <input id="profile" type="url" spellcheck="false" />
+
+      <label for="notes">Your note</label>
+      <textarea id="notes" rows="3" placeholder="What you actually think. Nobody else can write this."></textarea>
+
+      <button id="save" class="primary" type="button">Save to workbench</button>
+      <p id="message" class="message" role="status"></p>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

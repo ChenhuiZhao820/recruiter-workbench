@@ -1,5 +1,6 @@
 import { getSettings } from "@/lib/settings";
 import { updateSettings } from "@/app/actions/settings";
+import { CaptureKeyPanel } from "@/components/CaptureKeyPanel";
 import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +67,10 @@ export default async function SettingsPage() {
           Save settings
         </button>
       </ActionForm>
+      <div className="mt-6">
+        <CaptureKeyPanel token={settings.captureToken} />
+      </div>
+
       <p className="mt-4 text-sm text-ink/60">
         The briefing API key lives on the server, in the .env file. It is never shown here or
         sent to the browser.

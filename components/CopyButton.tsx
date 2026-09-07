@@ -6,10 +6,14 @@ export function CopyButton({
   text,
   label = "Copy message",
   className = "btn-primary",
+  hasGaps = false,
 }: {
   text: string;
   label?: string;
   className?: string;
+  // Copying a message with holes in it is allowed - you may want to finish it
+  // by hand - but it must never look like a clean copy.
+  hasGaps?: boolean;
 }) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   return (
@@ -30,7 +34,13 @@ export function CopyButton({
         {label}
       </button>
       <span role="status" aria-live="polite" className="text-sm text-ink/70">
-        {status === "copied" ? "Copied" : status === "failed" ? "Could not copy. Select and copy the text by hand." : ""}
+        {status === "copied"
+          ? hasGaps
+            ? "Copied, but it still has gaps. Fix them before you send it."
+            : "Copied"
+          : status === "failed"
+            ? "Could not copy. Select and copy the text by hand."
+            : ""}
       </span>
     </span>
   );

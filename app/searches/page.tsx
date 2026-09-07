@@ -5,6 +5,7 @@ import { formatWhen } from "@/lib/dates";
 import { deleteSearch, duplicateSearch, renameSearch } from "@/app/actions/searches";
 import { RunSearchButton } from "@/components/RunSearchButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -118,7 +119,7 @@ export default async function SearchesPage() {
                       </div>
                       <details className="mt-2">
                         <summary className="cursor-pointer text-sm text-ink/70">Rename</summary>
-                        <form action={renameSearch} className="mt-2 flex flex-wrap items-end gap-2">
+                        <ActionForm action={renameSearch} className="mt-2 flex flex-wrap items-end gap-2">
                           <input type="hidden" name="id" value={s.id} />
                           <div className="flex-1">
                             <label htmlFor={`rename-${s.id}`} className="field-label">
@@ -135,7 +136,7 @@ export default async function SearchesPage() {
                           <button type="submit" className="btn-secondary">
                             Rename
                           </button>
-                        </form>
+                        </ActionForm>
                       </details>
                     </li>
                   );

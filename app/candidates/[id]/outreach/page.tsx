@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { firstName, renderTemplate } from "@/lib/render";
+import { firstName, hasGaps as messageHasGaps, renderTemplate } from "@/lib/render";
 import { formatWhen } from "@/lib/dates";
+import { profileHref } from "@/lib/urls";
 import { markAsSent } from "@/app/actions/outreach";
 import { CopyButton } from "@/components/CopyButton";
 import { StageBadge } from "@/components/StageBadge";
@@ -22,7 +23,7 @@ export default async function OutreachPage({
       where: { id: params.id },
       include: {
         role: { select: { id: true, title: true } },
-        outreach: { orderBy: { sentAt: "desc" }, take: 3 },
+        outreach: { orderBy: { sentAt: "desc" } },
       },
     }),
     db.messageTemplate.findMany({ orderBy: { updatedAt: "desc" } }),
@@ -38,9 +39,12 @@ export default async function OutreachPage({
         first_name: firstName(candidate.fullName),
         role_title: candidate.role.title,
         calendar_link: settings.calendarLink,
+        recruiter_name: settings.recruiterName,
       })
     : "";
-  const hasGaps = rendered.includes("[MISSING:");
+  const hasGaps = messageHasGaps(rendered);
+  const recentOutreach = candidate.outreach.slice(0, 3);
+  const olderOutreach = candidate.outreach.slice(3);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -90,15 +94,24 @@ export default async function OutreachPage({
             </div>
             {hasGaps && (
               <p role="alert" className="text-sm text-red-800">
-                This message has gaps marked [MISSING]. Fill in the missing details (for
-                example the calendar link in Settings) before you paste it.
+                This message still has gaps. Anything marked [MISSING] needs a detail
+                filling in — the calendar link lives in{" "}
+                <Link href="/settings" className="underline">
+                  Settings
+                </Link>
+                . Anything marked [UNKNOWN] is a placeholder this app cannot fill, so
+                edit it out in{" "}
+                <Link href="/templates" className="underline">
+                  Templates
+                </Link>
+                . You cannot mark this as sent until the gaps are gone.
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <CopyButton text={rendered} label="Copy message" />
-              {candidate.profileUrl ? (
+              <CopyButton text={rendered} label="Copy message" hasGaps={hasGaps} />
+              {profileHref(candidate.profileUrl) ? (
                 <a
-                  href={candidate.profileUrl}
+                  href={profileHref(candidate.profileUrl)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-secondary"
@@ -116,11 +129,13 @@ export default async function OutreachPage({
               <input type="hidden" name="candidateId" value={candidate.id} />
               <input type="hidden" name="templateId" value={selected?.id ?? ""} />
               <input type="hidden" name="renderedBody" value={rendered} />
-              <button type="submit" className="btn-secondary">
+              <button type="submit" className="btn-secondary" disabled={hasGaps}>
                 Mark as sent
               </button>
               <span className="ml-2 text-sm text-ink/60">
-                Click this after you have sent the message on LinkedIn.
+                {hasGaps
+                  ? "Fill the gaps above before recording this as sent."
+                  : "Click this after you have sent the message on LinkedIn."}
               </span>
             </form>
           </section>
@@ -129,15 +144,33 @@ export default async function OutreachPage({
 
       {candidate.outreach.length > 0 && (
         <section aria-label="Past outreach" className="card">
-          <h2 className="mb-2 text-lg">Past outreach</h2>
+          <h2 className="mb-2 text-lg">
+            Past outreach ({candidate.outreach.length})
+          </h2>
           <ul className="space-y-2">
-            {candidate.outreach.map((o) => (
+            {recentOutreach.map((o) => (
               <li key={o.id} className="rounded border border-line bg-cream p-3 text-sm">
                 <p className="mb-1 text-ink/60">Sent {formatWhen(o.sentAt)}</p>
                 <p className="whitespace-pre-wrap">{o.renderedBody}</p>
               </li>
             ))}
           </ul>
+          {olderOutreach.length > 0 && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm text-ink/70">
+                Show {olderOutreach.length} older{" "}
+                {olderOutreach.length === 1 ? "message" : "messages"}
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {olderOutreach.map((o) => (
+                  <li key={o.id} className="rounded border border-line bg-cream p-3 text-sm">
+                    <p className="mb-1 text-ink/60">Sent {formatWhen(o.sentAt)}</p>
+                    <p className="whitespace-pre-wrap">{o.renderedBody}</p>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       )}
     </div>

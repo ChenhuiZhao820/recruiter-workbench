@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import type { FormState } from "@/lib/formState";
 import { splitList } from "@/lib/json";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -23,18 +24,19 @@ function revalidateSearches(roleId?: string | null) {
   if (roleId) revalidatePath(`/roles/${roleId}`);
 }
 
-export async function createSearch(formData: FormData) {
+export async function createSearch(_prev: FormState, formData: FormData): Promise<FormState> {
   const data = searchDataFrom(formData);
-  if (!data.name) return;
+  if (!data.name) return { error: "Give the search a name before creating it." };
   await db.savedSearch.create({ data });
   revalidateSearches(data.roleId);
   redirect(data.roleId ? `/roles/${data.roleId}` : "/searches");
 }
 
-export async function updateSearch(formData: FormData) {
+export async function updateSearch(_prev: FormState, formData: FormData): Promise<FormState> {
   const id = String(formData.get("id") ?? "");
   const data = searchDataFrom(formData);
-  if (!id || !data.name) return;
+  if (!id) return { error: "That search could not be found." };
+  if (!data.name) return { error: "A search needs a name. Nothing was saved." };
   await db.savedSearch.update({ where: { id }, data });
   revalidateSearches(data.roleId);
   redirect("/searches");
@@ -60,12 +62,14 @@ export async function duplicateSearch(formData: FormData) {
   revalidateSearches(original.roleId);
 }
 
-export async function renameSearch(formData: FormData) {
+export async function renameSearch(_prev: FormState, formData: FormData): Promise<FormState> {
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  if (!id || !name) return;
+  if (!id) return { error: "That search could not be found." };
+  if (!name) return { error: "Enter a new name. The search was not renamed." };
   const search = await db.savedSearch.update({ where: { id }, data: { name } });
   revalidateSearches(search.roleId);
+  return { notice: `Renamed to "${name}".` };
 }
 
 export async function deleteSearch(formData: FormData) {

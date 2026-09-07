@@ -4,12 +4,14 @@ import { db } from "@/lib/db";
 import { parseObjectArray, parseStringArray } from "@/lib/json";
 import { STAGES, STAGE_LABELS } from "@/lib/stages";
 import { formatWhen } from "@/lib/dates";
+import { profileHref } from "@/lib/urls";
 import { addCandidate, deleteCandidate, setCandidateStage, updateCandidate } from "@/app/actions/candidates";
 import { deleteRole } from "@/app/actions/roles";
 import { GenerateBriefingButton } from "@/components/GenerateBriefingButton";
 import { StageBadge } from "@/components/StageBadge";
 import { RunSearchButton } from "@/components/RunSearchButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +30,24 @@ export default async function RolePage({ params }: { params: { id: string } }) {
   if (!role) notFound();
 
   const briefing = role.briefing;
+  const hasJobDesc = Boolean(role.jobDesc && role.jobDesc.trim());
   const skills = briefing ? parseObjectArray<Skill>(briefing.keySkills) : [];
   const questions = briefing ? parseObjectArray<Question>(briefing.firstCallQuestions) : [];
   const searchTitles = briefing ? parseStringArray(briefing.searchTitles) : [];
   const targetCompanies = briefing ? parseStringArray(briefing.targetCompanies) : [];
+
+  const candidateCount = role.candidates.length;
+  const searchCount = role.searches.length;
+  const deleteWarning = [
+    `Delete "${role.title}"?`,
+    `This removes its briefing and ${candidateCount} ${candidateCount === 1 ? "candidate" : "candidates"}, along with their outreach history.`,
+    searchCount > 0
+      ? `Its ${searchCount} saved ${searchCount === 1 ? "search is" : "searches are"} kept, but ${searchCount === 1 ? "it moves" : "they move"} to Ungrouped on the Searches page.`
+      : "",
+    "This cannot be undone.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const createSearchHref = briefing
     ? `/searches/new?roleId=${role.id}&titles=${encodeURIComponent(searchTitles.join(", "))}&companies=${encodeURIComponent(targetCompanies.join(", "))}&name=${encodeURIComponent(`${role.title} search`)}`
@@ -41,8 +57,21 @@ export default async function RolePage({ params }: { params: { id: string } }) {
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl">{role.title}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl">{role.title}</h1>
+            {role.status === "closed" && <span className="chip">Closed</span>}
+          </div>
           {role.client && <p className="mt-1 text-ink/70">{role.client}</p>}
+          {role.status === "closed" && (
+            <p className="mt-2 text-sm text-ink/70">
+              This role is closed, so it is hidden from Roles and its candidates are left
+              out of Follow-ups.{" "}
+              <Link href={`/roles/${role.id}/edit`} className="underline">
+                Reopen it
+              </Link>{" "}
+              to bring them back.
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href={`/roles/${role.id}/edit`} className="btn-quiet">
@@ -52,7 +81,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
             <input type="hidden" name="id" value={role.id} />
             <ConfirmSubmitButton
               label="Delete role"
-              confirmText="Delete this role, its briefing, and its candidate list? This cannot be undone."
+              confirmText={deleteWarning}
             />
           </form>
         </div>
@@ -70,7 +99,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               this person does all day, the skills that matter, search terms, and
               first-call questions.
             </p>
-            {!role.jobDesc?.trim() && (
+            {!hasJobDesc && (
               <p className="text-sm text-ink/70">
                 This role has no job description yet.{" "}
                 <Link href={`/roles/${role.id}/edit`} className="underline">
@@ -79,7 +108,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                 .
               </p>
             )}
-            <GenerateBriefingButton roleId={role.id} hasBriefing={false} />
+            <GenerateBriefingButton roleId={role.id} hasBriefing={false} hasJobDesc={hasJobDesc} />
           </div>
         ) : (
           <div className="card space-y-5">
@@ -147,7 +176,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               <Link href={createSearchHref} className="btn-primary">
                 Create a search from this
               </Link>
-              <GenerateBriefingButton roleId={role.id} hasBriefing={true} />
+              <GenerateBriefingButton roleId={role.id} hasBriefing={true} hasJobDesc={hasJobDesc} />
             </div>
           </div>
         )}
@@ -190,9 +219,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                       </div>
                       {c.notes && <p className="mt-2 text-sm text-ink/80">{c.notes}</p>}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {c.profileUrl && (
+                        {profileHref(c.profileUrl) && (
                           <a
-                            href={c.profileUrl}
+                            href={profileHref(c.profileUrl)!}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn-quiet"
@@ -234,7 +263,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                       </div>
                       <details className="mt-2">
                         <summary className="cursor-pointer text-sm text-ink/70">Edit details</summary>
-                        <form action={updateCandidate} className="mt-2 space-y-2">
+                        <ActionForm action={updateCandidate} className="mt-2 space-y-2">
                           <input type="hidden" name="id" value={c.id} />
                           <div>
                             <label htmlFor={`name-${c.id}`} className="field-label">
@@ -285,7 +314,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                           <button type="submit" className="btn-secondary">
                             Save changes
                           </button>
-                        </form>
+                        </ActionForm>
                       </details>
                     </li>
                   ))}
@@ -297,7 +326,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
 
         <div className="card mt-4">
           <h3 className="mb-3 text-lg">Add candidate</h3>
-          <form action={addCandidate} className="space-y-3">
+          <ActionForm action={addCandidate} className="space-y-3">
             <input type="hidden" name="roleId" value={role.id} />
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -333,7 +362,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
             <button type="submit" className="btn-primary">
               Add candidate
             </button>
-          </form>
+          </ActionForm>
         </div>
       </section>
 

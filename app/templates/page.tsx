@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { createTemplate, deleteTemplate, updateTemplate } from "@/app/actions/templates";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { KNOWN_PLACEHOLDERS, isKnownPlaceholder, placeholderSplitPattern } from "@/lib/render";
+import { templateKindLabel } from "@/lib/templates";
+import { MessageBodyField } from "@/components/MessageBodyField";
 import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +51,15 @@ export default async function TemplatesPage() {
       <ul className="space-y-3">
         {templates.map((t) => (
           <li key={t.id} className="card">
-            <h2 className="mb-2 text-lg">{t.name}</h2>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-lg">{t.name}</h2>
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="chip">{templateKindLabel(t.kind)}</span>
+                <span className="font-mono text-xs tabular text-ink-soft">
+                  {t.body.length} chars
+                </span>
+              </span>
+            </div>
             <BodyWithHighlights body={t.body} />
             <div className="mt-3 flex flex-wrap gap-2">
               <form action={deleteTemplate}>
@@ -76,19 +86,11 @@ export default async function TemplatesPage() {
                     className="field-input"
                   />
                 </div>
-                <div>
-                  <label htmlFor={`tbody-${t.id}`} className="field-label">
-                    Message
-                  </label>
-                  <textarea
-                    id={`tbody-${t.id}`}
-                    name="body"
-                    defaultValue={t.body}
-                    required
-                    rows={6}
-                    className="field-input"
-                  />
-                </div>
+                <MessageBodyField
+                  idPrefix={`t-${t.id}`}
+                  defaultKind={t.kind}
+                  defaultBody={t.body}
+                />
                 <button type="submit" className="btn-secondary">
                   Save template
                 </button>
@@ -113,21 +115,13 @@ export default async function TemplatesPage() {
               placeholder="First outreach"
             />
           </div>
-          <div>
-            <label htmlFor="new-tbody" className="field-label">
-              Message
-            </label>
-            <textarea
-              id="new-tbody"
-              name="body"
-              required
-              rows={6}
-              className="field-input"
-              placeholder={
-                "Hi {{first_name}}, I'm hiring for a {{role_title}} and your background stood out. Open to a quick chat? You can grab a time here: {{calendar_link}}"
-              }
-            />
-          </div>
+          <MessageBodyField
+            idPrefix="new-t"
+            bodyId="new-tbody"
+            placeholder={
+              "Hi {{first_name}}, I'm hiring for a {{role_title}} and your background stood out. Open to a quick chat? You can grab a time here: {{calendar_link}}"
+            }
+          />
           <button type="submit" className="btn-primary">
             Create template
           </button>

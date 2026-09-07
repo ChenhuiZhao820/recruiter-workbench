@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getFollowUpBuckets, type FollowUpRow } from "@/lib/followups";
 import { getSettings } from "@/lib/settings";
 import { formatWhen } from "@/lib/dates";
+import { templateKindLabel } from "@/lib/templates";
 import { profileHref } from "@/lib/urls";
 import { setCandidateStage } from "@/app/actions/candidates";
 
@@ -56,8 +57,13 @@ function Bucket({
                   </Link>
                 </span>
               </div>
-              <p className="mt-1 text-sm text-ink/80">
-                {row.lastEvent} · {formatWhen(row.lastEventAt)}
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink/80">
+                <span>
+                  {row.lastEvent} · {formatWhen(row.lastEventAt)}
+                </span>
+                {row.lastOutreachKind && (
+                  <span className="chip">via {templateKindLabel(row.lastOutreachKind)}</span>
+                )}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {profileHref(row.profileUrl) && (

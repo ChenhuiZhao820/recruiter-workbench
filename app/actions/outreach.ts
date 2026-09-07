@@ -28,8 +28,15 @@ export async function markAsSent(formData: FormData) {
   const candidate = await db.candidate.findUnique({ where: { id: candidateId } });
   if (!candidate) return;
 
+  // Copy the kind off the template now: the log has to stay meaningful even
+  // if the template is later edited or deleted.
+  const template = templateId
+    ? await db.messageTemplate.findUnique({ where: { id: templateId }, select: { kind: true } })
+    : null;
+  const kind = template?.kind ?? "message";
+
   await db.outreachLog.create({
-    data: { candidateId, templateId, renderedBody },
+    data: { candidateId, templateId, renderedBody, kind },
   });
 
   const now = new Date();

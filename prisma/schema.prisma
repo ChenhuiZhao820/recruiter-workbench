@@ -71,6 +71,10 @@ model MessageTemplate {
   id        String   @id @default(cuid())
   name      String
   body      String   // contains {{first_name}}, {{role_title}}, {{calendar_link}}
+  // "connection_note" | "message". A connection note is the short text that
+  // rides along with an invitation and is capped by LinkedIn; a message is
+  // sent once you are connected and has room to breathe.
+  kind      String   @default("message")
   outreach  OutreachLog[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -83,6 +87,9 @@ model OutreachLog {
   template     MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   templateId   String?
   renderedBody String
+  // Copied from the template at send time so the record survives the
+  // template being edited or deleted.
+  kind         String   @default("message")
   sentAt       DateTime @default(now())   // when the recruiter marked it sent
 }
 

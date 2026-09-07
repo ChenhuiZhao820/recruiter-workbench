@@ -12,6 +12,7 @@ import { StageBadge } from "@/components/StageBadge";
 import { RunSearchButton } from "@/components/RunSearchButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { ActionForm } from "@/components/ActionForm";
+import { OUTREACH_KIND_SUMMARY, isTemplateKind } from "@/lib/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,10 @@ export default async function RolePage({ params }: { params: { id: string } }) {
     where: { id: params.id },
     include: {
       briefing: true,
-      candidates: { orderBy: { lastActivityAt: "desc" } },
+      candidates: {
+        orderBy: { lastActivityAt: "desc" },
+        include: { outreach: { orderBy: { sentAt: "desc" }, take: 1 } },
+      },
       searches: { orderBy: { updatedAt: "desc" } },
     },
   });
@@ -212,6 +216,14 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <StageBadge stage={c.stage} />
+                          {c.outreach[0] && (
+                            <span className="text-sm text-ink/60">
+                              {isTemplateKind(c.outreach[0].kind)
+                                ? OUTREACH_KIND_SUMMARY[c.outreach[0].kind]
+                                : "Sent"}{" "}
+                              {formatWhen(c.outreach[0].sentAt)}
+                            </span>
+                          )}
                           <span className="text-sm text-ink/60">
                             last activity {formatWhen(c.lastActivityAt)}
                           </span>

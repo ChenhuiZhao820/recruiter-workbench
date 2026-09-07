@@ -12,6 +12,8 @@ export type FollowUpRow = {
   roleTitle: string;
   lastEvent: string;
   lastEventAt: Date;
+  // How the last message went out, so a chase can match the door it used.
+  lastOutreachKind: string | null;
 };
 
 export type FollowUpBuckets = {
@@ -52,6 +54,7 @@ export async function getFollowUpBuckets(): Promise<FollowUpBuckets> {
       roleTitle: c.role.title,
       lastEvent,
       lastEventAt: c.lastActivityAt,
+      lastOutreachKind: c.outreach[0]?.kind ?? null,
     });
     const lastOutreach = c.outreach[0];
 

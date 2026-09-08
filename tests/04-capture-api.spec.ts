@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { db } from "./helpers";
+import { db, TEST_ADMIN_ID, TEST_ADMIN_EMAIL } from "./helpers";
+import { hashToken } from "../lib/auth-crypto";
 
 // The extension's endpoint. The extension itself needs a real browser profile
 // to test, but everything that decides what gets stored lives here.
@@ -14,12 +15,12 @@ let roleId = "";
 
 test.beforeAll(async () => {
   await db.settings.upsert({
-    where: { id: 1 },
-    update: { captureToken: TOKEN },
-    create: { id: 1, captureToken: TOKEN },
+    where: { userId: TEST_ADMIN_ID },
+    update: { captureTokenHash: hashToken(TOKEN) },
+    create: { userId: TEST_ADMIN_ID, captureTokenHash: hashToken(TOKEN) },
   });
   const role = await db.role.create({
-    data: { title: "Capture Target Role", jobDesc: "For the capture tests." },
+    data: { userId: TEST_ADMIN_ID, title: "Capture Target Role", jobDesc: "For the capture tests." },
   });
   roleId = role.id;
 });
@@ -34,15 +35,15 @@ test("C1 no key, wrong key and switched-off capture are all refused", async ({ r
   });
   expect(wrong.status()).toBe(401);
 
-  // An empty stored token means capture is off; an empty presented token must
+  // A null stored token hash means capture is off; an empty presented token must
   // not then count as a match.
-  await db.settings.update({ where: { id: 1 }, data: { captureToken: "" } });
+  await db.settings.update({ where: { userId: TEST_ADMIN_ID }, data: { captureTokenHash: null } });
   const off = await request.post(`${BASE}/api/capture`, {
     headers: { "X-Capture-Token": "" },
     data: { roleId, fullName: "A" },
   });
   expect(off.status()).toBe(401);
-  await db.settings.update({ where: { id: 1 }, data: { captureToken: TOKEN } });
+  await db.settings.update({ where: { userId: TEST_ADMIN_ID }, data: { captureTokenHash: hashToken(TOKEN) } });
 
   expect(await db.candidate.count({ where: { roleId } })).toBe(0);
 });
@@ -114,13 +115,16 @@ test("C4 bad input is refused with something a person can act on", async ({ requ
 
 test("C5 the role list is scoped to open roles", async ({ request }) => {
   const closed = await db.role.create({
-    data: { title: "Closed Capture Role", status: "closed" },
+    data: { userId: TEST_ADMIN_ID, title: "Closed Capture Role", status: "closed" },
   });
   const response = await request.get(`${BASE}/api/capture`, {
     headers: { "X-Capture-Token": TOKEN },
   });
   expect(response.ok()).toBe(true);
-  const titles = (await response.json()).roles.map((r: { title: string }) => r.title);
+  const body = await response.json();
+  expect(body.account).toEqual({ id: TEST_ADMIN_ID, email: TEST_ADMIN_EMAIL, name: "Test Admin" });
+  expect(Object.keys(body).sort()).toEqual(["account", "roles"]);
+  const titles = body.roles.map((r: { title: string }) => r.title);
   expect(titles).toContain("Capture Target Role");
   expect(titles).not.toContain("Closed Capture Role");
   await db.role.delete({ where: { id: closed.id } });

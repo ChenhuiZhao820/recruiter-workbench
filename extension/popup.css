@@ -24,6 +24,19 @@ body {
 .screen { display: flex; flex-direction: column; gap: 4px; }
 .screen[hidden] { display: none; }
 
+.connection {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.connection[hidden] { display: none; }
+.connection strong { font-size: 14px; }
+
 .row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 
 h1 { font-size: 14px; margin: 0 0 6px; letter-spacing: -0.01em; }

@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
-import { db, note } from "./helpers";
+import { db, note, TEST_ADMIN_ID } from "./helpers";
 import { CONNECTION_NOTE_LIMIT } from "../lib/templates";
 
 // Paths the happy-path walkthrough never visits: error states, bad input,
@@ -216,7 +216,7 @@ test("E8 a search keeps its link to a role that has been closed", async ({ page 
   const closed = (await db.role.findFirst({ where: { title: "Closing Role" } }))!;
   expect(closed.status).toBe("closed");
   const search = await db.savedSearch.create({
-    data: { name: "Closed role search", roleId: closed.id, titles: JSON.stringify(["Ops"]) },
+    data: { userId: TEST_ADMIN_ID, name: "Closed role search", roleId: closed.id, titles: JSON.stringify(["Ops"]) },
   });
 
   await page.goto(`/searches/${search.id}/edit`);
@@ -234,10 +234,10 @@ test("E8 a search keeps its link to a role that has been closed", async ({ page 
 });
 
 test("E9 outreach for a candidate with no template offers a way out", async ({ page }) => {
-  const templates = await db.messageTemplate.findMany();
+  const templates = await db.messageTemplate.findMany({ where: { userId: TEST_ADMIN_ID } });
   const backup = templates.map((t) => ({ ...t }));
   // Templates can go without touching the logs: OutreachLog.templateId is SetNull.
-  await db.messageTemplate.deleteMany({});
+  await db.messageTemplate.deleteMany({ where: { userId: TEST_ADMIN_ID } });
 
   const dana = await db.candidate.findFirst({ where: { fullName: "Dana NoScheme" } });
   await page.goto(`/candidates/${dana!.id}/outreach`);
@@ -246,7 +246,7 @@ test("E9 outreach for a candidate with no template offers a way out", async ({ p
 
   for (const t of backup) {
     await db.messageTemplate.create({
-      data: { id: t.id, name: t.name, body: t.body, createdAt: t.createdAt, updatedAt: t.updatedAt },
+      data: { ...t },
     });
   }
 });

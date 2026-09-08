@@ -1,9 +1,12 @@
 import { createRole } from "@/app/actions/roles";
 import { ActionForm } from "@/components/ActionForm";
 
-export default function NewRolePage() {
+import { getWorkspace } from "@/lib/workspace";
+
+export default async function NewRolePage() {
+  const { owner, readOnly } = await getWorkspace();
   return (
-    <div className="max-w-2xl">
+    <fieldset key={owner.id} disabled={readOnly} className="min-w-0 max-w-2xl">
       <h1 className="mb-6 text-3xl">New role</h1>
       <ActionForm action={createRole} className="card space-y-4">
         <div>
@@ -34,6 +37,6 @@ export default function NewRolePage() {
           Create role
         </button>
       </ActionForm>
-    </div>
+    </fieldset>
   );
 }

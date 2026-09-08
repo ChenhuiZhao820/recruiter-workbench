@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { getSettings } from "@/lib/settings";
 import { firstName, hasGaps as messageHasGaps, renderTemplate } from "@/lib/render";
 import { formatWhen } from "@/lib/dates";
@@ -19,15 +20,16 @@ export default async function OutreachPage({
   params: { id: string };
   searchParams: { template?: string };
 }) {
+  const { owner, readOnly } = await getWorkspace();
   const [candidate, templates, settings] = await Promise.all([
     db.candidate.findUnique({
-      where: { id: params.id },
+      where: { id: params.id, role: { userId: owner.id } },
       include: {
         role: { select: { id: true, title: true } },
         outreach: { orderBy: { sentAt: "desc" } },
       },
     }),
-    db.messageTemplate.findMany({ orderBy: { updatedAt: "desc" } }),
+    db.messageTemplate.findMany({ where: { userId: owner.id }, orderBy: { updatedAt: "desc" } }),
     getSettings(),
   ]);
   if (!candidate) notFound();
@@ -53,7 +55,7 @@ export default async function OutreachPage({
   const olderOutreach = candidate.outreach.slice(3);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <fieldset disabled={readOnly} className="min-w-0 max-w-2xl space-y-6">
       <div>
         <h1 className="text-3xl">Outreach</h1>
         <p className="mt-1 text-ink/70">
@@ -145,7 +147,8 @@ export default async function OutreachPage({
               <CopyButton text={rendered} label="Copy message" hasGaps={hasGaps} />
               {profileHref(candidate.profileUrl) ? (
                 <a
-                  href={profileHref(candidate.profileUrl)!}
+                  href={readOnly ? undefined : profileHref(candidate.profileUrl)!}
+                  aria-disabled={readOnly}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-secondary"
@@ -213,6 +216,6 @@ export default async function OutreachPage({
           )}
         </section>
       )}
-    </div>
+    </fieldset>
   );
 }

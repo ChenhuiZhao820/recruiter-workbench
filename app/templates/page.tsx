@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { createTemplate, deleteTemplate, updateTemplate } from "@/app/actions/templates";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { KNOWN_PLACEHOLDERS, isKnownPlaceholder, placeholderSplitPattern } from "@/lib/render";
@@ -26,10 +27,11 @@ function BodyWithHighlights({ body }: { body: string }) {
 }
 
 export default async function TemplatesPage() {
-  const templates = await db.messageTemplate.findMany({ orderBy: { updatedAt: "desc" } });
+  const { owner, readOnly } = await getWorkspace();
+  const templates = await db.messageTemplate.findMany({ where: { userId: owner.id }, orderBy: { updatedAt: "desc" } });
 
   return (
-    <div className="max-w-3xl">
+    <fieldset key={owner.id} disabled={readOnly} className="min-w-0 max-w-3xl">
       <h1 className="mb-2 text-3xl">Templates</h1>
       <p className="mb-6 text-ink/70">
         Write a message once, with gaps for the details. Available gaps:{" "}
@@ -127,6 +129,6 @@ export default async function TemplatesPage() {
           </button>
         </ActionForm>
       </div>
-    </div>
+    </fieldset>
   );
 }

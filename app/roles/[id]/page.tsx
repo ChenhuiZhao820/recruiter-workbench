@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { parseObjectArray, parseStringArray } from "@/lib/json";
 import { STAGES, STAGE_LABELS } from "@/lib/stages";
 import { formatWhen } from "@/lib/dates";
@@ -20,15 +21,16 @@ type Skill = { skill: string; real_vs_buzzword: string };
 type Question = { question: string; strong_answer: string; weak_answer: string };
 
 export default async function RolePage({ params }: { params: { id: string } }) {
+  const { owner, readOnly } = await getWorkspace();
   const role = await db.role.findUnique({
-    where: { id: params.id },
+    where: { id: params.id, userId: owner.id },
     include: {
       briefing: true,
       candidates: {
         orderBy: { lastActivityAt: "desc" },
         include: { outreach: { orderBy: { sentAt: "desc" }, take: 1 } },
       },
-      searches: { orderBy: { updatedAt: "desc" } },
+      searches: { where: { userId: owner.id }, orderBy: { updatedAt: "desc" } },
     },
   });
   if (!role) notFound();
@@ -58,7 +60,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
     : `/searches/new?roleId=${role.id}`;
 
   return (
-    <div className="space-y-8">
+    <fieldset disabled={readOnly} className="min-w-0 space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">
@@ -70,17 +72,17 @@ export default async function RolePage({ params }: { params: { id: string } }) {
             <p className="mt-2 text-sm text-ink/70">
               This role is closed, so it is hidden from Roles and its candidates are left
               out of Follow-ups.{" "}
-              <Link href={`/roles/${role.id}/edit`} className="underline">
+              {!readOnly && <><Link href={`/roles/${role.id}/edit`} className="underline">
                 Reopen it
               </Link>{" "}
-              to bring them back.
+              to bring them back.</>}
             </p>
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/roles/${role.id}/edit`} className="btn-quiet">
+          {!readOnly && <Link href={`/roles/${role.id}/edit`} className="btn-quiet">
             Edit role
-          </Link>
+          </Link>}
           <form action={deleteRole}>
             <input type="hidden" name="id" value={role.id} />
             <ConfirmSubmitButton
@@ -177,9 +179,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               Pay and skills are estimates to sanity check, not facts.
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              <Link href={createSearchHref} className="btn-primary">
+              {!readOnly && <Link href={createSearchHref} className="btn-primary">
                 Create a search from this
-              </Link>
+              </Link>}
               <GenerateBriefingButton roleId={role.id} hasBriefing={true} hasJobDesc={hasJobDesc} />
             </div>
           </div>
@@ -233,7 +235,8 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         {profileHref(c.profileUrl) && (
                           <a
-                            href={profileHref(c.profileUrl)!}
+                            href={readOnly ? undefined : profileHref(c.profileUrl)!}
+                            aria-disabled={readOnly}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn-quiet"
@@ -384,9 +387,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
           <h2 id="searches-heading" className="text-2xl">
             Searches for this role
           </h2>
-          <Link href={`/searches/new?roleId=${role.id}`} className="btn-secondary">
+          {!readOnly && <Link href={`/searches/new?roleId=${role.id}`} className="btn-secondary">
             New search
-          </Link>
+          </Link>}
         </div>
         {role.searches.length === 0 ? (
           <p className="text-ink/70">
@@ -429,9 +432,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <RunSearchButton searchId={s.id} keywords={keywords} />
+                    {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} />}
                     <Link href={`/searches/${s.id}/edit`} className="btn-quiet">
-                      Edit
+                      {readOnly ? "View details" : "Edit"}
                     </Link>
                   </div>
                 </li>
@@ -440,6 +443,6 @@ export default async function RolePage({ params }: { params: { id: string } }) {
           </ul>
         )}
       </section>
-    </div>
+    </fieldset>
   );
 }

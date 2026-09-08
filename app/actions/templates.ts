@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { requireWritableWorkspace } from "@/lib/workspace";
 import type { FormState } from "@/lib/formState";
 import { unknownPlaceholders } from "@/lib/render";
 import { CONNECTION_NOTE_LIMIT, isTemplateKind } from "@/lib/templates";
@@ -30,6 +31,7 @@ function readKind(formData: FormData): string {
 }
 
 export async function createTemplate(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableWorkspace();
   const name = String(formData.get("name") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
   if (!name) return { error: "Give the template a name." };
@@ -38,12 +40,13 @@ export async function createTemplate(_prev: FormState, formData: FormData): Prom
   const tooLong = lengthProblem(kind, body);
   if (tooLong) return { error: tooLong };
 
-  await db.messageTemplate.create({ data: { name, body, kind } });
+  await db.messageTemplate.create({ data: { userId: user.id, name, body, kind } });
   revalidatePath("/templates");
   return { notice: placeholderNotice(body, `Template "${name}" created.`) };
 }
 
 export async function updateTemplate(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
@@ -54,14 +57,16 @@ export async function updateTemplate(_prev: FormState, formData: FormData): Prom
   const tooLong = lengthProblem(kind, body);
   if (tooLong) return { error: tooLong };
 
-  await db.messageTemplate.update({ where: { id }, data: { name, body, kind } });
+  const result = await db.messageTemplate.updateMany({ where: { id, userId: user.id }, data: { name, body, kind } });
+  if (!result.count) return { error: "That template could not be found." };
   revalidatePath("/templates");
   return { notice: placeholderNotice(body, "Template saved.") };
 }
 
 export async function deleteTemplate(formData: FormData) {
+  const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
-  await db.messageTemplate.delete({ where: { id } });
+  await db.messageTemplate.deleteMany({ where: { id, userId: user.id } });
   revalidatePath("/templates");
 }

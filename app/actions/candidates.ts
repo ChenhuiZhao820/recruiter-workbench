@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { requireWritableWorkspace } from "@/lib/workspace";
 import type { FormState } from "@/lib/formState";
 import { isStage } from "@/lib/stages";
 import { normalizeProfileUrl } from "@/lib/urls";
@@ -13,10 +14,13 @@ function revalidateCandidate(roleId: string) {
 }
 
 export async function addCandidate(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableWorkspace();
   const roleId = String(formData.get("roleId") ?? "");
   const fullName = String(formData.get("fullName") ?? "").trim();
   if (!roleId) return { error: "That role could not be found." };
   if (!fullName) return { error: "Enter the candidate's name before adding them." };
+  const role = await db.role.findUnique({ where: { id: roleId, userId: user.id }, select: { id: true } });
+  if (!role) return { error: "That role could not be found." };
 
   const profileUrl = normalizeProfileUrl(String(formData.get("profileUrl") ?? ""));
 
@@ -24,7 +28,7 @@ export async function addCandidate(_prev: FormState, formData: FormData): Promis
   // is exactly the double-outreach the follow-up guard exists to prevent.
   if (profileUrl) {
     const existing = await db.candidate.findFirst({
-      where: { roleId, profileUrl },
+      where: { roleId, role: { userId: user.id }, profileUrl },
       select: { fullName: true },
     });
     if (existing) {
@@ -36,7 +40,7 @@ export async function addCandidate(_prev: FormState, formData: FormData): Promis
 
   await db.candidate.create({
     data: {
-      roleId,
+      role: { connect: { id: roleId, userId: user.id } },
       fullName,
       profileUrl,
       headline: String(formData.get("headline") ?? "").trim() || null,
@@ -45,7 +49,7 @@ export async function addCandidate(_prev: FormState, formData: FormData): Promis
   });
   revalidateCandidate(roleId);
 
-  const sameName = await db.candidate.count({ where: { roleId, fullName } });
+  const sameName = await db.candidate.count({ where: { roleId, role: { userId: user.id }, fullName } });
   if (sameName > 1) {
     return {
       notice: `Added. Note that this role already had someone called ${fullName} — check you have not added the same person twice.`,
@@ -55,18 +59,19 @@ export async function addCandidate(_prev: FormState, formData: FormData): Promis
 }
 
 export async function updateCandidate(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
   const fullName = String(formData.get("fullName") ?? "").trim();
   if (!id) return { error: "That candidate could not be found." };
   if (!fullName) return { error: "A candidate needs a name. Nothing was saved." };
 
   const profileUrl = normalizeProfileUrl(String(formData.get("profileUrl") ?? ""));
-  const current = await db.candidate.findUnique({ where: { id }, select: { roleId: true } });
+  const current = await db.candidate.findUnique({ where: { id, role: { userId: user.id } }, select: { roleId: true } });
   if (!current) return { error: "That candidate could not be found." };
 
   if (profileUrl) {
     const clash = await db.candidate.findFirst({
-      where: { roleId: current.roleId, profileUrl, NOT: { id } },
+      where: { roleId: current.roleId, role: { userId: user.id }, profileUrl, NOT: { id } },
       select: { fullName: true },
     });
     if (clash) {
@@ -77,7 +82,7 @@ export async function updateCandidate(_prev: FormState, formData: FormData): Pro
   }
 
   const candidate = await db.candidate.update({
-    where: { id },
+    where: { id, role: { userId: user.id } },
     data: {
       fullName,
       profileUrl,
@@ -90,19 +95,21 @@ export async function updateCandidate(_prev: FormState, formData: FormData): Pro
 }
 
 export async function setCandidateStage(formData: FormData) {
+  const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
   const stage = String(formData.get("stage") ?? "");
   if (!id || !isStage(stage)) return;
   const candidate = await db.candidate.update({
-    where: { id },
+    where: { id, role: { userId: user.id } },
     data: { stage, lastActivityAt: new Date() },
   });
   revalidateCandidate(candidate.roleId);
 }
 
 export async function deleteCandidate(formData: FormData) {
+  const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
-  const candidate = await db.candidate.delete({ where: { id } });
+  const candidate = await db.candidate.delete({ where: { id, role: { userId: user.id } } });
   revalidateCandidate(candidate.roleId);
 }

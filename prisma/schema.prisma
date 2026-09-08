@@ -7,7 +7,67 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  name             String
+  role             String            @default("recruiter")
+  active           Boolean           @default(true)
+  passwordHash     String?
+  authVersion      Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  roles            Role[]
+  searches         SavedSearch[]
+  templates        MessageTemplate[]
+  settings         Settings?
+  sessions         Session[]
+  activationTokens ActivationToken[]
+}
+
+model Session {
+  tokenHash   String   @id
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewUserId  String?
+  authVersion Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ActivationToken {
+  tokenHash String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model LoginThrottle {
+  key      String   @id
+  attempts Int      @default(0)
+  resetAt  DateTime
+}
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  actorId      String
+  targetUserId String?
+  action       String
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+}
+
 model Role {
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   id          String      @id @default(cuid())
   title       String
   client      String?
@@ -18,6 +78,8 @@ model Role {
   searches    SavedSearch[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
 }
 
 model Briefing {
@@ -34,6 +96,8 @@ model Briefing {
 }
 
 model SavedSearch {
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   id          String   @id @default(cuid())
   name        String
   role        Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
@@ -47,6 +111,8 @@ model SavedSearch {
   lastUsedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Candidate {
@@ -68,6 +134,8 @@ model Candidate {
 }
 
 model MessageTemplate {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   id        String   @id @default(cuid())
   name      String
   body      String   // contains {{first_name}}, {{role_title}}, {{calendar_link}}
@@ -78,6 +146,8 @@ model MessageTemplate {
   outreach  OutreachLog[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model OutreachLog {
@@ -94,12 +164,14 @@ model OutreachLog {
 }
 
 model Settings {
-  id               Int    @id @default(1)   // single row
+  userId           String @unique
+  user             User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id               Int    @id @default(autoincrement())   // one row per user
   recruiterName    String @default("")
   calendarLink     String @default("")
   bookingChaseDays Int    @default(2)
   quietNudgeDays   Int    @default(5)
-  // Shared secret for the browser extension's capture endpoint. Empty means
+  // Hashed secret for the browser extension's capture endpoint. Null means
   // capture is switched off, so an unset token cannot be guessed as "".
-  captureToken     String @default("")
+  captureTokenHash String? @unique
 }

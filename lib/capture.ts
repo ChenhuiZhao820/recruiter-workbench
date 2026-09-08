@@ -28,6 +28,7 @@ export function corsHeaders(origin: string | null): Record<string, string> {
       ? origin
       : "";
   return {
+    "Cache-Control": "no-store",
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Capture-Token",

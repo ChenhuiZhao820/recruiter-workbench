@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { requireWritableWorkspace } from "@/lib/workspace";
 import type { FormState } from "@/lib/formState";
 import { splitList } from "@/lib/json";
 import { revalidatePath } from "next/cache";
@@ -24,33 +25,59 @@ function revalidateSearches(roleId?: string | null) {
   if (roleId) revalidatePath(`/roles/${roleId}`);
 }
 
+function ownedSearch(userId: string) {
+  return { userId, OR: [{ roleId: null }, { role: { userId } }] };
+}
+
 export async function createSearch(_prev: FormState, formData: FormData): Promise<FormState> {
-  const data = searchDataFrom(formData);
+  const user = await requireWritableWorkspace();
+  const { roleId, ...data } = searchDataFrom(formData);
   if (!data.name) return { error: "Give the search a name before creating it." };
-  await db.savedSearch.create({ data });
-  revalidateSearches(data.roleId);
-  redirect(data.roleId ? `/roles/${data.roleId}` : "/searches");
+  if (roleId && !await db.role.findUnique({ where: { id: roleId, userId: user.id }, select: { id: true } })) {
+    return { error: "That role could not be found." };
+  }
+  await db.savedSearch.create({
+    data: {
+      ...data,
+      user: { connect: { id: user.id } },
+      ...(roleId ? { role: { connect: { id: roleId, userId: user.id } } } : {}),
+    },
+  });
+  revalidateSearches(roleId);
+  redirect(roleId ? `/roles/${roleId}` : "/searches");
 }
 
 export async function updateSearch(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
-  const data = searchDataFrom(formData);
+  const { roleId, ...data } = searchDataFrom(formData);
   if (!id) return { error: "That search could not be found." };
   if (!data.name) return { error: "A search needs a name. Nothing was saved." };
-  await db.savedSearch.update({ where: { id }, data });
-  revalidateSearches(data.roleId);
+  const original = await db.savedSearch.findUnique({ where: { id, ...ownedSearch(user.id) } });
+  if (!original) return { error: "That search could not be found." };
+  if (roleId && !await db.role.findUnique({ where: { id: roleId, userId: user.id }, select: { id: true } })) {
+    return { error: "That role could not be found." };
+  }
+  await db.savedSearch.update({
+    where: { id, ...ownedSearch(user.id) },
+    data: { ...data, role: roleId ? { connect: { id: roleId, userId: user.id } } : { disconnect: true } },
+  });
+  revalidateSearches(original.roleId);
+  revalidateSearches(roleId);
   redirect("/searches");
 }
 
 export async function duplicateSearch(formData: FormData) {
+  const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
-  const original = await db.savedSearch.findUnique({ where: { id } });
+  const original = await db.savedSearch.findUnique({ where: { id, ...ownedSearch(user.id) } });
   if (!original) return;
   await db.savedSearch.create({
     data: {
+      user: { connect: { id: user.id } },
       name: `${original.name} (copy)`,
-      roleId: original.roleId,
+      ...(original.roleId ? { role: { connect: { id: original.roleId, userId: user.id } } } : {}),
       groupLabel: original.groupLabel,
       titles: original.titles,
       keywords: original.keywords,
@@ -63,27 +90,34 @@ export async function duplicateSearch(formData: FormData) {
 }
 
 export async function renameSearch(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   if (!id) return { error: "That search could not be found." };
   if (!name) return { error: "Enter a new name. The search was not renamed." };
-  const search = await db.savedSearch.update({ where: { id }, data: { name } });
+  const original = await db.savedSearch.findUnique({ where: { id, ...ownedSearch(user.id) } });
+  if (!original) return { error: "That search could not be found." };
+  const search = await db.savedSearch.update({ where: { id, ...ownedSearch(user.id) }, data: { name } });
   revalidateSearches(search.roleId);
   return { notice: `Renamed to "${name}".` };
 }
 
 export async function deleteSearch(formData: FormData) {
+  const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
-  const search = await db.savedSearch.delete({ where: { id } });
-  revalidateSearches(search.roleId);
+  const original = await db.savedSearch.findUnique({ where: { id, ...ownedSearch(user.id) } });
+  if (!original) return;
+  await db.savedSearch.deleteMany({ where: { id, ...ownedSearch(user.id) } });
+  revalidateSearches(original.roleId);
 }
 
 // Called after the browser opens the LinkedIn tab. Records when the search
 // was last used. Makes no request to LinkedIn.
 export async function markSearchUsed(id: string) {
+  const user = await requireWritableWorkspace();
   const search = await db.savedSearch.update({
-    where: { id },
+    where: { id, ...ownedSearch(user.id) },
     data: { lastUsedAt: new Date() },
   });
   revalidateSearches(search.roleId);

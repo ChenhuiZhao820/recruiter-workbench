@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getFollowUpBuckets, type FollowUpRow } from "@/lib/followups";
 import { getSettings } from "@/lib/settings";
+import { getWorkspace } from "@/lib/workspace";
 import { formatWhen } from "@/lib/dates";
 import { templateKindLabel } from "@/lib/templates";
 import { profileHref } from "@/lib/urls";
@@ -33,10 +34,12 @@ function Bucket({
   description,
   rows,
   actions,
+  readOnly,
 }: {
   title: string;
   description: string;
   rows: FollowUpRow[];
+  readOnly: boolean;
   actions: (row: FollowUpRow) => React.ReactNode;
 }) {
   return (
@@ -68,7 +71,8 @@ function Bucket({
               <div className="mt-3 flex flex-wrap gap-2">
                 {profileHref(row.profileUrl) && (
                   <a
-                    href={profileHref(row.profileUrl)!}
+                    href={readOnly ? undefined : profileHref(row.profileUrl)!}
+                    aria-disabled={readOnly}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn-quiet"
@@ -87,10 +91,11 @@ function Bucket({
 }
 
 export default async function FollowUpsPage() {
+  const { readOnly } = await getWorkspace();
   const [buckets, settings] = await Promise.all([getFollowUpBuckets(), getSettings()]);
 
   return (
-    <div className="space-y-8">
+    <fieldset disabled={readOnly} className="min-w-0 space-y-8">
       <div>
         <h1 className="text-3xl">Follow-ups today</h1>
         <p className="mt-1 text-ink/70">
@@ -99,6 +104,7 @@ export default async function FollowUpsPage() {
       </div>
 
       <Bucket
+        readOnly={readOnly}
         title="Replied, waiting on you"
         description="They answered and you have not responded yet."
         rows={buckets.repliedWaiting}
@@ -114,6 +120,7 @@ export default async function FollowUpsPage() {
       />
 
       <Bucket
+        readOnly={readOnly}
         title="Said yes, never booked"
         description={`Keen but no booking after ${settings.bookingChaseDays} ${settings.bookingChaseDays === 1 ? "day" : "days"}.`}
         rows={buckets.saidYesNeverBooked}
@@ -129,6 +136,7 @@ export default async function FollowUpsPage() {
       />
 
       <Bucket
+        readOnly={readOnly}
         title="Went quiet"
         description={`Contacted, no reply, and more than ${settings.quietNudgeDays} days have passed.`}
         rows={buckets.wentQuiet}
@@ -142,6 +150,6 @@ export default async function FollowUpsPage() {
           </>
         )}
       />
-    </div>
+    </fieldset>
   );
 }

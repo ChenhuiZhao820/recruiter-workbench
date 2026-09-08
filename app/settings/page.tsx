@@ -1,4 +1,5 @@
 import { getSettings } from "@/lib/settings";
+import { getWorkspace } from "@/lib/workspace";
 import { updateSettings } from "@/app/actions/settings";
 import { CaptureKeyPanel } from "@/components/CaptureKeyPanel";
 import { ActionForm } from "@/components/ActionForm";
@@ -6,10 +7,11 @@ import { ActionForm } from "@/components/ActionForm";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  const { owner, readOnly } = await getWorkspace();
   const settings = await getSettings();
 
   return (
-    <div className="max-w-xl">
+    <fieldset key={owner.id} disabled={readOnly} className="min-w-0 max-w-xl">
       <h1 className="mb-6 text-3xl">Settings</h1>
       <ActionForm action={updateSettings} className="card space-y-4">
         <div>
@@ -68,13 +70,13 @@ export default async function SettingsPage() {
         </button>
       </ActionForm>
       <div className="mt-6">
-        <CaptureKeyPanel token={settings.captureToken} />
+        <CaptureKeyPanel enabled={Boolean(settings.captureTokenHash)} readOnly={readOnly} />
       </div>
 
       <p className="mt-4 text-sm text-ink/60">
         The briefing API key lives on the server, in the .env file. It is never shown here or
         sent to the browser.
       </p>
-    </div>
+    </fieldset>
   );
 }

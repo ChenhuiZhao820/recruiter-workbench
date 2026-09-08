@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { getSettings } from "./settings";
+import { getWorkspace } from "./workspace";
 
 // The three follow-up buckets. Computed from stages and timestamps we store
 // ourselves. Nothing here is read from LinkedIn.
@@ -27,11 +28,12 @@ function daysAgo(days: number): Date {
 }
 
 export async function getFollowUpBuckets(): Promise<FollowUpBuckets> {
+  const { owner } = await getWorkspace();
   const settings = await getSettings();
   const candidates = await db.candidate.findMany({
     where: {
       stage: { in: ["replied", "booking_pending", "contacted"] },
-      role: { status: "open" },
+      role: { status: "open", userId: owner.id },
     },
     include: {
       role: { select: { id: true, title: true } },

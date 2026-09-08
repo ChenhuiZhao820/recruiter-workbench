@@ -1,0 +1,177 @@
+datasource db {
+  provider = "postgresql"            // change to "postgresql" for deploy
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  name             String
+  role             String            @default("recruiter")
+  active           Boolean           @default(true)
+  passwordHash     String?
+  authVersion      Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  roles            Role[]
+  searches         SavedSearch[]
+  templates        MessageTemplate[]
+  settings         Settings?
+  sessions         Session[]
+  activationTokens ActivationToken[]
+}
+
+model Session {
+  tokenHash   String   @id
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewUserId  String?
+  authVersion Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ActivationToken {
+  tokenHash String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model LoginThrottle {
+  key      String   @id
+  attempts Int      @default(0)
+  resetAt  DateTime
+}
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  actorId      String
+  targetUserId String?
+  action       String
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+}
+
+model Role {
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id          String      @id @default(cuid())
+  title       String
+  client      String?
+  jobDesc     String?
+  status      String      @default("open")   // "open" | "closed"
+  briefing    Briefing?
+  candidates  Candidate[]
+  searches    SavedSearch[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+}
+
+model Briefing {
+  id                 String   @id @default(cuid())
+  role               Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId             String   @unique
+  dayToDay           String
+  keySkills          String   // JSON string: [{ skill, real_vs_buzzword }]
+  searchTitles       String   // JSON string: [string]
+  targetCompanies    String   // JSON string: [string]
+  salaryRange        String
+  firstCallQuestions String   // JSON string: [{ question, strong_answer, weak_answer }]
+  createdAt          DateTime @default(now())
+}
+
+model SavedSearch {
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id          String   @id @default(cuid())
+  name        String
+  role        Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  roleId      String?
+  groupLabel  String?              // grouping by client or role type
+  titles      String   @default("[]")  // JSON string: [string]
+  keywords    String   @default("")
+  industries  String   @default("[]")  // JSON string, shown as re-apply checklist
+  locations   String   @default("[]")  // JSON string, shown as re-apply checklist
+  filterNotes String?
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Candidate {
+  id             String   @id @default(cuid())
+  role           Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId         String
+  fullName       String
+  profileUrl     String?              // pasted by the recruiter
+  headline       String?
+  notes          String?
+  stage          String   @default("sourced")
+  // stages: sourced | contacted | replied | booking_pending | booked | rejected | placed
+  lastActivityAt DateTime @default(now())
+  lastNudgeAt    DateTime?
+  nudgeCount     Int      @default(0)
+  outreach       OutreachLog[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model MessageTemplate {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id        String   @id @default(cuid())
+  name      String
+  body      String   // contains {{first_name}}, {{role_title}}, {{calendar_link}}
+  // "connection_note" | "message". A connection note is the short text that
+  // rides along with an invitation and is capped by LinkedIn; a message is
+  // sent once you are connected and has room to breathe.
+  kind      String   @default("message")
+  outreach  OutreachLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model OutreachLog {
+  id           String   @id @default(cuid())
+  candidate    Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateId  String
+  template     MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateId   String?
+  renderedBody String
+  // Copied from the template at send time so the record survives the
+  // template being edited or deleted.
+  kind         String   @default("message")
+  sentAt       DateTime @default(now())   // when the recruiter marked it sent
+}
+
+model Settings {
+  userId           String @unique
+  user             User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id               Int    @id @default(autoincrement())   // one row per user
+  recruiterName    String @default("")
+  calendarLink     String @default("")
+  bookingChaseDays Int    @default(2)
+  quietNudgeDays   Int    @default(5)
+  // Hashed secret for the browser extension's capture endpoint. Null means
+  // capture is switched off, so an unset token cannot be guessed as "".
+  captureTokenHash String? @unique
+}

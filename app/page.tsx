@@ -1,19 +1,21 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { getFollowUpBuckets } from "@/lib/followups";
 
 export const dynamic = "force-dynamic";
 
 export default async function RolesPage() {
+  const { owner, readOnly } = await getWorkspace();
   const [roles, closedRoles, buckets] = await Promise.all([
     db.role.findMany({
-      where: { status: "open" },
+      where: { userId: owner.id, status: "open" },
       orderBy: { createdAt: "desc" },
       include: { _count: { select: { candidates: true } } },
     }),
     // Closed roles stay off the main list but must remain reachable.
     db.role.findMany({
-      where: { status: "closed" },
+      where: { userId: owner.id, status: "closed" },
       orderBy: { updatedAt: "desc" },
       include: { _count: { select: { candidates: true } } },
     }),
@@ -33,9 +35,9 @@ export default async function RolesPage() {
     <div>
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-3xl">Roles</h1>
-        <Link href="/roles/new" className="btn-primary">
+        {!readOnly && <Link href="/roles/new" className="btn-primary">
           New role
-        </Link>
+        </Link>}
       </div>
 
       {roles.length === 0 ? (

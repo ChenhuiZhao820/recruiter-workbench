@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <section id="connection" class="connection" aria-label="Connected capture account" hidden>
+      <span class="hint">Connected capture account</span>
+      <strong id="account-name"></strong>
+      <span id="account-email"></span>
+      <span id="account-origin" class="hint"></span>
+      <p class="hint">Saves belong to this account. Website login is independent; switching accounts on the website does not switch this extension.</p>
+    </section>
+    <div id="setup" class="screen" hidden>
+      <h1>Connect to your workbench</h1>
+      <label for="url">Workbench address</label>
+      <input id="url" type="url" value="http://localhost:3000" spellcheck="false" />
+      <label for="token">Capture key</label>
+      <input id="token" type="password" placeholder="From Settings in the workbench" spellcheck="false" />
+      <p class="hint">Settings &rarr; Browser extension &rarr; Generate your personal capture key. Each key connects one account, independently of your website login. To switch accounts here, paste that account's key.</p>
+      <p class="hint">Use this build's configured HTTPS workbench address, or HTTP localhost/127.0.0.1 for local development. Other remote addresses are not allowed.</p>
+      <button id="connect" class="primary" type="button">Connect</button>
+      <p id="setup-message" class="message" role="status"></p>
+    </div>
+
+    <div id="capture" class="screen" hidden>
+      <div class="row">
+        <h1>Save profile</h1>
+        <button id="settings" class="link" type="button">Settings</button>
+      </div>
+
+      <label for="role">Role</label>
+      <select id="role" required></select>
+
+      <label for="name">Name</label>
+      <input id="name" type="text" spellcheck="false" required />
+
+      <label for="headline">Headline</label>
+      <input id="headline" type="text" spellcheck="false" />
+
+      <label for="profile">Profile link</label>
+      <input id="profile" type="url" spellcheck="false" />
+
+      <label for="notes">Your note</label>
+      <textarea id="notes" rows="3" placeholder="What you actually think. Nobody else can write this."></textarea>
+
+      <button id="save" class="primary" type="button">Save to workbench</button>
+      <p id="message" class="message" role="status"></p>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

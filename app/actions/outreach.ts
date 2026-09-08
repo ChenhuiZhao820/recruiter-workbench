@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { requireWritableWorkspace } from "@/lib/workspace";
 import { revalidatePath } from "next/cache";
 
 // Stages that already say more than "I have messaged this person". Sending
@@ -20,34 +21,52 @@ const STAGES_WHERE_SENDING_IS_A_NUDGE = new Set(["contacted", "booking_pending"]
 // The recruiter clicks this after pasting and sending the message themselves
 // on LinkedIn. It only updates our own records. Nothing is sent from here.
 export async function markAsSent(formData: FormData) {
+  const user = await requireWritableWorkspace();
   const candidateId = String(formData.get("candidateId") ?? "");
   const templateId = String(formData.get("templateId") ?? "").trim() || null;
   const renderedBody = String(formData.get("renderedBody") ?? "");
   if (!candidateId || !renderedBody) return;
 
-  const candidate = await db.candidate.findUnique({ where: { id: candidateId } });
-  if (!candidate) return;
+  const roleId = await db.$transaction(async (tx) => {
+    const candidate = await tx.candidate.findUnique({ where: { id: candidateId, role: { userId: user.id } } });
+    if (!candidate) return null;
 
-  await db.outreachLog.create({
-    data: { candidateId, templateId, renderedBody },
+    // Copy the kind off the template now: the log has to stay meaningful even
+    // if the template is later edited or deleted.
+    const template = templateId
+      ? await tx.messageTemplate.findUnique({ where: { id: templateId, userId: user.id }, select: { kind: true } })
+      : null;
+    if (templateId && !template) return null;
+    const kind = template?.kind ?? "message";
+
+    await tx.outreachLog.create({
+      data: {
+        candidate: { connect: { id: candidateId, role: { userId: user.id } } },
+        ...(templateId ? { template: { connect: { id: templateId, userId: user.id } } } : {}),
+        renderedBody,
+        kind,
+      },
+    });
+
+    const now = new Date();
+    const stage = STAGES_SENDING_DOES_NOT_CHANGE.has(candidate.stage)
+      ? candidate.stage
+      : "contacted";
+    const isNudge = STAGES_WHERE_SENDING_IS_A_NUDGE.has(candidate.stage);
+
+    await tx.candidate.update({
+      where: { id: candidateId, role: { userId: user.id } },
+      data: {
+        stage,
+        lastActivityAt: now,
+        ...(isNudge ? { lastNudgeAt: now, nudgeCount: { increment: 1 } } : {}),
+      },
+    });
+    return candidate.roleId;
   });
+  if (!roleId) return;
 
-  const now = new Date();
-  const stage = STAGES_SENDING_DOES_NOT_CHANGE.has(candidate.stage)
-    ? candidate.stage
-    : "contacted";
-  const isNudge = STAGES_WHERE_SENDING_IS_A_NUDGE.has(candidate.stage);
-
-  await db.candidate.update({
-    where: { id: candidateId },
-    data: {
-      stage,
-      lastActivityAt: now,
-      ...(isNudge ? { lastNudgeAt: now, nudgeCount: { increment: 1 } } : {}),
-    },
-  });
-
-  revalidatePath(`/roles/${candidate.roleId}`);
+  revalidatePath(`/roles/${roleId}`);
   revalidatePath("/followups");
   revalidatePath("/");
 }

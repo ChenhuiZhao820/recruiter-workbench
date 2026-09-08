@@ -7,6 +7,12 @@ import {
   renderTemplate,
   unknownPlaceholders,
 } from "../lib/render";
+import {
+  CONNECTION_NOTE_LIMIT,
+  isTemplateKind,
+  limitForKind,
+  templateKindLabel,
+} from "../lib/templates";
 
 // Pure-function tests: no browser, no database. These cover the article rule
 // densely, which would be slow and pointless to do through the UI.
@@ -136,4 +142,21 @@ test("the highlight patterns stay in step with what is actually filled", () => {
     "{{recruiter_name}}",
     "",
   ]);
+});
+
+test("a connection note is capped, a message is not", () => {
+  expect(limitForKind("connection_note")).toBe(CONNECTION_NOTE_LIMIT);
+  expect(limitForKind("message")).toBeNull();
+  expect(templateKindLabel("connection_note")).toBe("Connection note");
+  expect(templateKindLabel("message")).toBe("Message");
+  expect(isTemplateKind("connection_note")).toBe(true);
+  expect(isTemplateKind("carrier_pigeon")).toBe(false);
+});
+
+test("placeholders change the length that actually matters", () => {
+  // The template fits; the rendered message for a real candidate does not.
+  const body = "Hi {{first_name}}, ".padEnd(CONNECTION_NOTE_LIMIT - 10, "x");
+  expect(body.length).toBeLessThan(CONNECTION_NOTE_LIMIT);
+  const rendered = renderTemplate(body, { first_name: "Bartholomew-Fitzgerald" });
+  expect(rendered.length).toBeGreaterThan(body.length);
 });

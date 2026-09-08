@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
-import { db, note, backdateCandidate, daysAgo } from "./helpers";
+import { db, note, backdateCandidate, daysAgo, TEST_ADMIN_ID } from "./helpers";
 
 // The whole recruiter-day walkthrough, in order, against a fresh DB.
 // Suboptimal-but-working behavior is recorded via note(); real breakage fails.
@@ -77,7 +77,7 @@ test("01 settings: name and calendar link save and persist", async ({ page }) =>
   await expect(page.getByLabel("Calendar link")).toHaveValue(CALENDAR);
 
   // The name is not write-only: it is offered as a template gap.
-  expect((await db.settings.findFirst())!.recruiterName).toBe("Alex Recruiter");
+  expect((await db.settings.findUnique({ where: { userId: TEST_ADMIN_ID } }))!.recruiterName).toBe("Alex Recruiter");
   await page.goto("/templates");
   await expect(page.getByText("{{recruiter_name}}").first()).toBeVisible();
 });
@@ -483,7 +483,7 @@ test("17 clearing a threshold is refused instead of silently defaulted", async (
   await page.getByLabel("Chase a booking after (days)").fill("");
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.locator("[data-form-message='error']")).toContainText("Chase a booking after");
-  expect((await db.settings.findFirst())!.bookingChaseDays).toBe(3);
+  expect((await db.settings.findUnique({ where: { userId: TEST_ADMIN_ID } }))!.bookingChaseDays).toBe(3);
   await page.reload();
   await expect(page.getByLabel("Chase a booking after (days)")).toHaveValue("3");
 
@@ -493,7 +493,7 @@ test("17 clearing a threshold is refused instead of silently defaulted", async (
   await quiet.fill("0");
   await page.getByRole("button", { name: "Save settings" }).click();
   expect(await quiet.evaluate((el) => (el as HTMLInputElement).checkValidity())).toBe(false);
-  expect((await db.settings.findFirst())!.quietNudgeDays).toBe(5);
+  expect((await db.settings.findUnique({ where: { userId: TEST_ADMIN_ID } }))!.quietNudgeDays).toBe(5);
 
   await page.reload();
   await page.getByLabel("Chase a booking after (days)").fill("2");

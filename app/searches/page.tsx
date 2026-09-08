@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { parseStringArray } from "@/lib/json";
 import { formatWhen } from "@/lib/dates";
 import { deleteSearch, duplicateSearch, renameSearch } from "@/app/actions/searches";
@@ -10,7 +11,9 @@ import { ActionForm } from "@/components/ActionForm";
 export const dynamic = "force-dynamic";
 
 export default async function SearchesPage() {
+  const { owner, readOnly } = await getWorkspace();
   const searches = await db.savedSearch.findMany({
+    where: { userId: owner.id, OR: [{ roleId: null }, { role: { userId: owner.id } }] },
     orderBy: { updatedAt: "desc" },
     include: { role: { select: { id: true, title: true } } },
   });
@@ -26,12 +29,12 @@ export default async function SearchesPage() {
   );
 
   return (
-    <div>
+    <fieldset disabled={readOnly} className="min-w-0">
       <div className="mb-2 flex items-center justify-between gap-4">
         <h1 className="text-3xl">Searches</h1>
-        <Link href="/searches/new" className="btn-primary">
+        {!readOnly && <Link href="/searches/new" className="btn-primary">
           New search
-        </Link>
+        </Link>}
       </div>
       <p className="mb-6 text-ink/70">
         Run opens LinkedIn in a new tab with your keywords. Apply the saved filters there by
@@ -99,9 +102,9 @@ export default async function SearchesPage() {
                         </div>
                       )}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <RunSearchButton searchId={s.id} keywords={keywords} />
+                        {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} />}
                         <Link href={`/searches/${s.id}/edit`} className="btn-quiet">
-                          Edit
+                          {readOnly ? "View details" : "Edit"}
                         </Link>
                         <form action={duplicateSearch}>
                           <input type="hidden" name="id" value={s.id} />
@@ -146,6 +149,6 @@ export default async function SearchesPage() {
           ))}
         </div>
       )}
-    </div>
+    </fieldset>
   );
 }

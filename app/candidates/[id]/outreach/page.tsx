@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { getSettings } from "@/lib/settings";
 import { firstName, hasGaps as messageHasGaps, renderTemplate } from "@/lib/render";
 import { formatWhen } from "@/lib/dates";
 import { profileHref } from "@/lib/urls";
 import { markAsSent } from "@/app/actions/outreach";
+import { limitForKind, templateKindLabel } from "@/lib/templates";
 import { CopyButton } from "@/components/CopyButton";
 import { StageBadge } from "@/components/StageBadge";
 
@@ -18,15 +20,16 @@ export default async function OutreachPage({
   params: { id: string };
   searchParams: { template?: string };
 }) {
+  const { owner, readOnly } = await getWorkspace();
   const [candidate, templates, settings] = await Promise.all([
     db.candidate.findUnique({
-      where: { id: params.id },
+      where: { id: params.id, role: { userId: owner.id } },
       include: {
         role: { select: { id: true, title: true } },
         outreach: { orderBy: { sentAt: "desc" } },
       },
     }),
-    db.messageTemplate.findMany({ orderBy: { updatedAt: "desc" } }),
+    db.messageTemplate.findMany({ where: { userId: owner.id }, orderBy: { updatedAt: "desc" } }),
     getSettings(),
   ]);
   if (!candidate) notFound();
@@ -43,11 +46,16 @@ export default async function OutreachPage({
       })
     : "";
   const hasGaps = messageHasGaps(rendered);
+  // The cap applies to the rendered text, not the template, because the
+  // placeholders change its length for every candidate.
+  const selectedKind = selected?.kind ?? "message";
+  const kindLimit = limitForKind(selectedKind);
+  const overBy = kindLimit === null ? 0 : rendered.length - kindLimit;
   const recentOutreach = candidate.outreach.slice(0, 3);
   const olderOutreach = candidate.outreach.slice(3);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <fieldset disabled={readOnly} className="min-w-0 max-w-2xl space-y-6">
       <div>
         <h1 className="text-3xl">Outreach</h1>
         <p className="mt-1 text-ink/70">
@@ -86,6 +94,9 @@ export default async function OutreachPage({
                     aria-current={t.id === selected?.id ? "true" : undefined}
                   >
                     {t.name}
+                    <span className="ml-1.5 font-mono text-[0.65rem] uppercase tracking-wider opacity-70">
+                      {templateKindLabel(t.kind)}
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -96,6 +107,27 @@ export default async function OutreachPage({
             <div className="whitespace-pre-wrap rounded border border-line bg-sunken p-4">
               {rendered}
             </div>
+            <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-ink-soft">
+              <span>
+                Sent as a {templateKindLabel(selectedKind).toLowerCase()}.
+              </span>
+              <span className={`font-mono text-xs tabular ${overBy > 0 ? "text-rose-900" : ""}`}>
+                {kindLimit === null
+                  ? `${rendered.length} characters`
+                  : `${rendered.length} / ${kindLimit}`}
+              </span>
+            </p>
+            {overBy > 0 && (
+              <p role="alert" className="text-sm text-rose-900">
+                This is {overBy} {overBy === 1 ? "character" : "characters"} over the
+                connection-note limit once {firstName(candidate.fullName)}&rsquo;s details are
+                filled in. Trim it in{" "}
+                <Link href="/templates" className="underline">
+                  Templates
+                </Link>{" "}
+                or shorten it after pasting.
+              </p>
+            )}
             {hasGaps && (
               <p role="alert" className="text-sm text-rose-900">
                 This message still has gaps. Anything marked [MISSING] needs a detail
@@ -115,7 +147,8 @@ export default async function OutreachPage({
               <CopyButton text={rendered} label="Copy message" hasGaps={hasGaps} />
               {profileHref(candidate.profileUrl) ? (
                 <a
-                  href={profileHref(candidate.profileUrl)!}
+                  href={readOnly ? undefined : profileHref(candidate.profileUrl)!}
+                  aria-disabled={readOnly}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-secondary"
@@ -154,7 +187,10 @@ export default async function OutreachPage({
           <ul className="space-y-2">
             {recentOutreach.map((o) => (
               <li key={o.id} className="rounded border border-line bg-sunken p-3 text-sm">
-                <p className="mb-1 text-ink/60">Sent {formatWhen(o.sentAt)}</p>
+                <p className="mb-1 flex flex-wrap items-center gap-2 text-ink/60">
+                  <span className="chip">{templateKindLabel(o.kind)}</span>
+                  <span>sent {formatWhen(o.sentAt)}</span>
+                </p>
                 <p className="whitespace-pre-wrap">{o.renderedBody}</p>
               </li>
             ))}
@@ -168,7 +204,10 @@ export default async function OutreachPage({
               <ul className="mt-2 space-y-2">
                 {olderOutreach.map((o) => (
                   <li key={o.id} className="rounded border border-line bg-sunken p-3 text-sm">
-                    <p className="mb-1 text-ink/60">Sent {formatWhen(o.sentAt)}</p>
+                    <p className="mb-1 flex flex-wrap items-center gap-2 text-ink/60">
+                      <span className="chip">{templateKindLabel(o.kind)}</span>
+                      <span>sent {formatWhen(o.sentAt)}</span>
+                    </p>
                     <p className="whitespace-pre-wrap">{o.renderedBody}</p>
                   </li>
                 ))}
@@ -177,6 +216,6 @@ export default async function OutreachPage({
           )}
         </section>
       )}
-    </div>
+    </fieldset>
   );
 }

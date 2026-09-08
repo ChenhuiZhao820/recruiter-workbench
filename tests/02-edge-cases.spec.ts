@@ -1,5 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
-import { db, note } from "./helpers";
+import { db, note, TEST_ADMIN_ID } from "./helpers";
+import { CONNECTION_NOTE_LIMIT } from "../lib/templates";
 
 // Paths the happy-path walkthrough never visits: error states, bad input,
 // and the side effects of deleting or closing things.
@@ -215,7 +216,7 @@ test("E8 a search keeps its link to a role that has been closed", async ({ page 
   const closed = (await db.role.findFirst({ where: { title: "Closing Role" } }))!;
   expect(closed.status).toBe("closed");
   const search = await db.savedSearch.create({
-    data: { name: "Closed role search", roleId: closed.id, titles: JSON.stringify(["Ops"]) },
+    data: { userId: TEST_ADMIN_ID, name: "Closed role search", roleId: closed.id, titles: JSON.stringify(["Ops"]) },
   });
 
   await page.goto(`/searches/${search.id}/edit`);
@@ -233,10 +234,10 @@ test("E8 a search keeps its link to a role that has been closed", async ({ page 
 });
 
 test("E9 outreach for a candidate with no template offers a way out", async ({ page }) => {
-  const templates = await db.messageTemplate.findMany();
+  const templates = await db.messageTemplate.findMany({ where: { userId: TEST_ADMIN_ID } });
   const backup = templates.map((t) => ({ ...t }));
   // Templates can go without touching the logs: OutreachLog.templateId is SetNull.
-  await db.messageTemplate.deleteMany({});
+  await db.messageTemplate.deleteMany({ where: { userId: TEST_ADMIN_ID } });
 
   const dana = await db.candidate.findFirst({ where: { fullName: "Dana NoScheme" } });
   await page.goto(`/candidates/${dana!.id}/outreach`);
@@ -245,7 +246,7 @@ test("E9 outreach for a candidate with no template offers a way out", async ({ p
 
   for (const t of backup) {
     await db.messageTemplate.create({
-      data: { id: t.id, name: t.name, body: t.body, createdAt: t.createdAt, updatedAt: t.updatedAt },
+      data: { ...t },
     });
   }
 });
@@ -322,4 +323,65 @@ test("E12 your name from Settings fills a sign-off placeholder", async ({ page }
   await page.goto(`/candidates/${cara!.id}/outreach?template=${(await db.messageTemplate.findFirst({ where: { name: "Sign-off" } }))!.id}`);
   await expect(page.getByText("[MISSING: recruiter_name]")).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark as sent" })).toBeDisabled();
+});
+
+test("E13 a connection note is length-checked and its channel is recorded", async ({ page }) => {
+  await page.goto("/templates");
+  await page.locator("#new-tname").fill("Invite note");
+  await page.locator("#new-t-kind").selectOption("connection_note");
+
+  // Over the cap: the counter turns and the save is refused.
+  const tooLong = "Hi {{first_name}}, ".padEnd(CONNECTION_NOTE_LIMIT + 40, "x");
+  await page.locator("#new-tbody").fill(tooLong);
+  await expect(page.getByText(`${tooLong.length} / ${CONNECTION_NOTE_LIMIT}`)).toBeVisible();
+  await page.getByRole("button", { name: "Create template" }).click();
+  await expect(page.locator("[data-form-message='error']")).toContainText("over the");
+  expect(await db.messageTemplate.count({ where: { name: "Invite note" } })).toBe(0);
+
+  // Within the cap: it saves, and says which door it uses.
+  await page.locator("#new-t-kind").selectOption("connection_note");
+  await page.locator("#new-tbody").fill("Hi {{first_name}}, quick intro about a {{role_title}} role - open to a chat?");
+  await page.getByRole("button", { name: "Create template" }).click();
+  await expect(page.getByRole("heading", { name: "Invite note" })).toBeVisible();
+  const saved = await db.messageTemplate.findFirst({ where: { name: "Invite note" } });
+  expect(saved!.kind).toBe("connection_note");
+
+  const card = page.locator("li.card", { hasText: "Invite note" });
+  await expect(card.locator(".chip", { hasText: "Connection note" })).toBeVisible();
+});
+
+test("E14 the pipeline records which door each message went through", async ({ page }) => {
+  const dana = await db.candidate.findFirst({ where: { fullName: "Dana NoScheme" } });
+  const invite = await db.messageTemplate.findFirst({ where: { name: "Invite note" } });
+
+  await page.goto(`/candidates/${dana!.id}/outreach?template=${invite!.id}`);
+  await expect(page.getByText("Sent as a connection note.")).toBeVisible();
+  // The count is of the rendered text, not the template.
+  const preview = await page
+    .locator("section[aria-label='Message preview'] div.whitespace-pre-wrap")
+    .innerText();
+  await expect(
+    page.getByText(`${preview.length} / ${CONNECTION_NOTE_LIMIT}`)
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark as sent" }).click();
+  await expect(page.getByRole("heading", { name: /Past outreach/ })).toBeVisible();
+
+  const log = await db.outreachLog.findFirst({
+    where: { candidateId: dana!.id },
+    orderBy: { sentAt: "desc" },
+  });
+  expect(log!.kind).toBe("connection_note");
+
+  // "Contacted" alone was ambiguous; the candidate row now says how.
+  await page.goto(`/roles/${dana!.roleId}`);
+  const card = page.locator("li.card", { hasText: "Dana NoScheme" });
+  await expect(card.getByText(/Invitation sent/)).toBeVisible();
+
+  // The log keeps its channel even after the template is deleted.
+  await db.messageTemplate.delete({ where: { id: invite!.id } });
+  await page.goto(`/candidates/${dana!.id}/outreach`);
+  await expect(
+    page.locator("section[aria-label='Past outreach'] .chip", { hasText: "Connection note" }).first()
+  ).toBeVisible();
 });

@@ -32,9 +32,15 @@ yarn-error.log*
 # local database
 prisma/dev.db
 prisma/dev.db-journal
+prisma/accounts.db
+prisma/accounts.db-journal
+/prisma/private-local/
+prisma/test-*.db*
+/dist/capture-extension/
 
 # tests
 /.next-test/
+/.next-build/
 /test-results/
 /playwright-report/
 prisma/test.db
@@ -47,3 +53,6 @@ tests/findings.log
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local editor/agent tooling
+.claude/

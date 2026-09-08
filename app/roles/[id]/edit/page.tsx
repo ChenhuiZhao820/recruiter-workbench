@@ -1,18 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { updateRole } from "@/app/actions/roles";
 import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditRolePage({ params }: { params: { id: string } }) {
-  const role = await db.role.findUnique({ where: { id: params.id } });
+  const { owner, readOnly } = await getWorkspace();
+  const role = await db.role.findUnique({ where: { id: params.id, userId: owner.id } });
   if (!role) notFound();
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="mb-6 text-3xl">Edit role</h1>
+    <fieldset disabled={readOnly} className="min-w-0 max-w-2xl">
+      <h1 className="mb-6 text-3xl">{readOnly ? "Role details" : "Edit role"}</h1>
       <ActionForm action={updateRole} className="card space-y-4">
         <input type="hidden" name="id" value={role.id} />
         <div>
@@ -57,6 +59,6 @@ export default async function EditRolePage({ params }: { params: { id: string } 
           </Link>
         </div>
       </ActionForm>
-    </div>
+    </fieldset>
   );
 }

@@ -1,6 +1,9 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { requireWritableWorkspace } from "@/lib/workspace";
+import { hashToken } from "@/lib/auth-crypto";
+import { newCaptureToken } from "@/lib/capture";
 import type { FormState } from "@/lib/formState";
 import { revalidatePath } from "next/cache";
 
@@ -15,6 +18,7 @@ function readDays(formData: FormData, field: string): number | null {
 }
 
 export async function updateSettings(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableWorkspace();
   const bookingChaseDays = readDays(formData, "bookingChaseDays");
   const quietNudgeDays = readDays(formData, "quietNudgeDays");
 
@@ -27,17 +31,44 @@ export async function updateSettings(_prev: FormState, formData: FormData): Prom
     };
   }
 
-  await db.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
-  await db.settings.update({
-    where: { id: 1 },
-    data: {
-      recruiterName: String(formData.get("recruiterName") ?? "").trim(),
-      calendarLink: String(formData.get("calendarLink") ?? "").trim(),
-      bookingChaseDays: bookingChaseDays!,
-      quietNudgeDays: quietNudgeDays!,
-    },
+  const data = {
+    recruiterName: String(formData.get("recruiterName") ?? "").trim(),
+    calendarLink: String(formData.get("calendarLink") ?? "").trim(),
+    bookingChaseDays: bookingChaseDays!,
+    quietNudgeDays: quietNudgeDays!,
+  };
+  await db.settings.upsert({
+    where: { userId: user.id },
+    update: data,
+    create: { userId: user.id, ...data },
   });
   revalidatePath("/settings");
   revalidatePath("/followups");
   return { notice: "Settings saved." };
+}
+
+// Generates (or replaces) the secret the browser extension uses. Replacing it
+// immediately stops the old one working, which is the point.
+export async function regenerateCaptureToken(): Promise<FormState & { token?: string }> {
+  const user = await requireWritableWorkspace();
+  const token = newCaptureToken();
+  const captureTokenHash = hashToken(token);
+  await db.settings.upsert({
+    where: { userId: user.id },
+    update: { captureTokenHash },
+    create: { userId: user.id, captureTokenHash },
+  });
+  revalidatePath("/settings");
+  return { token, notice: "New capture key generated. Copy it now: it will only be shown once. Paste it into the extension; the old key has stopped working." };
+}
+
+export async function clearCaptureToken(): Promise<FormState> {
+  const user = await requireWritableWorkspace();
+  await db.settings.upsert({
+    where: { userId: user.id },
+    update: { captureTokenHash: null },
+    create: { userId: user.id, captureTokenHash: null },
+  });
+  revalidatePath("/settings");
+  return { notice: "Capture switched off. The extension can no longer save to this workbench." };
 }

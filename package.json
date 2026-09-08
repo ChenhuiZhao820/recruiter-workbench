@@ -1,5 +1,5 @@
 {
-  "name": "recruiter-workbench",
+  "name": "capture",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,9 +7,19 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "playwright test",
+    "test": "npm run test:unit && playwright test",
+    "test:unit": "node --test tests/capture-extension.test.mjs tests/account-migration.test.mjs tests/auth-security.test.mjs tests/local-init.test.mjs tests/multiaccount-migration.test.mjs",
+    "test:extension": "node --test tests/capture-extension.test.mjs",
     "test:headed": "playwright test --headed",
-    "test:report": "playwright show-report"
+    "test:report": "playwright show-report",
+    "build:hosted": "node scripts/prepare-postgres.mjs --check && prisma generate --schema prisma/postgresql/schema.prisma && next build",
+    "db:deploy:hosted": "prisma migrate deploy --schema prisma/postgresql/schema.prisma",
+    "db:client:local": "prisma generate --schema prisma/schema.prisma",
+    "db:init:local": "node scripts/init-local.mjs",
+    "accounts:bootstrap": "node scripts/bootstrap-admin.mjs",
+    "accounts:import": "node scripts/import-legacy.mjs",
+    "accounts:migrate:hosted": "node scripts/import-accounts.mjs",
+    "extension:package": "node scripts/package-extension.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

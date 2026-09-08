@@ -2,6 +2,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
+import { requireWritableWorkspace } from "@/lib/workspace";
 import { revalidatePath } from "next/cache";
 
 type BriefingJson = {
@@ -78,13 +79,14 @@ async function callModel(title: string, jobDesc: string): Promise<string> {
 export async function generateBriefing(
   roleId: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireWritableWorkspace();
   if (!process.env.ANTHROPIC_API_KEY) {
     return {
       ok: false,
       error: "No API key is set on the server. Add ANTHROPIC_API_KEY to the .env file and restart.",
     };
   }
-  const role = await db.role.findUnique({ where: { id: roleId } });
+  const role = await db.role.findUnique({ where: { id: roleId, userId: user.id } });
   if (!role) return { ok: false, error: "Role not found." };
   if (!role.jobDesc?.trim()) {
     return { ok: false, error: "Add a job description to this role first, then try again." };
@@ -104,7 +106,7 @@ export async function generateBriefing(
   }
 
   await db.briefing.upsert({
-    where: { roleId },
+    where: { roleId, role: { userId: user.id } },
     update: {
       dayToDay: briefing.day_to_day,
       keySkills: JSON.stringify(briefing.key_skills),
@@ -114,7 +116,7 @@ export async function generateBriefing(
       firstCallQuestions: JSON.stringify(briefing.first_call_questions),
     },
     create: {
-      roleId,
+      role: { connect: { id: roleId, userId: user.id } },
       dayToDay: briefing.day_to_day,
       keySkills: JSON.stringify(briefing.key_skills),
       searchTitles: JSON.stringify(briefing.search_titles),

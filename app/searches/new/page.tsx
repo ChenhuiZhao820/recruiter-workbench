@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { SearchForm } from "@/components/SearchForm";
 
 export const dynamic = "force-dynamic";
@@ -8,16 +9,20 @@ export default async function NewSearchPage({
 }: {
   searchParams: { roleId?: string; titles?: string; companies?: string; name?: string };
 }) {
+  const { owner, readOnly } = await getWorkspace();
   const roles = await db.role.findMany({
-    where: searchParams.roleId
-      ? { OR: [{ status: "open" }, { id: searchParams.roleId }] }
-      : { status: "open" },
+    where: {
+      userId: owner.id,
+      ...(searchParams.roleId
+        ? { OR: [{ status: "open" }, { id: searchParams.roleId }] }
+        : { status: "open" }),
+    },
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, client: true, status: true },
   });
 
   return (
-    <div className="max-w-2xl">
+    <fieldset key={owner.id} disabled={readOnly} className="min-w-0 max-w-2xl">
       <h1 className="mb-2 text-3xl">New search</h1>
       <p className="mb-6 text-ink/70">
         Saved searches open LinkedIn with your keywords filled in. You apply the location and
@@ -27,13 +32,13 @@ export default async function NewSearchPage({
         roles={roles}
         initial={{
           name: searchParams.name ?? "",
-          roleId: searchParams.roleId ?? "",
+          roleId: roles.some((role) => role.id === searchParams.roleId) ? searchParams.roleId : "",
           titles: searchParams.titles ?? "",
           filterNotes: searchParams.companies
             ? `Target companies: ${searchParams.companies}`
             : "",
         }}
       />
-    </div>
+    </fieldset>
   );
 }

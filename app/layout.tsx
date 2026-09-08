@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import Link from "next/link";
+import { getSession } from "@/lib/auth";
+import { getWorkspace } from "@/lib/workspace";
+import { logout } from "@/app/actions/auth";
+import { stopViewing } from "@/app/actions/accounts";
 import "./globals.css";
 
 // Vendored rather than fetched from Google at build time: next/font/google
@@ -26,7 +30,7 @@ const mono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Basanite Recruiter Workbench",
+  title: "Capture",
   description: "A private workspace for your recruiting pipeline.",
 };
 
@@ -38,7 +42,9 @@ const NAV = [
   { href: "/settings", label: "Settings" },
 ];
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await getSession();
+  const workspace = session ? await getWorkspace() : null;
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body
@@ -55,9 +61,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 href="/"
                 className="font-mono text-sm font-medium uppercase tracking-[0.18em] text-ink"
               >
-                Basanite
+                Capture
               </Link>
-              <nav aria-label="Main">
+              {session && <nav aria-label="Main">
                 <ul className="flex flex-wrap gap-x-4 gap-y-1">
                   {NAV.map((item) => (
                     <li key={item.href}>
@@ -70,10 +76,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </li>
                   ))}
                 </ul>
-              </nav>
+              </nav>}
+              {session && <div className="flex flex-wrap items-center gap-3 text-sm">
+                <Link href="/account" className="underline">{session.user.name} · {session.user.email}</Link>
+                {session.user.role === "admin" && <Link href="/admin" className="underline">Accounts</Link>}
+                <form action={logout}><button type="submit" className="btn-quiet">Sign out</button></form>
+              </div>}
             </div>
           </header>
-          <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+          {workspace?.readOnly && <div role="status" className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">
+            <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
+              <p>Read-only workspace: <strong>{workspace.owner.name}</strong> ({workspace.owner.email}). You are still signed in as {workspace.user.name}.</p>
+              <form action={stopViewing}><button type="submit" className="btn-secondary">Return to my workspace</button></form>
+            </div>
+          </div>}
+          <main key={workspace?.owner.id ?? "public"} className="mx-auto max-w-5xl px-4 py-6">{children}</main>
         </div>
       </body>
     </html>

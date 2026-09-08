@@ -1,25 +1,32 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { parseStringArray } from "@/lib/json";
 import { SearchForm } from "@/components/SearchForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditSearchPage({ params }: { params: { id: string } }) {
-  const search = await db.savedSearch.findUnique({ where: { id: params.id } });
+  const { owner, readOnly } = await getWorkspace();
+  const search = await db.savedSearch.findUnique({
+    where: { id: params.id, userId: owner.id, OR: [{ roleId: null }, { role: { userId: owner.id } }] },
+  });
   if (!search) notFound();
 
   // Open roles, plus this search's own role even if it has been closed. Without
   // it the select would fall back to "No role" and saving would wipe the link.
   const roles = await db.role.findMany({
-    where: search.roleId ? { OR: [{ status: "open" }, { id: search.roleId }] } : { status: "open" },
+    where: {
+      userId: owner.id,
+      ...(search.roleId ? { OR: [{ status: "open" }, { id: search.roleId }] } : { status: "open" }),
+    },
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, client: true, status: true },
   });
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="mb-6 text-3xl">Edit search</h1>
+    <fieldset disabled={readOnly} className="min-w-0 max-w-2xl">
+      <h1 className="mb-6 text-3xl">{readOnly ? "Search details" : "Edit search"}</h1>
       <SearchForm
         roles={roles}
         searchId={search.id}
@@ -34,6 +41,6 @@ export default async function EditSearchPage({ params }: { params: { id: string 
           filterNotes: search.filterNotes ?? "",
         }}
       />
-    </div>
+    </fieldset>
   );
 }

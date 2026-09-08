@@ -1,0 +1,96 @@
+:root {
+  --ink: #10161c;
+  --ink-soft: #55636f;
+  --paper: #f6f7f9;
+  --surface: #ffffff;
+  --line: #dfe4ea;
+  --accent: #0f6b5c;
+  --accent-hard: #0b564a;
+  --bad: #7f1d3a;
+  --good: #0f6b5c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 320px;
+  margin: 0;
+  padding: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.screen { display: flex; flex-direction: column; gap: 4px; }
+.screen[hidden] { display: none; }
+
+.connection {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.connection[hidden] { display: none; }
+.connection strong { font-size: 14px; }
+
+.row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+
+h1 { font-size: 14px; margin: 0 0 6px; letter-spacing: -0.01em; }
+
+label {
+  font: 500 10px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-soft);
+  margin-top: 8px;
+}
+
+input, select, textarea {
+  width: 100%;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+textarea { resize: vertical; }
+
+button.primary {
+  margin-top: 12px;
+  padding: 8px 10px;
+  font: 500 13px/1 system-ui, sans-serif;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.primary:hover { background: var(--accent-hard); }
+button.primary:disabled { background: #9aa6b1; cursor: not-allowed; }
+
+button.link {
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hint { margin: 6px 0 0; color: var(--ink-soft); font-size: 11px; }
+
+.message { margin: 8px 0 0; font-size: 12px; min-height: 1em; }
+.message.bad { color: var(--bad); }
+.message.good { color: var(--good); }

@@ -42,11 +42,80 @@ The extension addresses exactly that: **automate the transcription, not the brow
 
 ---
 
-## 3. 合规立场——最重要的约束 / Compliance stance — the most important constraint
+## 3. 核心设计原则 / The core design principle
+
+> **本节与第 4 节共同决定了整个产品的形态。任何新功能都应先按本节判断归属，再动手实现。**
+>
+> **This section and section 4 together determine the shape of the whole product. Any new feature should be placed by this rule before it is built.**
 
 **中文**
 
-这是整份规格中最重要的一节。如果实现与本节冲突，以本节为准。
+这个产品的每一个功能，都由同一条原则决定形态：
+
+> **在不危及用户 LinkedIn 账号安全的前提下，用户自己范围内的工作，尽可能自动化到底；凡是要与外部对象对接的动作，则在把准备工作自动化到极致之后，把最后一步的控制权完整交给用户。**
+
+判断某个动作属于哪一边，只问一个问题：**这个动作的后果落在哪里？**
+
+- **只落在用户自己的机器和数据里** → 全自动，不要问，不要让用户重复输入任何机器已经知道的东西。让用户手工做机器能做的事，是这个产品要消灭的浪费。
+- **会被外部的人看到、收到，或被外部平台记录** → 自动化仍然要做满，但停在最后一步。由用户看过、可以改、然后亲自触发。
+
+必须强调：**给控制权不等于少做自动化。** 两者不是取舍。正确的做法是把准备工作做到最完整——消息填好、长度算好、链接备好、判重做完——只把「按下发送」这一个动作留给人。做少了准备工作，不叫尊重用户，叫偷懒。
+
+**English**
+
+Every feature in this product takes its shape from one rule:
+
+> **Within the bounds of keeping the user's LinkedIn account safe: automate the work that happens entirely on the user's own side as completely as possible; for any action that reaches an outside party, automate the preparation to the hilt and then hand the final step to the user, whole.**
+
+To decide which side an action falls on, ask one question: **where does the consequence land?**
+
+- **Only on the user's own machine and data** → automate it fully. Do not ask, and never make the user retype something the machine already knows. Making a person do by hand what the machine can do is precisely the waste this product exists to remove.
+- **Seen or received by someone outside, or recorded by an outside platform** → still automate everything up to the last step, then stop. The user reviews it, can change it, and triggers it themselves.
+
+To be explicit: **giving control is not the same as automating less.** They are not a trade-off. The correct move is to make the preparation as complete as possible — message filled in, length counted, link ready, duplicates checked — and leave only the act of sending to the human. Doing less preparation is not deference to the user; it is laziness.
+
+### 3.1 这条原则在现有产品中的体现 / How the rule already shows up
+
+| 用户自己的工作 → 全自动 / User's own side → fully automated | 对外的动作 → 保留控制权 / Reaches outside → control kept |
+| --- | --- |
+| 从职位描述自动生成简报：日常工作、关键技能与识别话术、别名职位、目标公司、薪资区间、首轮问题 / Briefing generated from the job description | 搜索只打开一个标签页，筛选条件由用户在 LinkedIn 界面里自己施加，保存的条件以清单形式提示 / Search only opens a tab; filters are applied by the user inside LinkedIn, with saved chips as a checklist |
+| 搜索关键词由简报预填 / Search keywords pre-filled from the briefing | 消息只进剪贴板，由用户自己粘贴发送 / The message only reaches the clipboard; the user pastes and sends it |
+| 模板占位符自动填充：名字、职位、日历链接、署名 / Template placeholders filled in automatically | 「标记为已发送」由用户点击，应用无从知道是否真的发出 / "Mark as sent" is the user's click; the app cannot know whether it was really sent |
+| 冠词按读音自动纠正（an Operations Director / a UX Designer）/ Articles corrected by sound | 打开个人主页只是打开标签页 / Opening a profile only opens a tab |
+| 主页链接自动补全协议头并规范化 / Profile links normalised | 扩展读取页面必须由点击触发，一次一人 / The extension reads a page only on a click, one person at a time |
+| 同一职位下重复链接自动拦截 / Duplicate links blocked automatically | 候选人备注留给用户自己写 / The note on a candidate is left for the user to write |
+| 跟进分桶完全由时间戳与阶段自动计算 / Follow-up buckets computed from timestamps and stage | |
+| 重复催促自动防护 / The double-nudge guard | |
+| 连接邀请字数自动计数并在超限时拒绝保存 / Connection-note length counted, and saving refused when over | |
+| 扩展自动提取姓名、头衔、链接，并记住上次使用的职位 / The extension extracts name, headline and link, and remembers the last role | |
+
+### 3.2 一个精确的例子 / A precise example
+
+**中文**
+
+当消息里还有未填的空缺（`[MISSING: calendar_link]`）时：
+
+- **「标记为已发送」被禁用** —— 这会写进本地记录，是用户自己范围内的事，规则可以严格，不给出错的机会。
+- **「复制消息」仍然可用** —— 复制之后要发给真人，是对外的动作。用户可能就是想复制出来手动补全再发。禁止他复制，是替他做他自己该做的决定。界面因此改为在复制后提示「已复制，但仍有空缺」。
+
+同一条原则也解释了长度检查的两种处理：模板保存时超限**直接拒绝**（本地记录，可以严格），而预览页面超限只**警告不阻止复制**（对外动作，保留控制权）。
+
+**English**
+
+When a message still has an unfilled gap (`[MISSING: calendar_link]`):
+
+- **"Mark as sent" is disabled** — that writes to the local record, which is entirely the user's own side, so the rule can be strict and simply not offer the chance to get it wrong.
+- **"Copy message" stays enabled** — what is copied goes to a real person, which is an outward action. The user may well intend to copy it and finish it by hand. Blocking the copy would be making their decision for them. So the interface instead says "Copied, but it still has gaps."
+
+The same rule explains the two treatments of the length check: saving an over-length template is **refused outright** (a local record, so strictness is free), while an over-length preview only **warns without blocking the copy** (an outward action, so control is kept).
+
+---
+
+## 4. 合规立场——自动化的硬边界 / Compliance stance — the hard limit on automation
+
+**中文**
+
+本节是第 3 节原则中「不危及账号安全」这一前提的具体落实，也是自动化边界的硬约束。如果实现与本节冲突，以本节为准。
 
 LinkedIn 的用户协议禁止使用自动化手段抓取数据，且执法是账号级的。承担风险的是 Paul 本人的账号，也就是他的生计。因此扩展必须满足：
 
@@ -60,7 +129,7 @@ LinkedIn 的用户协议禁止使用自动化手段抓取数据，且执法是�
 
 **English**
 
-This is the most important section in this document. If an implementation conflicts with it, this section wins.
+This section is where the "keeping the account safe" precondition of section 3 becomes concrete, and it is the hard limit on how far automation may go. If an implementation conflicts with it, this section wins.
 
 LinkedIn's User Agreement prohibits automated data collection, and enforcement is account-level. The account at risk is Paul's own — his livelihood. The extension must therefore satisfy:
 
@@ -74,7 +143,7 @@ In one line: reading a page must be triggered by a click from Paul, one person a
 
 ---
 
-## 4. 用户故事 / User story
+## 5. 用户故事 / User story
 
 **中文**
 
@@ -90,9 +159,9 @@ The notes box must be left for him to fill in. His judgement of a candidate is t
 
 ---
 
-## 5. 扩展需求 / Extension requirements
+## 6. 扩展需求 / Extension requirements
 
-### 5.1 manifest
+### 6.1 manifest
 
 **中文** — Manifest V3。权限仅限 `activeTab`、`scripting`、`storage`。`host_permissions` 只包含本地工作台地址。使用 `action.default_popup` 打开弹窗。
 
@@ -113,7 +182,7 @@ The notes box must be left for him to fill in. His judgement of a candidate is t
 }
 ```
 
-### 5.2 首次连接 / First-run connection
+### 6.2 首次连接 / First-run connection
 
 **中文**
 
@@ -131,7 +200,7 @@ On first open, if `chrome.storage.local` holds no `url` or `token`, show a conne
 - Capture key, which the user generates on the workbench's Settings page and pastes here
 - A "Connect" button: stores both in `chrome.storage.local`, then requests the role list; on success show the capture screen, on failure show an actionable error
 
-### 5.3 采集界面 / Capture screen
+### 6.3 采集界面 / Capture screen
 
 **中文**
 
@@ -161,7 +230,7 @@ Fields: role (select, required), name (text, required), headline (text, optional
 
 On success: store `lastRoleId`, clear the notes box, show a confirmation. On failure: show the server's `error` text and re-enable the save button.
 
-### 5.4 页面提取 / Page extraction
+### 6.4 页面提取 / Page extraction
 
 **中文**
 
@@ -187,13 +256,13 @@ If `chrome.scripting.executeScript` throws (Chrome refuses injection into its ow
 
 ---
 
-## 6. 服务端 API 契约 / Server API contract
+## 7. 服务端 API 契约 / Server API contract
 
 **中文** — 端点已在主应用中实现：`app/api/capture/route.ts`。扩展必须按此契约调用。所有请求都必须带 `X-Capture-Token` 请求头。
 
 **English** — The endpoint already exists in the main application at `app/api/capture/route.ts`. The extension must call it per this contract. Every request must carry the `X-Capture-Token` header.
 
-### 6.1 `GET /api/capture`
+### 7.1 `GET /api/capture`
 
 **中文** — 返回开放状态的职位列表（已关闭的职位不返回）。
 
@@ -205,7 +274,7 @@ If `chrome.scripting.executeScript` throws (Chrome refuses injection into its ow
 
 `client` 可能为 `null` / `client` may be `null`.
 
-### 6.2 `POST /api/capture`
+### 7.2 `POST /api/capture`
 
 **中文** — 请求体 / **English** — Request body:
 
@@ -229,7 +298,7 @@ If `chrome.scripting.executeScript` throws (Chrome refuses injection into its ow
 
 **English** — `warning` is a string when the role already had a candidate with the same name (the save still happens), otherwise `null`. The extension should display it.
 
-### 6.3 状态码 / Status codes
+### 7.3 状态码 / Status codes
 
 | 状态码 / Code | 含义 / Meaning | 扩展应当 / Extension should |
 | --- | --- | --- |
@@ -245,7 +314,7 @@ If `chrome.scripting.executeScript` throws (Chrome refuses injection into its ow
 { "error": "一句可操作的说明 / one actionable sentence" }
 ```
 
-### 6.4 认证与 CORS / Auth and CORS
+### 7.4 认证与 CORS / Auth and CORS
 
 **中文**
 
@@ -265,7 +334,7 @@ If `chrome.scripting.executeScript` throws (Chrome refuses injection into its ow
 
 ---
 
-## 7. 服务端已有行为，扩展不要重复实现 / Server behaviour the extension must not duplicate
+## 8. 服务端已有行为，扩展不要重复实现 / Server behaviour the extension must not duplicate
 
 **中文**
 
@@ -287,35 +356,71 @@ The following already lives on the server; the extension should submit what the 
 
 ---
 
-## 8. 验收标准 / Acceptance criteria
+## 9. 验收标准 / Acceptance criteria
+
+### 9.1 边界（第 3、4 节）/ The boundary (sections 3 and 4)
 
 **中文**
 
 1. `manifest.json` 中不包含针对 `linkedin.com` 的 `host_permissions`，不包含 `content_scripts`，不包含读取页面的 `background`。
 2. 未点击扩展图标时，扩展不读取任何页面内容。
-3. 在一个 LinkedIn 个人主页点击图标后，姓名、职位头衔、主页链接被填入，且全部可编辑。
-4. 未配置密钥时显示连接界面；密钥错误时返回连接界面并给出可操作提示。
-5. 职位下拉只显示开放职位，默认选中上次使用的职位。
-6. 保存成功后备注框清空，`lastRoleId` 被记录。
-7. 重复保存同一主页链接时，显示服务端的 `409` 提示，且不产生第二条记录。
-8. 在非个人主页（例如搜索结果页）点击图标时，界面给出提示但仍允许手动填写并保存。
-9. 除工作台地址外，扩展不向任何主机发起请求。
+3. 除工作台地址外，扩展不向任何主机发起请求。
 
 **English**
 
 1. `manifest.json` contains no `host_permissions` for `linkedin.com`, no `content_scripts`, and no page-reading `background`.
 2. With the toolbar icon unclicked, the extension reads no page content.
-3. Clicking the icon on a LinkedIn profile fills in name, headline and profile link, all of which remain editable.
-4. With no key configured, the connect screen shows; with a wrong key, it returns to the connect screen with an actionable message.
-5. The role dropdown lists open roles only and defaults to the last used one.
-6. After a successful save the notes box is cleared and `lastRoleId` is stored.
-7. Saving the same profile link twice shows the server's `409` message and creates no second record.
-8. Clicking the icon on a non-profile page (e.g. a search-results page) warns the user but still allows manual entry and saving.
-9. The extension makes no request to any host other than the workbench address.
+3. The extension makes no request to any host other than the workbench address.
+
+### 9.2 该自动的必须自动 / What must be automated
+
+**中文**
+
+4. 在一个 LinkedIn 个人主页点击图标后，姓名、职位头衔、主页链接三项均已填好，用户无需输入任何页面上已有的信息。
+5. 职位下拉默认选中上次使用的职位，用户在同一职位下连续采集时无需每次重选。
+6. 保存成功后备注框自动清空，可直接进入下一个人。
+7. 主页链接在提交前已规范化为同一形式，使同一个人始终产出同一个 URL。
+
+**English**
+
+4. Clicking the icon on a LinkedIn profile leaves name, headline and profile link already filled in; the user types nothing that is already on the page.
+5. The role dropdown defaults to the last role used, so consecutive captures onto one role need no reselection.
+6. After a successful save the notes box is cleared, ready for the next person.
+7. The profile link is normalised to a single form before submission, so the same person always yields the same URL.
+
+### 9.3 该留给人的必须留住 / What must stay with the human
+
+**中文**
+
+8. 扩展不得自动保存。填好之后必须由用户点击保存。
+9. 扩展不得代写备注，也不得用页面内容预填备注框。
+10. 所有字段在保存前均可编辑；某个字段没抓到时，行为降级为用户自己输入，而不是报错或阻断。
+11. 在非个人主页（例如搜索结果页）点击图标时，界面给出提示但仍允许手动填写并保存——提示，而不是禁止。
+
+**English**
+
+8. The extension must not save automatically. After the fields are filled, the user clicks save.
+9. The extension must not write the note, nor pre-fill the notes box from page content.
+10. Every field is editable before saving; a field that could not be read degrades to the user typing it, rather than to an error or a block.
+11. Clicking the icon on a non-profile page (e.g. a search-results page) warns the user but still allows manual entry and saving — a warning, not a prohibition.
+
+### 9.4 其余行为 / Remaining behaviour
+
+**中文**
+
+12. 未配置密钥时显示连接界面；密钥错误时返回连接界面并给出可操作提示。
+13. 职位下拉只显示开放职位。
+14. 重复保存同一主页链接时，显示服务端的 `409` 提示，且不产生第二条记录。
+
+**English**
+
+12. With no key configured, the connect screen shows; with a wrong key, it returns to the connect screen with an actionable message.
+13. The role dropdown lists open roles only.
+14. Saving the same profile link twice shows the server's `409` message and creates no second record.
 
 ---
 
-## 9. 安装与调试 / Installing and debugging
+## 10. 安装与调试 / Installing and debugging
 
 **中文**
 
@@ -339,7 +444,7 @@ Because the extension reads LinkedIn pages, the Chrome Web Store is unlikely to 
 
 ---
 
-## 10. 已知边界 / Known limits
+## 11. 已知边界 / Known limits
 
 **中文**
 
@@ -355,7 +460,7 @@ Because the extension reads LinkedIn pages, the Chrome Web Store is unlikely to 
 
 ---
 
-## 11. 参考实现 / Reference implementation
+## 12. 参考实现 / Reference implementation
 
 **中文** — 本仓库 `extension/` 目录下已有一份符合本规格的实现，可作对照。服务端端点见 `app/api/capture/route.ts`，认证与 CORS 见 `lib/capture.ts`，端点测试见 `tests/04-capture-api.spec.ts`。
 

@@ -1,4 +1,4 @@
-# Basanite Capture — 浏览器扩展规格说明 / Browser Extension Specification
+# Capture — 浏览器扩展规格说明 / Browser Extension Specification
 
 > 本文档面向实现该扩展的 coding agent。读完本文档应当足以从零写出扩展，无需再阅读主应用源码。
 >
@@ -10,13 +10,13 @@
 
 **中文**
 
-Basanite Recruiter Workbench 是一个单用户的本地招聘工作台，使用 Next.js 14（App Router）+ Prisma + SQLite。它的使用者是 Paul，一位英国的猎头顾问。
+Capture 是一个单用户的本地招聘工作台，使用 Next.js 14（App Router）+ Prisma + SQLite。它的使用者是 Paul，一位英国的猎头顾问。
 
 这个工具有一条不可动摇的设计原则：**应用本身从不访问 LinkedIn**。它只做三件事——生成一个 LinkedIn 搜索 URL 供用户点击、把用户手动粘贴的资料存进本地数据库、把消息文本放进剪贴板。所有与 LinkedIn 的接触都由使用者本人完成。代码里对此有明确注释，测试也断言了浏览器不会向应用与用户主动打开的标签页之外的任何主机发起请求。
 
 **English**
 
-Basanite Recruiter Workbench is a single-user, locally-run recruiting workbench built on Next.js 14 (App Router), Prisma and SQLite. Its user is Paul, a UK recruitment consultant.
+Capture is a single-user, locally-run recruiting workbench built on Next.js 14 (App Router), Prisma and SQLite. Its user is Paul, a UK recruitment consultant.
 
 The tool has one non-negotiable design principle: **the application itself never contacts LinkedIn**. It does three things only — build a LinkedIn search URL for the user to click, store details the user pasted in by hand, and put message text on the clipboard. Every LinkedIn touch is performed by the human. This is stated in code comments and asserted by a test that the browser reaches no host other than the app and the tabs the user opened themselves.
 
@@ -170,13 +170,13 @@ The notes box must be left for him to fill in. His judgement of a candidate is t
 ```json
 {
   "manifest_version": 3,
-  "name": "Basanite Capture",
+  "name": "Capture",
   "version": "1.0.0",
-  "description": "Save the LinkedIn profile you are looking at to your Basanite workbench, in one click.",
+  "description": "Save the LinkedIn profile you are looking at to Capture, in one click.",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
   "action": {
-    "default_title": "Save this profile to Basanite",
+    "default_title": "Save this profile to Capture",
     "default_popup": "popup.html"
   }
 }

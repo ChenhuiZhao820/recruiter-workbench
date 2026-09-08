@@ -26,8 +26,9 @@ export function appOrigin(): string {
   return url.origin;
 }
 
-function cookieName() {
-  return appOrigin().startsWith("https:") ? "__Host-basanite_session" : "basanite_session";
+function cookieNames() {
+  const prefix = appOrigin().startsWith("https:") ? "__Host-" : "";
+  return [`${prefix}capture_session`, `${prefix}basanite_session`];
 }
 
 export function assertSameOrigin() {
@@ -36,7 +37,8 @@ export function assertSameOrigin() {
 }
 
 export async function getSession() {
-  const token = cookies().get(cookieName())?.value;
+  const store = cookies();
+  const token = cookieNames().map((name) => store.get(name)?.value).find((value) => value !== undefined);
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   const session = await db.session.findUnique({
     where: { tokenHash: hashToken(token) },
@@ -64,7 +66,7 @@ export async function createSession(userId: string, authVersion: number) {
   await db.session.create({
     data: { tokenHash: hashToken(token), userId, authVersion, expiresAt: new Date(Date.now() + SESSION_SECONDS * 1000) },
   });
-  cookies().set(cookieName(), token, {
+  cookies().set(cookieNames()[0], token, {
     httpOnly: true,
     secure: appOrigin().startsWith("https:"),
     sameSite: "lax",
@@ -74,15 +76,20 @@ export async function createSession(userId: string, authVersion: number) {
 }
 
 export async function endSession() {
-  const token = cookies().get(cookieName())?.value;
-  if (token) await db.session.deleteMany({ where: { tokenHash: hashToken(token) } });
-  cookies().set(cookieName(), "", {
-    httpOnly: true,
-    secure: appOrigin().startsWith("https:"),
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  const store = cookies();
+  const names = cookieNames();
+  const tokens = names.map((name) => store.get(name)?.value)
+    .filter((token): token is string => typeof token === "string" && /^[A-Za-z0-9_-]{43}$/.test(token));
+  if (tokens.length) await db.session.deleteMany({ where: { tokenHash: { in: Array.from(new Set(tokens.map(hashToken))) } } });
+  for (const name of names) {
+    store.set(name, "", {
+      httpOnly: true,
+      secure: appOrigin().startsWith("https:"),
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+  }
 }
 
 export async function takeAuthAttempt(key: string, limit: number, seconds: number): Promise<boolean> {

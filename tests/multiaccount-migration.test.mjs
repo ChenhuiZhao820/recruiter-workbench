@@ -81,7 +81,7 @@ async function assertEmpty(db) {
 }
 
 before(async () => {
-  directory = await mkdtemp(join(tmpdir(), "basanite-multiaccount-migration-"));
+  directory = await mkdtemp(join(tmpdir(), "capture-multiaccount-migration-"));
   emptyPath = join(directory, "empty.db");
   sourcePath = join(directory, "source.db");
   const result = spawnSync(process.execPath, [initializer, "--path", emptyPath], { encoding: "utf8", timeout: 120000 });

@@ -4,13 +4,13 @@ import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
 export const TEST_ADMIN_ID = "test-only-admin";
-export const TEST_ADMIN_EMAIL = "admin@test.basanite.invalid";
+export const TEST_ADMIN_EMAIL = "admin@test.capture.invalid";
 export const TEST_ADMIN_PASSWORD = "TEST-ONLY-admin-password-3100!";
-export const TEST_DATABASE_URL = process.env.BASANITE_TEST_DATABASE_URL ?? `file:./test-${randomUUID()}.db`;
+export const TEST_DATABASE_URL = process.env.CAPTURE_TEST_DATABASE_URL ?? `file:./test-${randomUUID()}.db`;
 if (!/^file:\.\/test-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.db$/.test(TEST_DATABASE_URL)) {
   throw new Error("Unsafe test database URL: expected a unique test-<uuid>.db.");
 }
-process.env.BASANITE_TEST_DATABASE_URL = TEST_DATABASE_URL;
+process.env.CAPTURE_TEST_DATABASE_URL = TEST_DATABASE_URL;
 process.env.DATABASE_URL = TEST_DATABASE_URL;
 
 // One shared client for direct DB access (backdating timestamps, inspecting

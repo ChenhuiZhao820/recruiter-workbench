@@ -30,7 +30,7 @@ const mono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Basanite Recruiter Workbench",
+  title: "Capture",
   description: "A private workspace for your recruiting pipeline.",
 };
 
@@ -61,7 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 href="/"
                 className="font-mono text-sm font-medium uppercase tracking-[0.18em] text-ink"
               >
-                Basanite
+                Capture
               </Link>
               {session && <nav aria-label="Main">
                 <ul className="flex flex-wrap gap-x-4 gap-y-1">

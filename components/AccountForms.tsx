@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
 import { login, activateAccount, changePassword } from "@/app/actions/auth";
 import type { AccountActionState } from "@/app/actions/accounts";
@@ -40,18 +41,19 @@ export function LoginForm() {
 
 export function ActivationForm() {
   const [token, setToken] = useState("");
+  const router = useRouter();
   useEffect(() => {
     const consumeFragment = () => {
       const nextToken = new URLSearchParams(window.location.hash.slice(1)).get("token");
       if (nextToken) {
         setToken(nextToken);
-        window.history.replaceState(null, "", window.location.pathname);
+        router.replace(window.location.pathname, { scroll: false });
       }
     };
     consumeFragment();
     window.addEventListener("hashchange", consumeFragment);
     return () => window.removeEventListener("hashchange", consumeFragment);
-  }, []);
+  }, [router]);
   return <ActivationPasswordForm key={token} token={token} />;
 }
 

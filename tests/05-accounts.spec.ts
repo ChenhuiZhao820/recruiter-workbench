@@ -27,14 +27,14 @@ const test = base.extend<{ accounts: Accounts }>({
       create: async (role = "recruiter") => {
         const suffix = randomUUID();
         const user = await db.user.create({ data: {
-          email: `${role}-${suffix}@test.basanite.invalid`, name: `${role} ${suffix}`, role, passwordHash,
+          email: `${role}-${suffix}@test.capture.invalid`, name: `${role} ${suffix}`, role, passwordHash,
           settings: { create: { recruiterName: `Recruiter ${suffix}` } },
         } });
         const token = secret();
         await db.session.create({ data: { tokenHash: hashToken(token), userId: user.id, authVersion: user.authVersion, expiresAt: new Date(Date.now() + 3_600_000) } });
         const page = await guest();
         const context = page.context();
-        await context.addCookies([{ name: "basanite_session", value: token, domain: "localhost", path: "/", httpOnly: true, secure: false, sameSite: "Lax" }]);
+        await context.addCookies([{ name: "capture_session", value: token, domain: "localhost", path: "/", httpOnly: true, secure: false, sameSite: "Lax" }]);
         return { id: user.id, name: user.name, email: user.email, token, context, page };
       },
     });
@@ -118,7 +118,9 @@ test("A1 unauthenticated workspaces redirect and a website cookie is not a captu
   for (const route of ["/", "/roles/new", "/searches", "/templates", "/followups", "/settings", "/account", "/admin", "/roles/nonexistent", "/candidates/nonexistent/outreach"]) {
     await page.goto(route);
     await expect(page).toHaveURL(`${BASE}/login`);
-    await expect(page.getByRole("heading", { name: "Sign in to Basanite" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Capture" })).toBeVisible();
+    await expect(page).toHaveTitle("Capture");
+    await expect(page.getByRole("banner").getByRole("link", { name: "Capture", exact: true })).toBeVisible();
   }
   const actor = await accounts.create();
   expect((await actor.page.request.get("/api/capture")).status()).toBe(401);
@@ -129,10 +131,12 @@ test("A2 login rejects bad credentials, creates a hashed session and logout revo
   const page = await accounts.guest();
   await login(page, TEST_ADMIN_EMAIL, "not-the-test-password");
   await expect(page.locator("main").getByRole("alert")).toHaveText("Email or password is incorrect, or this account is unavailable.");
-  expect((await page.context().cookies()).find((cookie) => cookie.name === "basanite_session")).toBeUndefined();
+  expect((await page.context().cookies()).find((cookie) => cookie.name === "capture_session")).toBeUndefined();
   await login(page, TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD);
   await expect(page).toHaveURL(`${BASE}/`);
-  const cookie = (await page.context().cookies()).find((entry) => entry.name === "basanite_session")!;
+  await expect(page).toHaveTitle("Capture");
+  await expect(page.getByRole("banner").getByRole("link", { name: "Capture", exact: true })).toBeVisible();
+  const cookie = (await page.context().cookies()).find((entry) => entry.name === "capture_session")!;
   expect(cookie).toMatchObject({ httpOnly: true, sameSite: "Lax", path: "/" });
   expect(cookie.value).toMatch(/^[A-Za-z0-9_-]{43}$/);
   const session = await db.session.findUniqueOrThrow({ where: { tokenHash: hashToken(cookie.value) }, include: { user: true } });
@@ -148,7 +152,7 @@ test("A2 login rejects bad credentials, creates a hashed session and logout revo
 
 test("A3 admin creation uses fragment-only activation, consumes once and records audit events", async ({ accounts }) => {
   const admin = await accounts.create("admin");
-  const email = `activated-${randomUUID()}@test.basanite.invalid`;
+  const email = `activated-${randomUUID()}@test.capture.invalid`;
   await admin.page.goto("/admin");
   const create = admin.page.getByRole("region", { name: "Create account", exact: true });
   await create.getByLabel("Name", { exact: true }).fill("Activated Recruiter");
@@ -528,7 +532,7 @@ test("A13 recruiter cannot invoke administrative actions copied from an administ
   const view = await snapshotForm(admin.page, "/admin", `form:has(input[value="${target.id}"]):not(:has(input[name="active"]))`);
   const disable = await snapshotForm(admin.page, "/admin", `form:has(input[value="${target.id}"]):has(input[name="active"])`);
   const before = await db.user.count();
-  for (const [form, changes] of [[create, { name: "Escalation", email: `forged-${randomUUID()}@test.basanite.invalid` }], [view, { userId: target.id }], [disable, { userId: target.id, active: "false" }]] as [FormSnapshot, Record<string, string>][]) {
+  for (const [form, changes] of [[create, { name: "Escalation", email: `forged-${randomUUID()}@test.capture.invalid` }], [view, { userId: target.id }], [disable, { userId: target.id, active: "false" }]] as [FormSnapshot, Record<string, string>][]) {
     const response = await postForm(actor.page, form, changes);
     expect(response.status()).toBeGreaterThanOrEqual(400);
     expect(await response.text()).toContain("Administrator access is required");

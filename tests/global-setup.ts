@@ -6,7 +6,7 @@ import { hashPassword, hashToken } from "../lib/auth-crypto";
 
 // Fresh, empty test database for every run.
 export default async function globalSetup() {
-  const token = process.env.BASANITE_TEST_SESSION_TOKEN;
+  const token = process.env.CAPTURE_TEST_SESSION_TOKEN;
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("Missing test session token from Playwright configuration.");
   const dbFile = path.join(__dirname, "..", "prisma", TEST_DATABASE_URL.slice("file:./".length));
   const ownedFiles = [dbFile, `${dbFile}-journal`, `${dbFile}-wal`, `${dbFile}-shm`];
@@ -41,7 +41,7 @@ export default async function globalSetup() {
   try {
     execSync("npx prisma db push --skip-generate", {
       cwd: path.join(__dirname, ".."),
-      env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL, BASANITE_TEST_DATABASE_URL: TEST_DATABASE_URL },
+      env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL, CAPTURE_TEST_DATABASE_URL: TEST_DATABASE_URL },
       stdio: "inherit",
     });
     const passwordHash = await hashPassword(TEST_ADMIN_PASSWORD);

@@ -29,6 +29,95 @@ function load(relative, mocks = {}, env = {}) {
 
 const crypto = load("lib/auth-crypto.ts");
 
+function sessionHarness(origin) {
+  const jar = new Map();
+  const records = new Map();
+  const writes = [];
+  const auth = load("lib/auth.ts", {
+    "@/lib/db": { db: { session: {
+      findUnique: async ({ where }) => records.get(where.tokenHash) ?? null,
+      create: async ({ data }) => { records.set(data.tokenHash, data); return data; },
+      deleteMany: async ({ where }) => {
+        const hashes = typeof where.tokenHash === "string" ? [where.tokenHash] : where.tokenHash.in;
+        for (const hash of hashes) records.delete(hash);
+      },
+    } } },
+    "@/lib/auth-crypto": crypto,
+    "next/headers": { cookies: () => ({
+      get: (name) => jar.has(name) ? { value: jar.get(name) } : undefined,
+      set: (name, value, options) => {
+        writes.push({ name, value, options });
+        if (options.maxAge === 0) jar.delete(name);
+        else jar.set(name, value);
+      },
+    }), headers: () => ({ get: () => origin }) },
+    "next/navigation": { redirect: (path) => { throw new Error(`Redirect: ${path}`); } },
+  }, { APP_ORIGIN: origin });
+  const add = (name, userId) => {
+    const token = crypto.newSecret();
+    jar.set(name, token);
+    records.set(crypto.hashToken(token), {
+      tokenHash: crypto.hashToken(token), userId, authVersion: 0,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: { id: userId, email: `${userId}@fixture.invalid`, name: userId, role: "recruiter", active: true, authVersion: 0 },
+    });
+    return token;
+  };
+  return { auth, jar, records, writes, add };
+}
+
+for (const origin of ["http://localhost:3000", "https://capture.example.test"]) {
+  const secure = origin.startsWith("https:");
+  const current = `${secure ? "__Host-" : ""}capture_session`;
+  const legacy = `${secure ? "__Host-" : ""}basanite_session`;
+  test(`Capture session cookies use the new name and preserve security attributes on ${origin}`, async () => {
+    const h = sessionHarness(origin);
+    await h.auth.createSession("new-user", 3);
+    assert.equal(h.writes.length, 1);
+    assert.equal(h.writes[0].name, current);
+    assert.equal(h.writes[0].options.httpOnly, true);
+    assert.equal(h.writes[0].options.secure, secure);
+    assert.equal(h.writes[0].options.sameSite, "lax");
+    assert.equal(h.writes[0].options.path, "/");
+    assert.equal(h.records.get(crypto.hashToken(h.jar.get(current))).authVersion, 3);
+  });
+  test(`legacy sessions remain readable but the Capture session takes precedence on ${origin}`, async () => {
+    const h = sessionHarness(origin);
+    h.add(legacy, "legacy-user");
+    assert.equal((await h.auth.getSession()).user.id, "legacy-user");
+    h.add(current, "current-user");
+    assert.equal((await h.auth.getSession()).user.id, "current-user");
+    h.jar.set(current, "invalid-current-token");
+    assert.equal(await h.auth.getSession(), null);
+  });
+  test(`logout revokes both session cookies so a legacy login cannot return on ${origin}`, async () => {
+    const h = sessionHarness(origin);
+    h.add(legacy, "legacy-user");
+    h.add(current, "current-user");
+    await h.auth.endSession();
+    assert.equal(h.records.size, 0);
+    assert.equal(h.jar.size, 0);
+    assert.deepEqual(h.writes.map((write) => write.name).sort(), [current, legacy].sort());
+    for (const write of h.writes) {
+      assert.equal(write.options.maxAge, 0);
+      assert.equal(write.options.secure, secure);
+      assert.equal(write.options.httpOnly, true);
+    }
+    assert.equal(await h.auth.getSession(), null);
+  });
+  test(`revoked legacy sessions do not bypass expiry or account checks on ${origin}`, async () => {
+    for (const change of ["expiry", "disabled", "version"]) {
+      const h = sessionHarness(origin);
+      const token = h.add(legacy, "legacy-user");
+      const record = h.records.get(crypto.hashToken(token));
+      if (change === "expiry") record.expiresAt = new Date(0);
+      if (change === "disabled") record.user.active = false;
+      if (change === "version") record.user.authVersion++;
+      assert.equal(await h.auth.getSession(), null);
+    }
+  });
+}
+
 test("passwords are salted, verifiable and never stored as plaintext", async () => {
   const password = "TEST-ONLY-security-password-3100!";
   const first = await crypto.hashPassword(password);
@@ -65,14 +154,14 @@ test("loading Playwright config and importing helpers cannot create or connect a
   const env = { DATABASE_URL: "file:./dev.db" };
   const config = load("playwright.config.ts", { "@playwright/test": { defineConfig: (value) => value } }, env).default;
   assert.match(env.DATABASE_URL, /^file:\.\/test-[0-9a-f-]{36}\.db$/);
-  assert.equal(env.DATABASE_URL, env.BASANITE_TEST_DATABASE_URL);
+  assert.equal(env.DATABASE_URL, env.CAPTURE_TEST_DATABASE_URL);
   assert.equal(config.webServer[1].env.DATABASE_URL, env.DATABASE_URL);
-  assert.equal(config.webServer[1].env.BASANITE_TEST_DATABASE_URL, env.DATABASE_URL);
+  assert.equal(config.webServer[1].env.CAPTURE_TEST_DATABASE_URL, env.DATABASE_URL);
   assert.equal(config.webServer[1].env.APP_ORIGIN, "http://localhost:3100");
-  assert.equal(config.use.storageState.cookies[0].value, env.BASANITE_TEST_SESSION_TOKEN);
+  assert.equal(config.use.storageState.cookies[0].value, env.CAPTURE_TEST_SESSION_TOKEN);
   let constructed = 0;
   const helpers = load("tests/helpers.ts", { "@prisma/client": { PrismaClient: class {
-    constructor() { constructed++; assert.equal(env.DATABASE_URL, env.BASANITE_TEST_DATABASE_URL); }
+    constructor() { constructed++; assert.equal(env.DATABASE_URL, env.CAPTURE_TEST_DATABASE_URL); }
   } } }, env);
   assert.equal(constructed, 1);
   assert.equal(helpers.TEST_DATABASE_URL, env.DATABASE_URL);
@@ -80,9 +169,9 @@ test("loading Playwright config and importing helpers cannot create or connect a
 
 test("config and helpers refuse dev.db, test.db, paths outside prisma and malformed test names", () => {
   for (const url of ["file:./dev.db", "file:./test.db", "file:../test-00000000-0000-4000-8000-000000000001.db", "file:./test-not-a-uuid.db", "postgresql://example.invalid/db", `${uniqueUrl}?anything=1`]) {
-    assert.throws(() => load("playwright.config.ts", { "@playwright/test": { defineConfig: (value) => value } }, { BASANITE_TEST_DATABASE_URL: url }));
+    assert.throws(() => load("playwright.config.ts", { "@playwright/test": { defineConfig: (value) => value } }, { CAPTURE_TEST_DATABASE_URL: url }));
     let constructed = false;
-    assert.throws(() => load("tests/helpers.ts", { "@prisma/client": { PrismaClient: class { constructor() { constructed = true; } } } }, { BASANITE_TEST_DATABASE_URL: url }));
+    assert.throws(() => load("tests/helpers.ts", { "@prisma/client": { PrismaClient: class { constructor() { constructed = true; } } } }, { CAPTURE_TEST_DATABASE_URL: url }));
     assert.equal(constructed, false);
   }
 });
@@ -104,7 +193,7 @@ function setupHarness(existing = []) {
     "node:child_process": { execSync: (command, options) => {
       commands.push({ command, options });
       assert.equal(options.env.DATABASE_URL, uniqueUrl);
-      assert.equal(options.env.BASANITE_TEST_DATABASE_URL, uniqueUrl);
+      assert.equal(options.env.CAPTURE_TEST_DATABASE_URL, uniqueUrl);
       assert.ok(files.has(dbFile));
       if (pushesFail) throw new Error("simulated db push failure");
     } },
@@ -121,7 +210,7 @@ function setupHarness(existing = []) {
     },
     "./helpers": { db: mockDb, TEST_ADMIN_ID: "test-admin", TEST_ADMIN_EMAIL: "admin@test.invalid", TEST_ADMIN_PASSWORD: "TEST-ONLY-password", TEST_DATABASE_URL: uniqueUrl },
     "../lib/auth-crypto": { hashPassword: async () => "test-password-hash", hashToken: () => "test-session-hash" },
-  }, { BASANITE_TEST_SESSION_TOKEN: "a".repeat(43) }).default;
+  }, { CAPTURE_TEST_SESSION_TOKEN: "a".repeat(43) }).default;
   return { setup, files, deleted, commands, seeded, dbFile, protectedFiles, failPush: () => { pushesFail = true; }, holdDatabase: () => { databaseBusy = true; } };
 }
 

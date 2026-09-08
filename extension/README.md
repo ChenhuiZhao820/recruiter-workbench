@@ -1,4 +1,4 @@
-# Basanite Capture
+# Capture
 
 Saves the LinkedIn profile you already have open to your workbench, so you stop
 retyping a name, a headline and a URL you are both looking at.

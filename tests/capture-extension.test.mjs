@@ -66,7 +66,7 @@ async function popup(options = {}) {
   let queries = 0;
   const context = vm.createContext({
     URL, AbortSignal, AbortController, clearTimeout,
-    ...(options.origins === undefined ? {} : { BASANITE_WORKBENCH_ORIGINS: options.origins }),
+    ...(options.origins === undefined ? {} : { CAPTURE_WORKBENCH_ORIGINS: options.origins }),
     setTimeout: (callback, delay) => setTimeout(callback, options.timeout ?? delay),
     document: {
       getElementById: (id) => elements[id],
@@ -137,6 +137,12 @@ function extract(func, options = {}) {
 const saved = { status: 201, body: { ok: true, candidateId: "candidate-a", fullName: "Priya Kaur", warning: null } };
 
 test("manifest grants only click-triggered reading and loopback workbench access", () => {
+  assert.equal(manifest.name, "Capture");
+  assert.equal(manifest.action.default_title, "Save this profile to Capture");
+  assert.match(manifest.description, /\bCapture\b/);
+  for (const text of [manifest.name, manifest.action.default_title, manifest.description]) {
+    assert.doesNotMatch(text, /basanite|recruiter workbench|capture capture/i);
+  }
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
   assert.deepEqual(manifest.host_permissions, ["http://localhost/*", "http://127.0.0.1/*"]);
@@ -592,7 +598,7 @@ test("an invalid hosted config cannot enable HTTP remote requests", async () => 
 });
 
 async function packagingFixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "basanite-capture-package-"));
+  const root = await mkdtemp(join(tmpdir(), "capture-package-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await cp(new URL("../extension/", import.meta.url), join(root, "extension"), { recursive: true });
   return root;
@@ -616,6 +622,10 @@ test("packager makes a standalone exact-host build and leaves source loopback-on
   const packagedHtml = await readFile(join(output, "popup.html"), "utf8");
   const packagedSource = await readFile(join(output, "popup.js"), "utf8");
   const configSource = await readFile(join(output, "workbench.js"), "utf8");
+  assert.equal(packaged.name, "Capture");
+  assert.equal(packaged.action.default_title, manifest.action.default_title);
+  assert.equal(packaged.description, manifest.description);
+  assert.equal(configSource, `"use strict";\nglobalThis.CAPTURE_WORKBENCH_ORIGINS = ${JSON.stringify([hostedOrigin])};\n`);
   assert.match(packagedHtml, /<script src="workbench\.js"><\/script>\s*<script src="popup\.js"><\/script>/);
   assert.equal(packagedSource, source);
   assert.equal(await readFile(join(output, "popup.css"), "utf8"), await readFile(join(root, "extension", "popup.css"), "utf8"));

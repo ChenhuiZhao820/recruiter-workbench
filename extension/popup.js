@@ -9,8 +9,8 @@ const el = (id) => document.getElementById(id);
 
 const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false };
 const fields = ["role", "name", "headline", "profile", "notes"];
-const hostedOrigins = (Array.isArray(globalThis.BASANITE_WORKBENCH_ORIGINS)
-  ? globalThis.BASANITE_WORKBENCH_ORIGINS : []).filter((value) => {
+const hostedOrigins = (Array.isArray(globalThis.CAPTURE_WORKBENCH_ORIGINS)
+  ? globalThis.CAPTURE_WORKBENCH_ORIGINS : []).filter((value) => {
   try {
     const url = new URL(value);
     return url.protocol === "https:" && value === url.origin && !url.username && !url.password;

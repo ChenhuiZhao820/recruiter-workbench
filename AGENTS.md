@@ -1,8 +1,8 @@
-# Recruiter Workbench
+# Capture
 
 A private workspace for a recruiter's pipeline. The main application never contacts
 LinkedIn: it only builds a profile or search URL and opens it on a user click.
-The optional Basanite Capture extension uses a toolbar click for one active-tab
+The optional Capture extension uses a toolbar click for one active-tab
 profile read via `activeTab` and `scripting`. No LinkedIn host permissions,
 registered content scripts, background page reading, bulk capture, polling,
 crawling or automated messaging. Fields remain editable, notes are written only
@@ -26,7 +26,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   and fetch; no live LinkedIn/browser/network needed)
 - Full suite: `npm test` (unit tests followed by Playwright and the local AI stub)
 - Playwright creates a fresh `prisma/test-<uuid>.db` for each run. Configuration
-  propagates `BASANITE_TEST_DATABASE_URL` to helpers/workers/server; setup refuses
+  propagates `CAPTURE_TEST_DATABASE_URL` to helpers/workers/server; setup refuses
   existing targets and teardown removes only that run's files. On Windows, if
   the test server still holds the database open, teardown retains it and its
   sidecars with a warning rather than forcing deletion. Never use dev.db or the
@@ -37,6 +37,19 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Restore local SQLite Prisma client after a hosted build: `npm run db:client:local`
 - Package a hosted extension: `npm run extension:package -- --origin <HTTPS_ORIGIN>`.
   Output is `dist/capture-extension`; existing output is refused, never deleted.
+
+## Branding
+
+- Product, browser extension and UI name: Capture. npm package name: capture.
+- Test environment variables use CAPTURE_TEST_; packaged extension configuration
+  uses CAPTURE_WORKBENCH_ORIGINS. Do not rename user/company emails or saved data.
+- New sessions use capture_session (with __Host- on HTTPS). The former
+  basanite_session name is accepted only as a legacy fallback when no new cookie
+  exists. Logout revokes and clears both names; never fall back from an invalid
+  new cookie to an older account. Preserve this compatibility until deliberately
+  retired rather than treating it as a leftover brand label.
+- Repository/directory names and hosted database/service names are independent
+  resources. Changing display branding must not silently change origins or URLs.
 
 ## Accounts and authorization
 

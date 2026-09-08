@@ -52,7 +52,7 @@ export async function packageExtension(originValue, root = projectRoot) {
     throw new Error("Expected one external popup.js script in popup.html.");
   }
   files["popup.html"] = files["popup.html"].replace(popupScript, `<script src="workbench.js"></script>\n    ${popupScript}`);
-  files["workbench.js"] = `"use strict";\nglobalThis.BASANITE_WORKBENCH_ORIGINS = ${JSON.stringify([origin])};\n`;
+  files["workbench.js"] = `"use strict";\nglobalThis.CAPTURE_WORKBENCH_ORIGINS = ${JSON.stringify([origin])};\n`;
   files["manifest.json"] = JSON.stringify(manifest, null, 2) + "\n";
 
   const dist = join(root, "dist");
@@ -77,7 +77,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     if (args.length !== 2 || args[0] !== "--origin") throw new Error(usage);
     const output = await packageExtension(args[1]);
-    console.log(`Packaged Basanite Capture for ${validateOrigin(args[1])}: ${output}`);
+    console.log(`Packaged Capture for ${validateOrigin(args[1])}: ${output}`);
     console.log("Load this directory as an unpacked extension. Its capture account is independent of website login.");
   } catch (error) {
     console.error(error.message);

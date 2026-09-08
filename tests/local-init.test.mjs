@@ -11,7 +11,7 @@ const script = fileURLToPath(new URL("../scripts/init-local.mjs", import.meta.ur
 const run = (target) => spawnSync(process.execPath, [script, "--path", target], { encoding: "utf8" });
 
 test("local initialization refuses existing files without changing their bytes", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "basanite-init-refusal-"));
+  const directory = await mkdtemp(join(tmpdir(), "capture-init-refusal-"));
   const target = join(directory, "existing.db");
   try {
     await writeFile(target, "test fixture that must remain untouched");
@@ -26,7 +26,7 @@ test("local initialization refuses existing files without changing their bytes",
 });
 
 test("fresh local schema and real Prisma enforce extended unique and nested ownership filters", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "basanite-prisma-ownership-"));
+  const directory = await mkdtemp(join(tmpdir(), "capture-prisma-ownership-"));
   const target = join(directory, "new.db");
   const db = new PrismaClient({ datasourceUrl: `file:${target.replaceAll("\\", "/")}`, log: [] });
   try {

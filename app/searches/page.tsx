@@ -30,32 +30,38 @@ export default async function SearchesPage() {
 
   return (
     <fieldset disabled={readOnly} className="min-w-0">
-      <div className="mb-2 flex items-center justify-between gap-4">
-        <h1 className="text-3xl">Searches</h1>
+      <header className="page-header">
+        <div>
+          <p className="page-eyebrow">Sourcing / Search library</p>
+          <h1>Searches</h1>
+          <p className="page-description">Good searches are worth keeping. Pick up exactly where you left off.</p>
+        </div>
         {!readOnly && <Link href="/searches/new" className="btn-primary">
           New search
         </Link>}
-      </div>
-      <p className="mb-6 text-ink/70">
+      </header>
+      <p className="mb-8 max-w-3xl border-l-2 border-accent pl-4 text-sm leading-relaxed text-ink-soft">
         Run opens LinkedIn in a new tab with your keywords. Apply the saved filters there by
         hand, using each record&apos;s checklist.
       </p>
 
       {searches.length === 0 ? (
-        <div className="card text-ink/70">
-          <p>No saved searches yet.</p>
+        <div className="card empty-state">
+          <p className="page-eyebrow">Your search library starts here</p>
+          <p className="text-xl font-medium text-ink">No saved searches yet.</p>
           <p className="mt-2">
             Save a search once and you can re-run it any time without rebuilding it from memory.
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {groupNames.map((groupName) => (
-            <section key={groupName} aria-label={groupName}>
-              <h2 className="mb-2 font-mono text-sm uppercase tracking-wide text-ink/70">
+        <div className="space-y-10">
+          {groupNames.map((groupName, groupIndex) => (
+            <section key={groupName} aria-label={groupName} className="workspace-section">
+              <h2 className="section-heading mb-5">
+                <span aria-hidden="true" className="section-number">{String(groupIndex + 1).padStart(2, "0")}</span>
                 {groupName}
               </h2>
-              <ul className="space-y-3">
+              <ul className="grid items-start gap-4 xl:grid-cols-2">
                 {groups.get(groupName)!.map((s) => {
                   const industries = parseStringArray(s.industries);
                   const locations = parseStringArray(s.locations);

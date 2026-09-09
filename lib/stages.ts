@@ -22,13 +22,13 @@ export const STAGE_LABELS: Record<Stage, string> = {
 
 // Colour is decorative only. The text label always appears beside it.
 export const STAGE_COLORS: Record<Stage, string> = {
-  sourced: "bg-slate-300",
-  contacted: "bg-sky-400",
-  replied: "bg-teal-400",
-  booking_pending: "bg-amber-400",
-  booked: "bg-emerald-500",
-  rejected: "bg-rose-400",
-  placed: "bg-violet-500",
+  sourced: "bg-ink/30",
+  contacted: "bg-accent/50",
+  replied: "bg-accent",
+  booking_pending: "bg-ink/50",
+  booked: "bg-accent",
+  rejected: "bg-ink/20",
+  placed: "bg-ink",
 };
 
 export function isStage(value: string): value is Stage {

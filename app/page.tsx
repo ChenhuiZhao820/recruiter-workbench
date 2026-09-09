@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 import { getWorkspace } from "@/lib/workspace";
 import { getFollowUpBuckets } from "@/lib/followups";
+import { MarketingHome } from "@/components/MarketingHome";
+import { RoleDirectory } from "@/components/RoleDirectory";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
 export default async function RolesPage() {
+  if (!await getSession()) return <MarketingHome />;
   const { owner, readOnly } = await getWorkspace();
-  const [roles, closedRoles, buckets] = await Promise.all([
+  const [roles, closedRoles, buckets, searchCount] = await Promise.all([
     db.role.findMany({
       where: { userId: owner.id, status: "open" },
       orderBy: { createdAt: "desc" },
@@ -20,89 +25,34 @@ export default async function RolesPage() {
       include: { _count: { select: { candidates: true } } },
     }),
     getFollowUpBuckets(),
+    db.savedSearch.count({ where: { userId: owner.id, OR: [{ roleId: null }, { role: { userId: owner.id } }] } }),
   ]);
 
   const followUpsByRole = new Map<string, number>();
-  for (const row of [
-    ...buckets.repliedWaiting,
-    ...buckets.saidYesNeverBooked,
-    ...buckets.wentQuiet,
-  ]) {
-    followUpsByRole.set(row.roleId, (followUpsByRole.get(row.roleId) ?? 0) + 1);
-  }
+  const followUps = [...buckets.repliedWaiting, ...buckets.saidYesNeverBooked, ...buckets.wentQuiet];
+  for (const row of followUps) followUpsByRole.set(row.roleId, (followUpsByRole.get(row.roleId) ?? 0) + 1);
+  const summarize = (role: typeof roles[number]) => ({
+    id: role.id, title: role.title, client: role.client,
+    candidateCount: role._count.candidates,
+    followUps: followUpsByRole.get(role.id) ?? 0,
+    updatedAt: role.updatedAt.toISOString(),
+  });
+  const metrics = [
+    { label: "Open roles", value: roles.length, caption: "Active searches", icon: "roles" },
+    { label: "People in pipeline", value: roles.reduce((count, role) => count + role._count.candidates, 0), caption: "Across your open roles", icon: "people" },
+    { label: "Follow-ups today", value: followUps.length, caption: "Conversations to move forward", icon: "clock" },
+    { label: "Saved searches", value: searchCount, caption: "Ready when you are", icon: "search" },
+  ] as const;
 
-  return (
-    <div>
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-3xl">Roles</h1>
-        {!readOnly && <Link href="/roles/new" className="btn-primary">
-          New role
-        </Link>}
-      </div>
-
-      {roles.length === 0 ? (
-        <div className="card text-ink/70">
-          <p>No open roles yet. Start by creating one.</p>
-          <p className="mt-2">
-            A role holds its briefing, its candidate list, and its saved searches, all in one
-            place.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-3">
-          {roles.map((role) => {
-            const followUps = followUpsByRole.get(role.id) ?? 0;
-            return (
-              <li key={role.id}>
-                <Link href={`/roles/${role.id}`} className="card block hover:border-accent">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-lg font-semibold tracking-tight">{role.title}</span>
-                    {role.client && <span className="text-ink/70">{role.client}</span>}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <span className="chip">
-                      {role._count.candidates}{" "}
-                      {role._count.candidates === 1 ? "candidate" : "candidates"}
-                    </span>
-                    <span className="chip">
-                      {followUps === 0
-                        ? "no follow-ups today"
-                        : `${followUps} to follow up today`}
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {closedRoles.length > 0 && (
-        <details className="mt-8">
-          <summary className="cursor-pointer font-mono text-sm uppercase tracking-wide text-ink/70">
-            Closed roles ({closedRoles.length})
-          </summary>
-          <ul className="mt-3 space-y-3">
-            {closedRoles.map((role) => (
-              <li key={role.id}>
-                <Link href={`/roles/${role.id}`} className="card block hover:border-accent">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-lg font-semibold tracking-tight">{role.title}</span>
-                    {role.client && <span className="text-ink/70">{role.client}</span>}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <span className="chip">
-                      {role._count.candidates}{" "}
-                      {role._count.candidates === 1 ? "candidate" : "candidates"}
-                    </span>
-                    <span className="chip">Closed - not in Follow-ups</span>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+  return <div className="dashboard-page">
+    <header className="page-header"><div><p className="page-eyebrow">Your recruiting workspace</p><h1>Roles</h1><p className="page-description">A clearer view of the people and conversations that matter.</p></div>{!readOnly && <Link href="/roles/new" className="btn-primary"><Icon name="plus" size={18} />New role</Link>}</header>
+    <div className="dashboard-metrics">{metrics.map((metric) => <div key={metric.label} className="metric-card"><div><span>{metric.label}</span><Icon name={metric.icon} size={18} /></div><strong className={metric.label === "Follow-ups today" && metric.value ? "text-accent" : ""}>{String(metric.value).padStart(2, "0")}</strong><small>{metric.caption}</small></div>)}</div>
+    <div className="dashboard-grid">
+      <RoleDirectory roles={roles.map(summarize)} closedRoles={closedRoles.map(summarize)} readOnly={readOnly} />
+      <aside className="dashboard-aside">
+        <section className="focus-panel"><div className="focus-heading"><span className="focus-icon"><Icon name="clock" size={19} /></span><h2>Your next moves</h2></div><p>A little attention goes a long way.</p>{followUps.length ? <ul className="focus-list">{followUps.slice(0, 3).map((row) => <li key={row.candidateId}><Link href={`/candidates/${row.candidateId}/outreach`}><span className="focus-person">{row.candidateName}<Icon name="external" size={14} /></span><span>{row.roleTitle}</span><small>{row.lastEvent}</small></Link></li>)}</ul> : <div className="focus-clear"><span><Icon name="check" size={24} /></span><strong>You’re all caught up.</strong><p>Your next follow-ups will appear here.</p></div>}<Link href="/followups" className="focus-link">Open follow-ups<Icon name="arrow" size={16} /></Link></section>
+        <section className="workspace-tip"><Icon name="spark" size={18} /><h2>Keep the useful details.</h2><p>Your note is what turns a saved profile into a considered shortlist. Capture what caught your attention while it’s fresh.</p><span className="eyebrow">GOOD CONTEXT. BETTER CONVERSATIONS.</span></section>
+      </aside>
     </div>
-  );
+  </div>;
 }

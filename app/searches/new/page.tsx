@@ -22,12 +22,19 @@ export default async function NewSearchPage({
   });
 
   return (
-    <fieldset key={owner.id} disabled={readOnly} className="min-w-0 max-w-2xl">
-      <h1 className="mb-2 text-3xl">New search</h1>
-      <p className="mb-6 text-ink/70">
-        Saved searches open LinkedIn with your keywords filled in. You apply the location and
-        industry filters inside LinkedIn, using the checklist saved here.
-      </p>
+    <fieldset key={owner.id} disabled={readOnly} className="min-w-0 max-w-4xl">
+      <header className="page-header">
+        <div>
+          <p className="page-eyebrow">Searches / Create</p>
+          <h1>New search</h1>
+          <p className="page-description">Save the search. Skip the rebuild.</p>
+        </div>
+      </header>
+      <div className="mb-6 border-l-2 border-accent bg-surface p-5">
+        <h2 className="section-heading"><span aria-hidden="true" className="section-number">01</span> Search essentials</h2>
+        <p className="section-caption">Saved searches open LinkedIn with your keywords filled in. You apply the location and
+        industry filters inside LinkedIn, using the checklist saved here.</p>
+      </div>
       <SearchForm
         roles={roles}
         initial={{

@@ -16,10 +16,14 @@ let passwordHash: string;
 const test = base.extend<{ accounts: Accounts }>({
   accounts: async ({ browser }, use) => {
     const contexts: BrowserContext[] = [];
+    const externalRequests: string[] = [];
     const guest = async () => {
-      const context = await browser.newContext({ baseURL: BASE, storageState: EMPTY_STATE });
+      const context = await browser.newContext({ baseURL: BASE, storageState: EMPTY_STATE, serviceWorkers: "block" });
       contexts.push(context);
-      await context.route((url) => !["localhost", "127.0.0.1"].includes(url.hostname), (route) => route.abort());
+      await context.route((url) => !["localhost", "127.0.0.1"].includes(url.hostname), (route) => {
+        externalRequests.push(route.request().url());
+        return route.abort();
+      });
       return context.newPage();
     };
     await use({
@@ -39,6 +43,7 @@ const test = base.extend<{ accounts: Accounts }>({
       },
     });
     await Promise.all(contexts.map((context) => context.close()));
+    expect(externalRequests, "Account pages must not request external resources").toEqual([]);
   },
 });
 
@@ -115,7 +120,7 @@ async function expectCaptureDenied(page: Page, token: string, roleId: string) {
 
 test("A1 unauthenticated workspaces redirect and a website cookie is not a capture key", async ({ accounts }) => {
   const page = await accounts.guest();
-  for (const route of ["/", "/roles/new", "/searches", "/templates", "/followups", "/settings", "/account", "/admin", "/roles/nonexistent", "/candidates/nonexistent/outreach"]) {
+  for (const route of ["/roles/new", "/searches", "/templates", "/followups", "/settings", "/account", "/admin", "/roles/nonexistent", "/candidates/nonexistent/outreach"]) {
     await page.goto(route);
     await expect(page).toHaveURL(`${BASE}/login`);
     await expect(page.getByRole("heading", { name: "Sign in to Capture" })).toBeVisible();
@@ -125,6 +130,26 @@ test("A1 unauthenticated workspaces redirect and a website cookie is not a captu
   const actor = await accounts.create();
   expect((await actor.page.request.get("/api/capture")).status()).toBe(401);
   await expectCaptureDenied(actor.page, actor.token, "nonexistent");
+});
+
+test("A1 public home is reachable without an account and never includes private workspace data", async ({ accounts }) => {
+  const owner = await accounts.create();
+  const privateData = await workspace(owner);
+  const page = await accounts.guest();
+  for (const route of ["/", "/welcome"]) {
+    const response = await page.goto(route);
+    expect(response?.status()).toBe(200);
+    await expect(page).toHaveURL(`${BASE}${route}`);
+    await expect(page.getByRole("heading", { level: 1, name: /Good recruiting\.\s*Without the busywork\./ })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open your workspace", exact: true }).first()).toHaveAttribute("href", "/login");
+    const html = await page.content();
+    const responseHtml = await response!.text();
+    for (const value of [owner.email, privateData.role.title, privateData.role.jobDesc!, privateData.candidate.fullName, privateData.candidate.notes!, privateData.search.name, privateData.search.keywords, privateData.template.name, privateData.template.body]) {
+      expect(html).not.toContain(value);
+      expect(responseHtml).not.toContain(value);
+    }
+    expect((await page.context().cookies()).find((cookie) => cookie.name === "capture_session")).toBeUndefined();
+  }
 });
 
 test("A2 login rejects bad credentials, creates a hashed session and logout revokes it", async ({ accounts }) => {
@@ -230,7 +255,7 @@ test("A4 reset links expire and reissuing invalidates the previous fragment toke
   await expect(guest).toHaveURL(`${BASE}/login?activated=1`);
   expect(await db.session.count({ where: { userId: actor.id } })).toBe(0);
   await expectCaptureDenied(guest, key, "nonexistent");
-  await actor.page.goto("/");
+  await actor.page.goto("/settings");
   await expect(actor.page).toHaveURL(`${BASE}/login`);
   expect(await db.auditEvent.count({ where: { actorId: admin.id, targetUserId: actor.id, action: "activation_link_issued" } })).toBe(2);
 });
@@ -467,7 +492,7 @@ test("A10 disabling an account revokes every session, activation link and captur
   await expectAudit(admin.id, actor.id, "account_disabled");
   await card.getByRole("button", { name: "Enable account" }).click();
   await expect(card.locator('[data-form-message="notice"]')).toContainText("Account enabled");
-  await actor.page.goto("/");
+  await actor.page.goto("/settings");
   await expect(actor.page).toHaveURL(`${BASE}/login`);
   await expectCaptureDenied(second, key, data.role.id);
   await expectAudit(admin.id, actor.id, "account_enabled");

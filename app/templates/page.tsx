@@ -31,9 +31,15 @@ export default async function TemplatesPage() {
   const templates = await db.messageTemplate.findMany({ where: { userId: owner.id }, orderBy: { updatedAt: "desc" } });
 
   return (
-    <fieldset key={owner.id} disabled={readOnly} className="min-w-0 max-w-3xl">
-      <h1 className="mb-2 text-3xl">Templates</h1>
-      <p className="mb-6 text-ink/70">
+    <fieldset key={owner.id} disabled={readOnly} className="min-w-0">
+      <header className="page-header">
+        <div>
+          <p className="page-eyebrow">Outreach / Message library</p>
+          <h1>Templates</h1>
+          <p className="page-description">A thoughtful starting point for every conversation.</p>
+        </div>
+      </header>
+      <p className="mb-8 max-w-3xl border-l-2 border-accent pl-4 text-sm leading-relaxed text-ink-soft">
         Write a message once, with gaps for the details. Available gaps:{" "}
         {KNOWN_PLACEHOLDERS.map((name, i) => (
           <span key={name}>
@@ -44,13 +50,17 @@ export default async function TemplatesPage() {
         . Anything else is left as a visible [UNKNOWN] gap.
       </p>
 
+      <div className="grid items-start gap-8 xl:grid-cols-[1.2fr_1fr]">
+      <section aria-label="Saved templates" className="min-w-0">
+        <h2 className="section-heading mb-5"><span aria-hidden="true" className="section-number">01</span> Saved templates</h2>
       {templates.length === 0 && (
-        <div className="card mb-4 text-ink/70">
-          <p>No templates yet. Create your first one below.</p>
+        <div className="card empty-state mb-4">
+          <p className="text-xl font-medium text-ink">No templates yet.</p>
+          <p className="mt-2 text-sm text-ink-soft">Create your first one below.</p>
         </div>
       )}
 
-      <ul className="space-y-3">
+      <ul className="space-y-4">
         {templates.map((t) => (
           <li key={t.id} className="card">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -101,10 +111,11 @@ export default async function TemplatesPage() {
           </li>
         ))}
       </ul>
+      </section>
 
-      <div className="card mt-6">
-        <h2 className="mb-3 text-lg">New template</h2>
-        <ActionForm action={createTemplate} className="space-y-3">
+      <section className="min-w-0" aria-label="Create template">
+        <h2 className="section-heading mb-5"><span aria-hidden="true" className="section-number">02</span> New template</h2>
+        <ActionForm action={createTemplate} className="card form-panel space-y-6">
           <div>
             <label htmlFor="new-tname" className="field-label">
               Name
@@ -128,6 +139,7 @@ export default async function TemplatesPage() {
             Create template
           </button>
         </ActionForm>
+      </section>
       </div>
     </fieldset>
   );

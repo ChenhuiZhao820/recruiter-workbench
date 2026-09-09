@@ -60,11 +60,12 @@ export default async function RolePage({ params }: { params: { id: string } }) {
     : `/searches/new?roleId=${role.id}`;
 
   return (
-    <fieldset disabled={readOnly} className="min-w-0 space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+    <fieldset disabled={readOnly} className="min-w-0 space-y-10">
+      <header className="page-header">
+        <div className="min-w-0 flex-1">
+          <p className="page-eyebrow">Roles / Workspace</p>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl">{role.title}</h1>
+            <h1>{role.title}</h1>
             {role.status === "closed" && <span className="chip">Closed</span>}
           </div>
           {role.client && <p className="mt-1 text-ink/70">{role.client}</p>}
@@ -91,13 +92,16 @@ export default async function RolePage({ params }: { params: { id: string } }) {
             />
           </form>
         </div>
-      </div>
+      </header>
 
       {/* Briefing */}
-      <section aria-labelledby="briefing-heading">
-        <h2 id="briefing-heading" className="mb-3 text-2xl">
-          Briefing
-        </h2>
+      <section aria-labelledby="briefing-heading" className="workspace-section">
+        <div className="mb-5">
+          <h2 id="briefing-heading" className="section-heading">
+            <span aria-hidden="true" className="section-number">01</span> Briefing
+          </h2>
+          <p className="section-caption">The role, translated into what matters.</p>
+        </div>
         {!briefing ? (
           <div className="card space-y-3">
             <p className="text-ink/70">

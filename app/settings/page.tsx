@@ -11,9 +11,20 @@ export default async function SettingsPage() {
   const settings = await getSettings();
 
   return (
-    <fieldset key={owner.id} disabled={readOnly} className="min-w-0 max-w-xl">
-      <h1 className="mb-6 text-3xl">Settings</h1>
-      <ActionForm action={updateSettings} className="card space-y-4">
+    <fieldset key={owner.id} disabled={readOnly} className="min-w-0">
+      <header className="page-header">
+        <div>
+          <p className="page-eyebrow">Workspace / Preferences</p>
+          <h1>Settings</h1>
+          <p className="page-description">Make Capture work the way you recruit.</p>
+        </div>
+      </header>
+      <div className="grid items-start gap-8 lg:grid-cols-[1.2fr_1fr]">
+      <ActionForm action={updateSettings} className="card form-panel space-y-6">
+        <div>
+          <h2 className="section-heading"><span aria-hidden="true" className="section-number">01</span> Outreach defaults</h2>
+          <p className="section-caption">The personal details your message templates use.</p>
+        </div>
         <div>
           <label htmlFor="recruiterName" className="field-label">
             Your name (used in message templates as {"{{recruiter_name}}"})
@@ -69,11 +80,16 @@ export default async function SettingsPage() {
           Save settings
         </button>
       </ActionForm>
-      <div className="mt-6">
+      <section className="min-w-0 space-y-5" aria-label="Capture connection">
+        <div>
+          <h2 className="section-heading"><span aria-hidden="true" className="section-number">03</span> Browser connection</h2>
+          <p className="section-caption">Connect the Capture extension to your workspace.</p>
+        </div>
         <CaptureKeyPanel enabled={Boolean(settings.captureTokenHash)} readOnly={readOnly} />
+      </section>
       </div>
 
-      <p className="mt-4 text-sm text-ink/60">
+      <p className="mt-8 max-w-2xl border-t border-line pt-5 text-sm leading-relaxed text-ink-soft">
         The briefing API key lives on the server, in the .env file. It is never shown here or
         sent to the browser.
       </p>

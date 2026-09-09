@@ -13,9 +13,16 @@ export default async function EditRolePage({ params }: { params: { id: string } 
   if (!role) notFound();
 
   return (
-    <fieldset disabled={readOnly} className="min-w-0 max-w-2xl">
-      <h1 className="mb-6 text-3xl">{readOnly ? "Role details" : "Edit role"}</h1>
-      <ActionForm action={updateRole} className="card space-y-4">
+    <fieldset disabled={readOnly} className="min-w-0 max-w-4xl">
+      <header className="page-header">
+        <div>
+          <p className="page-eyebrow">Roles / Details</p>
+          <h1>{readOnly ? "Role details" : "Edit role"}</h1>
+          <p className="page-description">Keep the brief, client and role status up to date.</p>
+        </div>
+      </header>
+      <ActionForm action={updateRole} className="card form-panel grid gap-6 sm:grid-cols-2">
+        <h2 className="section-heading sm:col-span-2"><span aria-hidden="true" className="section-number">01</span> Role essentials</h2>
         <input type="hidden" name="id" value={role.id} />
         <div>
           <label htmlFor="title" className="field-label">
@@ -29,7 +36,7 @@ export default async function EditRolePage({ params }: { params: { id: string } 
           </label>
           <input id="client" name="client" defaultValue={role.client ?? ""} className="field-input" />
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <label htmlFor="jobDesc" className="field-label">
             Job description
           </label>

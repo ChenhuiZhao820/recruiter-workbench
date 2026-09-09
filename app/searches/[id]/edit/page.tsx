@@ -25,8 +25,18 @@ export default async function EditSearchPage({ params }: { params: { id: string 
   });
 
   return (
-    <fieldset disabled={readOnly} className="min-w-0 max-w-2xl">
-      <h1 className="mb-6 text-3xl">{readOnly ? "Search details" : "Edit search"}</h1>
+    <fieldset disabled={readOnly} className="min-w-0 max-w-4xl">
+      <header className="page-header">
+        <div>
+          <p className="page-eyebrow">Searches / Details</p>
+          <h1>{readOnly ? "Search details" : "Edit search"}</h1>
+          <p className="page-description">Refine your keywords and keep the next search ready to run.</p>
+        </div>
+      </header>
+      <div className="mb-6 border-l-2 border-accent bg-surface p-5">
+        <h2 className="section-heading"><span aria-hidden="true" className="section-number">01</span> Search essentials</h2>
+        <p className="section-caption">Keywords open in LinkedIn. Your saved filters stay here as a checklist.</p>
+      </div>
       <SearchForm
         roles={roles}
         searchId={search.id}

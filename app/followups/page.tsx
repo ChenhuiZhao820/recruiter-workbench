@@ -31,21 +31,23 @@ function QuickStageButton({
 
 function Bucket({
   title,
+  number,
   description,
   rows,
   actions,
   readOnly,
 }: {
   title: string;
+  number: string;
   description: string;
   rows: FollowUpRow[];
   readOnly: boolean;
   actions: (row: FollowUpRow) => React.ReactNode;
 }) {
   return (
-    <section aria-label={title}>
-      <h2 className="text-2xl">{title}</h2>
-      <p className="mb-3 mt-1 text-sm text-ink/70">{description}</p>
+    <section aria-label={title} className="workspace-section">
+      <h2 className="section-heading"><span className="section-number" aria-hidden="true">{number}</span>{title}</h2>
+      <p className="section-caption mb-4">{description}</p>
       {rows.length === 0 ? (
         <p className="text-ink/60">Nothing here. All clear.</p>
       ) : (
@@ -96,15 +98,18 @@ export default async function FollowUpsPage() {
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 space-y-8">
-      <div>
-        <h1 className="text-3xl">Follow-ups today</h1>
-        <p className="mt-1 text-ink/70">
-          Built from your own notes and timestamps. Work through it top to bottom.
-        </p>
-      </div>
+      <header className="page-header">
+        <div>
+          <p className="page-eyebrow">Pipeline / Next steps</p>
+          <h1>Follow-ups today</h1>
+          <p className="page-description">Keep the conversation moving. Built from your own notes and timestamps.</p>
+        </div>
+        <p className="chip">Work top to bottom</p>
+      </header>
 
       <Bucket
         readOnly={readOnly}
+        number="01"
         title="Replied, waiting on you"
         description="They answered and you have not responded yet."
         rows={buckets.repliedWaiting}
@@ -121,6 +126,7 @@ export default async function FollowUpsPage() {
 
       <Bucket
         readOnly={readOnly}
+        number="02"
         title="Said yes, never booked"
         description={`Keen but no booking after ${settings.bookingChaseDays} ${settings.bookingChaseDays === 1 ? "day" : "days"}.`}
         rows={buckets.saidYesNeverBooked}
@@ -137,6 +143,7 @@ export default async function FollowUpsPage() {
 
       <Bucket
         readOnly={readOnly}
+        number="03"
         title="Went quiet"
         description={`Contacted, no reply, and more than ${settings.quietNudgeDays} days have passed.`}
         rows={buckets.wentQuiet}

@@ -51,6 +51,26 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Repository/directory names and hosted database/service names are independent
   resources. Changing display branding must not silently change origins or URLs.
 
+## Frontend design and public routes
+
+- Visual direction: Aoutive-inspired structured grids, restrained borders, black /
+  white / neutral grays and cobalt blue (#315CFF) as the single brand accent.
+  Do not introduce the separate Basanite interview product's earth/gold palette.
+- Fonts stay local (Schibsted Grotesk and JetBrains Mono). Illustrations are inline
+  SVG/CSS, not hotlinked template assets; no new third-party runtime requests.
+- Anonymous `/` is a public marketing homepage. Authenticated `/` remains the
+  owner-scoped Roles dashboard. `/welcome` shows the marketing page for either
+  state. All other business routes still require authentication.
+- `ApplicationShell` selects public navigation or the responsive workspace sidebar;
+  `MarketingHome`/`ProductPreview` use explicitly illustrative, static data only.
+  Never feed real recruiting data into a public preview or invent customer claims.
+- Dashboard search/sort in `RoleDirectory` works only on server-authorized records
+  and does not write data. Keep all mutation labels, owner checks and read-only
+  protections intact when restyling pages.
+- `tests/06-design.spec.ts` covers public/private routing, mobile overflow, keyboard
+  navigation, tabs, FAQ, password visibility and role filtering. Screenshots use
+  test-only fixtures in ignored test-results; no real user data is captured.
+
 ## Accounts and authorization
 
 - `lib/auth.ts`: opaque hashed database sessions, HttpOnly/SameSite cookies,

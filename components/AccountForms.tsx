@@ -6,6 +6,7 @@ import { useFormState, useFormStatus } from "react-dom";
 import { login, activateAccount, changePassword } from "@/app/actions/auth";
 import type { AccountActionState } from "@/app/actions/accounts";
 import { CopyButton } from "@/components/CopyButton";
+import { Icon } from "@/components/Icon";
 import type { FormState } from "@/lib/formState";
 
 function Submit({ children }: { children: React.ReactNode }) {
@@ -30,12 +31,13 @@ function NewPasswordFields() {
 
 export function LoginForm() {
   const [state, action] = useFormState(login, {});
-  return <form action={action} className="card space-y-4">
+  const [showPassword, setShowPassword] = useState(false);
+  return <form action={action} className="auth-form">
     <Status state={state} />
-    <div><label htmlFor="email" className="field-label">Email</label><input id="email" name="email" type="email" autoComplete="username" maxLength={254} required className="field-input" /></div>
-    <div><label htmlFor="password" className="field-label">Password</label><input id="password" name="password" type="password" autoComplete="current-password" maxLength={128} required className="field-input" /></div>
-    <Submit>Sign in</Submit>
-    <p className="text-sm text-ink-soft">Need an account or a password reset? Ask your administrator for a one-time setup link.</p>
+    <div><label htmlFor="email" className="field-label">Email</label><input id="email" name="email" type="email" autoComplete="username" maxLength={254} required className="field-input" placeholder="you@company.com" /></div>
+    <div><label htmlFor="password" className="field-label">Password</label><div className="password-field"><input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" maxLength={128} required className="field-input" placeholder="Enter your password" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} aria-controls="password" onClick={() => setShowPassword(!showPassword)}><Icon name="eye" size={18} /></button></div></div>
+    <Submit>Sign in<Icon name="arrow" size={17} /></Submit>
+    <p className="auth-help">Need an account or a password reset? Ask your administrator for a one-time setup link.</p>
   </form>;
 }
 

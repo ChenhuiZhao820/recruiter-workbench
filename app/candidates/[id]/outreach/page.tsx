@@ -55,20 +55,23 @@ export default async function OutreachPage({
   const olderOutreach = candidate.outreach.slice(3);
 
   return (
-    <fieldset disabled={readOnly} className="min-w-0 max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-3xl">Outreach</h1>
-        <p className="mt-1 text-ink/70">
+    <fieldset disabled={readOnly} className="min-w-0 max-w-4xl space-y-8">
+      <header className="page-header">
+        <div>
+        <p className="page-eyebrow">Candidates / Conversation</p>
+        <h1>Outreach</h1>
+        <p className="page-description flex flex-wrap items-center gap-2">
           {candidate.fullName} ·{" "}
           <Link href={`/roles/${candidate.role.id}`} className="underline">
             {candidate.role.title}
           </Link>{" "}
           · <StageBadge stage={candidate.stage} />
         </p>
-      </div>
+        </div>
+      </header>
 
       {templates.length === 0 ? (
-        <div className="card text-ink/70">
+        <div className="card empty-state text-ink-soft">
           <p>
             You have no message templates yet.{" "}
             <Link href="/templates" className="underline">

@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { db } from "@/lib/db";
+import { canUseExtension } from "@/lib/extension-access";
 import { getSettings } from "@/lib/settings";
 import { getWorkspace } from "@/lib/workspace";
 import { updateSettings } from "@/app/actions/settings";
@@ -9,6 +12,8 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const { owner, readOnly } = await getWorkspace();
   const settings = await getSettings();
+  const access = await db.extensionAccess.findUnique({ where: { userId: owner.id }, select: { activatedAt: true } });
+  const extensionEnabled = canUseExtension({ ...owner, extensionAccess: access });
 
   return (
     <fieldset key={owner.id} disabled={readOnly} className="min-w-0">
@@ -85,7 +90,14 @@ export default async function SettingsPage() {
           <h2 className="section-heading"><span aria-hidden="true" className="section-number">03</span> Browser connection</h2>
           <p className="section-caption">Connect the Capture extension to your workspace.</p>
         </div>
-        <CaptureKeyPanel enabled={Boolean(settings.captureTokenHash)} readOnly={readOnly} />
+        {readOnly || extensionEnabled ? <>
+          <CaptureKeyPanel enabled={Boolean(settings.captureTokenHash)} readOnly={readOnly} />
+          {!readOnly && <Link href="/account" className="text-sm text-accent underline">Download extension and installation instructions</Link>}
+        </> : <div className="card space-y-3">
+          <h2 className="text-lg">Activate extension access first</h2>
+          <p className="text-sm text-ink-soft">Redeem the extension activation code from your administrator in Your account before generating a capture key.</p>
+          <Link href="/account" className="btn-secondary">Activate extension in your account</Link>
+        </div>}
       </section>
       </div>
 

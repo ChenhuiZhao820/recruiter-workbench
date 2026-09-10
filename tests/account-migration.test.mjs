@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";
-import { link, mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { link, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { bootstrapAdmin, businessModels, normalizeEmail, parseArgs, targetProvider, validateOrigin } from "../scripts/bootstrap-admin.mjs";
@@ -176,10 +176,21 @@ test("PostgreSQL schema changes only the datasource provider and retains the sha
   const postgres = await readFile(new URL("../prisma/postgresql/schema.prisma", import.meta.url), "utf8");
   assert.equal(postgres.replaceAll("\r\n", "\n"), postgresSchema(sqlite).replaceAll("\r\n", "\n"));
   assert.throws(() => postgresSchema(postgres));
-  const migration = await readFile(new URL("../prisma/postgresql/migrations/20260908000000_initial/migration.sql", import.meta.url), "utf8");
-  for (const [, model] of postgres.matchAll(/model\s+(\w+)\s*\{/g)) assert.ok(migration.includes(`CREATE TABLE "${model}"`));
+  const migrationsUrl = new URL("../prisma/postgresql/migrations/", import.meta.url);
+  const directories = (await readdir(migrationsUrl, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  const migrations = await Promise.all(directories.map((name) => readFile(new URL(`${name}/migration.sql`, migrationsUrl), "utf8")));
+  const migration = migrations.join("\n");
+  for (const [, model] of postgres.matchAll(/model\s+(\w+)\s*\{/g)) assert.equal(migration.split(`CREATE TABLE "${model}"`).length - 1, 1, model);
   assert.ok(migration.includes('"id" SERIAL NOT NULL'));
   assert.ok(migration.includes('"Settings_captureTokenHash_key"'));
+  const initialIndex = directories.indexOf("20260908000000_initial");
+  const extensionIndex = directories.indexOf("20260910000000_extension_access");
+  assert.ok(initialIndex >= 0 && extensionIndex > initialIndex);
+  assert.ok(!migrations[initialIndex].includes('CREATE TABLE "ExtensionAccess"'));
+  assert.match(migrations[extensionIndex], /CREATE TABLE "ExtensionAccess"/);
+  assert.match(migrations[extensionIndex], /PRIMARY KEY \("userId"\)/);
+  assert.match(migrations[extensionIndex], /FOREIGN KEY \("userId"\) REFERENCES "User"\("id"\) ON DELETE CASCADE ON UPDATE CASCADE/);
+  assert.match(migrations[extensionIndex], /CREATE UNIQUE INDEX "ExtensionAccess_codeHash_key"/);
 });
 
 test("CLI rejects unknown, duplicate and missing arguments and unsafe origins", () => {

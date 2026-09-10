@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { normalizeProfileUrl } from "@/lib/urls";
 import { corsHeaders } from "@/lib/capture";
 import { hashToken } from "@/lib/auth-crypto";
+import { canUseExtension } from "@/lib/extension-access";
 import { revalidatePath } from "next/cache";
 
 // The browser extension's one endpoint. It does exactly what the "Add
@@ -30,14 +31,14 @@ async function authorize(request: Request) {
   if (!token || !/^[A-Za-z0-9_-]{24,128}$/.test(token)) return null;
   const settings = await db.settings.findUnique({
     where: { captureTokenHash: hashToken(token) },
-    select: { user: { select: { id: true, email: true, name: true, active: true } } },
+    select: { user: { select: { id: true, email: true, name: true, active: true, role: true, extensionAccess: { select: { activatedAt: true } } } } },
   });
-  return settings?.user.active ? settings.user : null;
+  return settings && canUseExtension(settings.user) ? settings.user : null;
 }
 
 function denied(request: Request) {
   return NextResponse.json(
-    { error: "Capture key missing, revoked or account disabled. Sign in and generate a new key in Settings." },
+    { error: "Capture key missing or revoked, account disabled, or extension activation required. Sign in, check extension activation on your Account page, and generate a new key in Settings." },
     { status: 401, headers: corsHeaders(request.headers.get("origin")) }
   );
 }

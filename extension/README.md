@@ -12,15 +12,36 @@ to the tab after you click the toolbar button. It cannot read anything while
 you browse, even if it wanted to: that is enforced by the browser, not by a
 promise in this file.
 
-Nothing is sent anywhere except your own workbench on localhost.
+Requests go only to the configured workbench. Source builds support HTTP
+loopback; hosted packages additionally permit one explicit HTTPS workbench origin.
 
 ## Install
 
-1. In the workbench, open **Settings** and generate a **capture key**.
-2. Go to `chrome://extensions`, switch on **Developer mode**, choose **Load
-   unpacked**, and pick this `extension` folder.
-3. Click the extension, paste the workbench address (`http://localhost:3000`)
-   and the capture key, and connect.
+1. Sign in to Capture and open **Your account**. Ask your administrator for your
+   account's extension activation code and redeem it there within 7 days.
+   Codes work once for the assigned account only. A replacement invalidates the
+   previous code. Active administrators do not need an extension activation code.
+2. Choose **Download extension ZIP** and extract it into a permanent folder.
+3. In desktop Chrome, go to `chrome://extensions`, enable **Developer mode**,
+   choose **Load unpacked**, and select the extracted `capture-extension` folder
+   containing `manifest.json`. Keep that folder on your computer.
+4. Pin Capture from Chrome's extensions menu. In Capture **Settings**, generate
+   your personal **capture key**. Paste it into the extension and connect; the
+   workbench address is already filled in. Verify the displayed name and email.
+5. Create an open role in your own workspace if you do not have one yet.
+
+The activation code unlocks account access; it is not the capture key. Neither is
+included in the ZIP. Website login and the extension's connected account remain
+independent. Changing your password revokes capture keys but retains extension
+access, so generate a new key and reconnect afterwards.
+
+You can download again without another activation code. Unpacked extensions do
+not update automatically: download a fresh package when an update is available.
+If your organisation blocks Developer mode, contact your IT administrator.
+
+For local development, load this repository's `extension` folder instead. Its
+workbench address defaults to `http://localhost:3000`; account authorization still
+applies. Do not distribute the loopback-only source build for a hosted workbench.
 
 ## Use
 

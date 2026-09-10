@@ -15,18 +15,19 @@ const importer = fileURLToPath(new URL("../scripts/import-accounts.mjs", import.
 const adminEmail = "admin@fixture.invalid";
 const passwordHash = `scrypt$32768$8$3$${"12".repeat(16)}$${"ab".repeat(64)}`;
 const captureHashes = ["31".repeat(32), "42".repeat(32)];
+const extensionCodeHashes = ["75".repeat(32), "86".repeat(32)];
 const sessionHash = "53".repeat(32);
 const activationHash = "64".repeat(32);
 const throttleKey = "fixture-private-throttle-key";
 const createdAt = new Date("2023-01-02T03:04:05.006Z");
 const updatedAt = new Date("2024-02-03T04:05:06.007Z");
-const tables = ["User", "Role", "MessageTemplate", "Briefing", "SavedSearch", "Candidate", "OutreachLog", "Settings", "AuditEvent"];
+const tables = ["User", "ExtensionAccess", "Role", "MessageTemplate", "Briefing", "SavedSearch", "Candidate", "OutreachLog", "Settings", "AuditEvent"];
 const ephemeralTables = ["Session", "ActivationToken", "LoginThrottle"];
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
 const models = [...tables, ...ephemeralTables].map(modelFor);
 const fileUrl = (path) => `file:${path.replaceAll("\\", "/")}`;
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
-const sorted = (rows) => [...rows].sort((left, right) => String(left.id ?? left.tokenHash ?? left.key).localeCompare(String(right.id ?? right.tokenHash ?? right.key)));
+const sorted = (rows) => [...rows].sort((left, right) => String(left.id ?? left.userId ?? left.tokenHash ?? left.key).localeCompare(String(right.id ?? right.userId ?? right.tokenHash ?? right.key)));
 let directory;
 let emptyPath;
 let sourcePath;
@@ -42,6 +43,7 @@ async function seedSource(db) {
     const templateId = `fixture-template-${label}`;
     const candidateId = `fixture-candidate-${label}`;
     await db.user.create({ data: { id: userId, email: `${label}@fixture.invalid`, name: `Fixture ${label}`, role: label, active: true, passwordHash, authVersion: index + 4, createdAt, updatedAt } });
+    await db.extensionAccess.create({ data: { userId, codeHash: extensionCodeHashes[index], expiresAt: new Date("2035-01-01T00:00:00Z"), activatedAt: index ? null : updatedAt, createdAt, updatedAt } });
     await db.role.create({ data: { id: roleId, userId, title: `${label} role`, client: `${label} client`, jobDesc: `${label} private job description`, status: index ? "closed" : "open", createdAt, updatedAt } });
     await db.messageTemplate.create({ data: { id: templateId, userId, name: `${label} template`, body: `${label} private {{first_name}} template`, kind: index ? "connection_note" : "message", createdAt, updatedAt } });
     await db.briefing.create({ data: { id: `fixture-briefing-${label}`, roleId, dayToDay: `${label} day to day`, keySkills: '[{"skill":"fixture","real_vs_buzzword":"real"}]', searchTitles: '["Fixture title"]', targetCompanies: '["Fixture company"]', salaryRange: "Fixture salary", firstCallQuestions: '[{"question":"fixture","strong_answer":"yes","weak_answer":"no"}]', createdAt } });
@@ -106,12 +108,12 @@ test("account source projection excludes authentication material and leaves ever
   assert.deepEqual(Object.keys(source).sort(), [...tables].sort());
   for (const table of tables) assert.equal(source[table].length, 2, table);
   for (const row of source.Settings) assert.equal(row.captureTokenHash, null);
-  for (const secret of [...captureHashes, sessionHash, activationHash, throttleKey]) assert.equal(JSON.stringify(source).includes(secret), false);
+  for (const secret of [...captureHashes, ...extensionCodeHashes, sessionHash, activationHash, throttleKey]) assert.equal(JSON.stringify(source).includes(secret), false);
   assert.equal(source.User[0].passwordHash, passwordHash);
   assert.deepEqual(await readFile(sourcePath), sourceBytes);
 });
 
-test("capture hashes are redacted by the SQLite query rather than read into the source result", async (t) => {
+test("capture and extension code hashes and pending expiries are redacted in the SQLite query", async (t) => {
   const queries = [];
   const prepare = DatabaseSync.prototype.prepare;
   t.mock.method(DatabaseSync.prototype, "prepare", function (sql, ...args) {
@@ -122,20 +124,95 @@ test("capture hashes are redacted by the SQLite query rather than read into the 
   const projection = queries.find((sql) => /SELECT\s/i.test(sql) && /FROM\s+"?Settings"?\b/i.test(sql));
   assert.ok(projection, "source reader must project Settings");
   assert.match(projection, /NULL\s+(?:AS\s+)?"?captureTokenHash"?/i);
+  const extensionProjection = queries.find((sql) => /SELECT\s/i.test(sql) && /FROM\s+"ExtensionAccess"/i.test(sql));
+  assert.ok(extensionProjection);
+  assert.match(extensionProjection, /NULL AS "codeHash"/);
+  assert.match(extensionProjection, /NULL AS "expiresAt"/);
+  assert.equal(extensionProjection.match(/"codeHash"/g).length, 1);
+  assert.doesNotMatch(extensionProjection, /SELECT\s+\*/i);
+  for (const row of source.ExtensionAccess) {
+    assert.equal(row.codeHash, null);
+    assert.equal(row.expiresAt, null);
+  }
 });
 
-test("validation preserves every persisted field except incremented auth versions and invalidated capture keys", () => {
+test("validation preserves every persisted field except auth versions, capture keys and pending extension codes/expiries", () => {
   const original = structuredClone(source);
   const result = validateAccounts(source, adminEmail);
   assert.equal(result.adminId, "fixture-user-admin");
   assert.deepEqual(Object.keys(result.data).sort(), tables.map(modelFor).sort());
   for (const table of tables) {
     const model = modelFor(table);
-    const expected = fixtureRows[model].map((row) => ({ ...row, ...(table === "User" ? { authVersion: row.authVersion + 1 } : {}), ...(table === "Settings" ? { captureTokenHash: null } : {}) }));
+    const expected = fixtureRows[model].map((row) => ({ ...row, ...(table === "User" ? { authVersion: row.authVersion + 1 } : {}), ...(table === "Settings" ? { captureTokenHash: null } : {}), ...(table === "ExtensionAccess" ? { codeHash: null, expiresAt: null } : {}) }));
     assert.deepEqual(sorted(result.data[model]), sorted(expected), table);
   }
   assert.deepEqual(structuredClone(source), original);
   assert.ok(result.counts);
+});
+
+test("older account databases and snapshots may omit only ExtensionAccess", async () => {
+  const path = join(directory, "pre-extension-source.db");
+  await copyFile(sourcePath, path);
+  const sqlite = new DatabaseSync(path);
+  try { sqlite.exec('DROP TABLE "ExtensionAccess"'); } finally { sqlite.close(); }
+  const before = await readFile(path);
+  const legacy = await readAccounts(path);
+  assert.deepEqual(legacy.ExtensionAccess, []);
+  const oldSnapshot = structuredClone(legacy);
+  delete oldSnapshot.ExtensionAccess;
+  assert.deepEqual(validateAccounts(oldSnapshot, adminEmail), validateAccounts(legacy, adminEmail));
+  const backup = join(directory, "pre-extension-snapshot.db");
+  await snapshotAccounts(path, backup);
+  assert.deepEqual(await readAccounts(backup), legacy);
+  assert.deepEqual(await readFile(path), before);
+  await withTarget(async (db) => {
+    await importAccounts(db, oldSnapshot, adminEmail, { provider: "sqlite", confirmed: true });
+    assert.equal(await db.extensionAccess.count(), 0);
+    await verifyAccounts(db, legacy, adminEmail);
+    await db.extensionAccess.create({ data: { userId: "fixture-user-recruiter", activatedAt: updatedAt } });
+    await assert.rejects(verifyAccounts(db, oldSnapshot, adminEmail), /extensionAccess/);
+  });
+  for (const table of tables.filter((table) => table !== "ExtensionAccess")) {
+    const missing = structuredClone(oldSnapshot);
+    delete missing[table];
+    assert.throws(() => validateAccounts(missing, adminEmail), /missing/);
+  }
+  for (const value of [null, undefined, {}, ""]) assert.throws(() => validateAccounts({ ...oldSnapshot, ExtensionAccess: value }, adminEmail), /missing ExtensionAccess/);
+});
+
+test("extension grants retain activation and dates while pending codes and expiry are invalidated", async () => {
+  const input = structuredClone(source);
+  input.ExtensionAccess = structuredClone(fixtureRows.extensionAccess).reverse();
+  const original = structuredClone(input);
+  await withTarget(async (db) => {
+    await importAccounts(db, input, adminEmail, { provider: "sqlite", confirmed: true });
+    for (const row of original.ExtensionAccess) {
+      assert.deepEqual(await db.extensionAccess.findUniqueOrThrow({ where: { userId: row.userId } }), { ...row, codeHash: null, expiresAt: null });
+    }
+    await verifyAccounts(db, source, adminEmail);
+    await verifyAccounts(db, input, adminEmail);
+  });
+  assert.deepEqual(input, original);
+});
+
+test("source reader rejects malformed ExtensionAccess schemas and orphan grants", async (t) => {
+  const cases = [
+    ["orphan", 'UPDATE "ExtensionAccess" SET "userId" = \'missing-user\' WHERE "userId" = \'fixture-user-admin\'', /foreign keys/],
+    ["wrong primary key", 'DROP TABLE "ExtensionAccess"; CREATE TABLE "ExtensionAccess" ("userId" TEXT, "codeHash" TEXT PRIMARY KEY, "expiresAt" DATETIME, "activatedAt" DATETIME, "createdAt" DATETIME, "updatedAt" DATETIME)', /primary key/],
+    ["wrong date type", 'DROP TABLE "ExtensionAccess"; CREATE TABLE "ExtensionAccess" ("userId" TEXT PRIMARY KEY, "codeHash" TEXT, "expiresAt" TEXT, "activatedAt" DATETIME, "createdAt" DATETIME, "updatedAt" DATETIME)', /column type/],
+    ["missing column", 'ALTER TABLE "ExtensionAccess" DROP COLUMN "activatedAt"', /columns/],
+    ["unknown column", 'ALTER TABLE "ExtensionAccess" ADD COLUMN "unexpected" TEXT', /columns/],
+    ["required table absent", 'DROP TABLE "LoginThrottle"', /missing LoginThrottle/],
+  ];
+  for (const [name, sql, error] of cases) await t.test(name, async () => {
+    const path = join(directory, `malformed-${name.replaceAll(" ", "-")}.db`);
+    await copyFile(sourcePath, path);
+    const sqlite = new DatabaseSync(path, { enableForeignKeyConstraints: false });
+    try { sqlite.exec(sql); } finally { sqlite.close(); }
+    const before = await readFile(path);
+    await assert.rejects(readAccounts(path), error);
+    assert.deepEqual(await readFile(path), before);
+  });
 });
 
 test("selected admin lookup accepts normalized email without changing account identities", () => {
@@ -165,6 +242,7 @@ test("validation rejects orphaned references and cross-owner relationships", asy
     ["template owner", (data) => { data.MessageTemplate[0].userId = "fixture-missing-user"; }],
     ["search owner", (data) => { data.SavedSearch[0].userId = "fixture-missing-user"; }],
     ["settings owner", (data) => { data.Settings[0].userId = "fixture-missing-user"; }],
+    ["extension grant owner", (data) => { data.ExtensionAccess[0].userId = "fixture-missing-user"; }],
     ["briefing role", (data) => { data.Briefing[0].roleId = "fixture-missing-role"; }],
     ["candidate role", (data) => { data.Candidate[0].roleId = "fixture-missing-role"; }],
     ["search role", (data) => { data.SavedSearch[0].roleId = "fixture-missing-role"; }],
@@ -198,6 +276,8 @@ test("validation rejects duplicate identities, normalized email collisions, inva
     ["invalid template kind", (data) => { data.MessageTemplate[0].kind = "unsupported-kind"; }],
     ["unsupported password hash", (data) => { data.User[1].passwordHash = "fixture-unsupported-hash"; }],
     ["invalid timestamp", (data) => { data.Candidate[0].createdAt = "2024-02-31T00:00:00Z"; }],
+    ...["activatedAt", "createdAt", "updatedAt"].map((column) => [`invalid extension ${column}`, (data) => { data.ExtensionAccess[0][column] = "2024-02-31T00:00:00Z"; }]),
+    ["multiple extension grants per user", (data) => { data.ExtensionAccess[1].userId = data.ExtensionAccess[0].userId; }],
     ["auth version overflow", (data) => { data.User[1].authVersion = 2147483647; }],
   );
   for (const [name, mutate] of cases) await t.test(name, () => {
@@ -327,6 +407,16 @@ test("post-import verification detects content, ownership, audit and authenticat
     ["wrong import actor", (db) => db.auditEvent.updateMany({ where: { action: "accounts.import" }, data: { actorId: "fixture-user-recruiter" } })],
     ["wrong import target", (db) => db.auditEvent.updateMany({ where: { action: "accounts.import" }, data: { targetUserId: "fixture-user-recruiter" } })],
     ["capture key", (db) => db.settings.update({ where: { userId: "fixture-user-admin" }, data: { captureTokenHash: captureHashes[0] } })],
+    ["unauthorized extension activation", (db) => db.extensionAccess.update({ where: { userId: "fixture-user-recruiter" }, data: { activatedAt: updatedAt } })],
+    ["revoked extension grant", (db) => db.extensionAccess.update({ where: { userId: "fixture-user-admin" }, data: { activatedAt: null } })],
+    ["deleted extension grant", (db) => db.extensionAccess.delete({ where: { userId: "fixture-user-admin" } })],
+    ["pending extension code", (db) => db.extensionAccess.update({ where: { userId: "fixture-user-recruiter" }, data: { codeHash: extensionCodeHashes[1] } })],
+    ["pending extension expiry", (db) => db.extensionAccess.update({ where: { userId: "fixture-user-recruiter" }, data: { expiresAt: updatedAt } })],
+    ...["createdAt", "updatedAt"].map((column) => [`extension ${column}`, (db) => db.extensionAccess.update({ where: { userId: "fixture-user-admin" }, data: { [column]: new Date("2026-01-01T00:00:00Z") } })]),
+    ["swapped extension ownership", async (db) => {
+      await db.extensionAccess.deleteMany();
+      for (const row of validateAccounts(source, adminEmail).data.extensionAccess) await db.extensionAccess.create({ data: { ...row, userId: row.userId === "fixture-user-admin" ? "fixture-user-recruiter" : "fixture-user-admin" } });
+    }],
     ["session", (db) => db.session.create({ data: { tokenHash: sessionHash, userId: "fixture-user-admin", expiresAt: updatedAt } })],
     ["activation token", (db) => db.activationToken.create({ data: { tokenHash: activationHash, userId: "fixture-user-admin", expiresAt: updatedAt } })],
     ["login throttle", (db) => db.loginThrottle.create({ data: { key: throttleKey, resetAt: updatedAt } })],
@@ -399,7 +489,7 @@ test("CLI refuses SQLite targets before attempting default dry-run or noninterac
       assert.notEqual(result.status, 0);
       assert.match(result.stderr, /target must be PostgreSQL/i);
       assert.equal(result.stdout, "");
-      for (const secret of [passwordHash, ...captureHashes, sessionHash, activationHash, throttleKey, adminEmail]) assert.equal(result.stderr.includes(secret), false);
+      for (const secret of [passwordHash, ...captureHashes, ...extensionCodeHashes, sessionHash, activationHash, throttleKey, adminEmail]) assert.equal(result.stderr.includes(secret), false);
       assert.deepEqual(await readFile(path), before);
       assert.deepEqual(await readFile(sourcePath), sourceBytes);
       await assertEmpty(db);
@@ -415,7 +505,7 @@ test("CLI snapshot reports counts and fingerprints without printing private cont
     assert.equal(result.error, undefined);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     const output = `${result.stdout}\n${result.stderr}`;
-    for (const secret of [passwordHash, ...captureHashes, sessionHash, activationHash, throttleKey, adminEmail, "admin private candidate notes", "admin private rendered outreach", "admin private {{first_name}} template"]) assert.equal(output.includes(secret), false);
+    for (const secret of [passwordHash, ...captureHashes, ...extensionCodeHashes, sessionHash, activationHash, throttleKey, adminEmail, "admin private candidate notes", "admin private rendered outreach", "admin private {{first_name}} template"]) assert.equal(output.includes(secret), false);
     const report = JSON.parse(result.stdout);
     assert.deepEqual(report.counts, validateAccounts(source, adminEmail).counts);
     assert.equal(report.sourceSha256, sha256(sourceBytes));

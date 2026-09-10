@@ -130,7 +130,7 @@ function say(node, text, tone) {
 function showSetup(message) {
   el("capture").hidden = true;
   el("setup").hidden = false;
-  el("url").value = state.url || hostedOrigins[0] || "http://localhost:3000";
+  el("url").value = state.url || hostedOrigins[0] || workbenchOrigin(globalThis.CAPTURE_WORKBENCH_DEFAULT) || "http://localhost:3000";
   el("token").value = state.token || "";
   say(el("setup-message"), message, message ? "bad" : "");
 }

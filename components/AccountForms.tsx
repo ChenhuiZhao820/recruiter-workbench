@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
 import { login, activateAccount, changePassword } from "@/app/actions/auth";
 import type { AccountActionState } from "@/app/actions/accounts";
+import { issueExtensionCode, redeemExtensionCode, type ExtensionActionState } from "@/app/actions/extension";
 import { CopyButton } from "@/components/CopyButton";
 import { Icon } from "@/components/Icon";
 import type { FormState } from "@/lib/formState";
@@ -77,6 +78,32 @@ export function PasswordForm() {
     <NewPasswordFields />
     <p className="text-sm text-ink-soft">Changing your password signs out all sessions and revokes your extension capture key.</p>
     <Submit>Change password</Submit>
+  </form>;
+}
+
+export function ExtensionCodeForm({ userId, issued }: { userId: string; issued: boolean }) {
+  const [state, action] = useFormState(issueExtensionCode, {} as ExtensionActionState);
+  return <form action={action} className="space-y-3">
+    <Status state={state} />
+    <input type="hidden" name="userId" value={userId} />
+    {state.code && <div className="space-y-2">
+      <input aria-label="New extension activation code" value={state.code} readOnly autoComplete="off" className="field-input font-mono" />
+      <CopyButton text={state.code} label="Copy extension code" />
+      <p className="section-caption">Shown only now. Share privately with this account holder, not in a URL. A replacement immediately invalidates the previous code.</p>
+    </div>}
+    <Submit>{issued ? "Replace extension code" : "Generate extension code"}</Submit>
+  </form>;
+}
+
+export function ExtensionActivationForm() {
+  const [state, action] = useFormState(redeemExtensionCode, {} as ExtensionActionState);
+  return <form action={action} className="max-w-xl space-y-4">
+    <Status state={state} />
+    <div>
+      <label htmlFor="extension-code" className="field-label">Extension activation code</label>
+      <input id="extension-code" name="code" type="password" autoComplete="off" spellCheck={false} maxLength={128} required className="field-input font-mono" />
+    </div>
+    <Submit>Activate extension</Submit>
   </form>;
 }
 

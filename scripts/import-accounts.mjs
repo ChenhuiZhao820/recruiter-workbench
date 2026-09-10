@@ -5,11 +5,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { legacyColumns, legacyDate } from "./import-legacy.mjs";
-import { lockTarget, normalizeEmail, parseArgs, SafeError, targetProvider } from "./bootstrap-admin.mjs";
+import { normalizeEmail, parseArgs, SafeError, targetProvider } from "./bootstrap-admin.mjs";
 
 const settingsColumns = Object.fromEntries(Object.entries(legacyColumns.Settings).filter(([column]) => column !== "captureToken"));
 export const accountColumns = {
   User: { id: "id", email: "email", name: "text", role: "userRole", active: "bool", passwordHash: "password?", authVersion: "int", createdAt: "date", updatedAt: "date" },
+  ExtensionAccess: { userId: "id", codeHash: "discard", expiresAt: "date?", activatedAt: "date?", createdAt: "date", updatedAt: "date" },
   Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus" },
   MessageTemplate: { ...legacyColumns.MessageTemplate, userId: "id" },
   Briefing: legacyColumns.Briefing,
@@ -25,7 +26,9 @@ const ephemeralColumns = {
   LoginThrottle: { key: "text", attempts: "int", resetAt: "date" },
 };
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
-const allModels = [...Object.keys(accountColumns), ...Object.keys(ephemeralColumns)].map(modelFor);
+const allTables = [...Object.keys(accountColumns), ...Object.keys(ephemeralColumns)];
+const allModels = allTables.map(modelFor);
+const primaryFor = (table) => table === "ExtensionAccess" ? "userId" : Object.hasOwn(accountColumns, table) ? "id" : table === "LoginThrottle" ? "key" : "tokenHash";
 const passwordPattern = /^scrypt\$32768\$8\$3\$[a-f0-9]{32}\$[a-f0-9]{128}$/;
 const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", "rejected", "placed"];
 const invalid = (detail) => { throw new SafeError(`Invalid multi-account source: ${detail}. No data values are printed.`); };
@@ -61,23 +64,26 @@ export function validateAccounts(source, adminEmail) {
   const data = {};
   const byId = {};
   for (const [table, columns] of Object.entries(accountColumns)) {
-    if (!Array.isArray(source[table])) invalid(`missing ${table} table`);
+    const rows = table === "ExtensionAccess" && !Object.hasOwn(source, table) ? [] : source[table];
+    if (!Array.isArray(rows)) invalid(`missing ${table} table`);
     const model = modelFor(table);
+    const primary = primaryFor(table);
     byId[table] = new Map();
-    data[model] = source[table].map((row) => {
+    data[model] = rows.map((row) => {
       if (!row || typeof row !== "object" || Object.keys(row).some((column) => !Object.hasOwn(columns, column))) invalid(`unexpected ${table} column`);
       const result = {};
       for (const [column, descriptor] of Object.entries(columns)) {
         if (!Object.hasOwn(row, column)) invalid(`missing ${table} column`);
         result[column] = convert(row[column], descriptor);
       }
-      if (byId[table].has(result.id)) invalid(`duplicate ${table} identifier`);
+      if (byId[table].has(result[primary])) invalid(`duplicate ${table} identifier`);
+      if (table === "ExtensionAccess") result.expiresAt = null;
       if (table === "User") {
         if (result.authVersion >= 2147483647) invalid("account version overflow");
         result.authVersion++;
       }
       if (table === "Settings" && (result.id < 1 || result.id >= 2147483647 || result.bookingChaseDays < 1 || result.quietNudgeDays < 1)) invalid("invalid settings values");
-      byId[table].set(result.id, result);
+      byId[table].set(result[primary], result);
       return result;
     });
   }
@@ -89,7 +95,7 @@ export function validateAccounts(source, adminEmail) {
     if (!row) invalid(`missing ${table} relationship`);
     return row;
   };
-  for (const model of ["role", "messageTemplate", "savedSearch", "settings"]) {
+  for (const model of ["role", "messageTemplate", "savedSearch", "settings", "extensionAccess"]) {
     for (const row of data[model]) get("User", row.userId);
   }
   if (new Set(data.settings.map((row) => row.userId)).size !== data.settings.length) invalid("multiple settings rows for one account");
@@ -118,17 +124,21 @@ export async function readAccounts(sourcePath) {
     if (db.prepare("PRAGMA quick_check").all().some((row) => row.quick_check !== "ok") || db.prepare("PRAGMA foreign_key_check").all().length) invalid("SQLite integrity or foreign keys");
     const rows = {};
     for (const [table, columns] of Object.entries(supported)) {
-      if (!tables.includes(table)) invalid(`missing ${table} table`);
+      if (!tables.includes(table)) {
+        if (table !== "ExtensionAccess") invalid(`missing ${table} table`);
+        rows[table] = [];
+        continue;
+      }
       const actual = db.prepare(`PRAGMA table_info("${table}")`).all();
       if (actual.length !== Object.keys(columns).length || actual.some((column) => !Object.hasOwn(columns, column.name))) invalid(`unsupported ${table} columns`);
       for (const column of actual) {
         const descriptor = columns[column.name];
         const type = descriptor.startsWith("date") ? "DATETIME" : descriptor === "int" ? "INTEGER" : descriptor === "bool" ? "BOOLEAN" : "TEXT";
-        const primary = Object.hasOwn(accountColumns, table) ? "id" : table === "LoginThrottle" ? "key" : "tokenHash";
+        const primary = primaryFor(table);
         if (column.type.toUpperCase() !== type || column.pk !== Number(column.name === primary)) invalid(`unsupported ${table} column type or primary key`);
       }
       if (!Object.hasOwn(accountColumns, table)) continue;
-      const selected = Object.keys(columns).map((column) => column === "captureTokenHash" ? 'NULL AS "captureTokenHash"' : `"${column}"`);
+      const selected = Object.keys(columns).map((column) => columns[column] === "discard" || (table === "ExtensionAccess" && column === "expiresAt") ? `NULL AS "${column}"` : `"${column}"`);
       rows[table] = db.prepare(`SELECT ${selected.join(", ")} FROM "${table}"`).all();
     }
     db.exec("COMMIT");
@@ -167,12 +177,12 @@ export async function inspectAccountsTarget(db, { provider = "postgresql" } = {}
   }, { isolationLevel: "Serializable", maxWait: 10000, timeout: 30000 });
 }
 
-const canonical = (rows, columns) => JSON.stringify([...rows].sort((a, b) => String(a.id).localeCompare(String(b.id))).map((row) => columns.map((column) => row[column])));
+const canonical = (rows, columns, primary) => JSON.stringify([...rows].sort((a, b) => String(a[primary]).localeCompare(String(b[primary]))).map((row) => columns.map((column) => row[column])));
 
 function assertSameSnapshot(expected, actual) {
   for (const [table, columns] of Object.entries(accountColumns)) {
     const model = modelFor(table);
-    if (canonical(expected.data[model], Object.keys(columns)) !== canonical(actual.data[model], Object.keys(columns))) {
+    if (canonical(expected.data[model], Object.keys(columns), primaryFor(table)) !== canonical(actual.data[model], Object.keys(columns), primaryFor(table))) {
       throw new SafeError("Snapshot content changed after preflight; do not import it.");
     }
   }
@@ -189,7 +199,7 @@ async function verifyData(db, validated) {
       if (extra.length !== 1 || extra[0].action !== "accounts.import" || extra[0].actorId !== validated.adminId || extra[0].targetUserId !== validated.adminId) throw new SafeError("Import audit verification failed.");
       actual = actual.filter((row) => originalIds.has(row.id));
     }
-    if (canonical(actual, Object.keys(columns)) !== canonical(expected, Object.keys(columns))) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
+    if (canonical(actual, Object.keys(columns), primaryFor(table)) !== canonical(expected, Object.keys(columns), primaryFor(table))) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
   for (const table of Object.keys(ephemeralColumns)) {
     if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation or throttle state in target.");
@@ -202,7 +212,7 @@ export async function importAccounts(db, source, adminEmail, { provider = "postg
   if (!["sqlite", "postgresql"].includes(provider)) throw new SafeError("Unsupported target provider.");
   const validated = validateAccounts(source, adminEmail);
   return db.$transaction(async (tx) => {
-    await lockTarget(tx, provider);
+    if (provider === "postgresql") await tx.$executeRawUnsafe(`LOCK TABLE ${allTables.map((table) => `"${table}"`).join(", ")} IN EXCLUSIVE MODE`);
     await requireEmptyTarget(tx);
     for (const [model, rows] of Object.entries(validated.data)) {
       for (const row of rows) await tx[model].create({ data: row });
@@ -248,7 +258,7 @@ async function main() {
       return;
     }
     await inspectAccountsTarget(db);
-    console.log(JSON.stringify({ counts: validated.counts, sourceSha256: initialHash, credentials: "Password hashes preserved; sessions, activation links, capture keys and throttles are not imported." }));
+    console.log(JSON.stringify({ counts: validated.counts, sourceSha256: initialHash, credentials: "Password hashes and activated extension grants preserved; pending extension code hashes and expiries cleared; sessions, activation links, capture keys and throttles are not imported." }));
     if (!args["--apply"]) return;
     if (!process.stdin.isTTY || !process.stderr.isTTY) throw new SafeError("--apply requires an interactive terminal; no target data has been written.");
     const prompt = createInterface({ input: process.stdin, output: process.stderr });

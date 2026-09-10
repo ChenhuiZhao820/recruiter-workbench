@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { publicUserSelect, requireAdmin } from "@/lib/auth";
 import { createAccount, issueActivation, setAccountActive, startViewing } from "@/app/actions/accounts";
-import { AccountManagementForm } from "@/components/AccountForms";
+import { AccountManagementForm, ExtensionCodeForm } from "@/components/AccountForms";
+import { getWorkspace } from "@/lib/workspace";
 import { ActionForm } from "@/components/ActionForm";
 import { formatWhen } from "@/lib/dates";
 
@@ -9,8 +10,9 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   const admin = await requireAdmin();
+  const { readOnly } = await getWorkspace();
   const [users, events] = await Promise.all([
-    db.user.findMany({ select: { ...publicUserSelect, createdAt: true }, orderBy: { createdAt: "asc" } }),
+    db.user.findMany({ select: { ...publicUserSelect, createdAt: true, extensionAccess: { select: { activatedAt: true, expiresAt: true } } }, orderBy: { createdAt: "asc" } }),
     db.auditEvent.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
   ]);
   const nameFor = (id: string | null) => users.find((user) => user.id === id)?.name ?? "Unknown account";
@@ -36,6 +38,14 @@ export default async function AdminPage() {
           <summary className="cursor-pointer text-sm text-ink-soft">Activation / password reset</summary>
           <div className="mt-3"><AccountManagementForm action={issueActivation} submitLabel="Generate setup/reset link"><input type="hidden" name="userId" value={user.id} /></AccountManagementForm></div>
         </details>}
+        <section aria-label="Extension access" className="space-y-3 border-t border-line pt-4">
+          <h4 className="font-medium">Extension access</h4>
+          {user.role === "admin" ? <p className="section-caption">Included for administrators.</p> : user.extensionAccess?.activatedAt ?
+            <p className="section-caption">Activated {formatWhen(user.extensionAccess.activatedAt)}. This account can download and use the extension{!user.active ? " once re-enabled" : ""}.</p> : <>
+              <p className="section-caption">{user.extensionAccess?.expiresAt ? `${user.extensionAccess.expiresAt <= new Date() ? "Code expired" : "Code expires"} ${formatWhen(user.extensionAccess.expiresAt)}.` : "Not activated. No extension code has been issued."} Each code belongs to this account only and expires after 7 days.</p>
+              {user.active ? readOnly ? <p className="section-caption">Return to your own workspace to issue extension codes.</p> : <ExtensionCodeForm userId={user.id} issued={Boolean(user.extensionAccess)} /> : <p className="section-caption">Enable this account before issuing a code.</p>}
+            </>}
+        </section>
         {user.role === "recruiter" && <ActionForm action={setAccountActive}>
           <input type="hidden" name="userId" value={user.id} />
           <input type="hidden" name="active" value={String(!user.active)} />

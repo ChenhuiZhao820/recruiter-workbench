@@ -1,11 +1,16 @@
-import { requireUser } from "@/lib/auth";
-import { PasswordForm } from "@/components/AccountForms";
+import Link from "next/link";
+import { getWorkspace } from "@/lib/workspace";
+import { db } from "@/lib/db";
+import { canUseExtension } from "@/lib/extension-access";
+import { ExtensionActivationForm, PasswordForm } from "@/components/AccountForms";
 import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
-  const user = await requireUser();
+  const { user, readOnly } = await getWorkspace();
+  const access = await db.extensionAccess.findUnique({ where: { userId: user.id }, select: { activatedAt: true, expiresAt: true } });
+  const extensionEnabled = canUseExtension({ ...user, extensionAccess: access });
   return <div className="max-w-4xl space-y-8">
     <header className="page-header">
       <div>
@@ -28,5 +33,24 @@ export default async function AccountPage() {
         <PasswordForm />
       </section>
     </div>
+    <section aria-label="Browser extension" className="card space-y-5">
+      <h2 className="section-heading"><span aria-hidden="true" className="section-number">03</span> Browser extension</h2>
+      {readOnly ? <p className="section-caption">Return to your own workspace to manage extension access. Downloads and activation are unavailable in read-only view.</p> : extensionEnabled ? <>
+        <p className="text-sm text-ink-soft">{user.role === "admin" ? "Administrator access is included." : "Extension access is activated for your account."} Download again whenever you need to reinstall. Your activation code is not needed again.</p>
+        <a href="/api/extension/download" download className="btn-primary">Download extension ZIP<Icon name="down" size={17} /></a>
+        <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-ink-soft">
+          <li>Extract the ZIP into a permanent folder on your computer. Keep this folder after installation.</li>
+          <li>In desktop Chrome, open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, choose <strong>Load unpacked</strong>, and select the extracted <code>capture-extension</code> folder containing <code>manifest.json</code>.</li>
+          <li>Pin Capture from Chrome’s extensions menu. Go to <Link href="/settings" className="text-accent underline">Settings</Link>, generate your personal capture key, then paste it into the extension. The workbench address is already filled in.</li>
+          <li>Create an open role in your workspace if you do not have one yet. Click Connect and check that the extension shows your name and email.</li>
+        </ol>
+        <p className="section-caption">The ZIP contains no personal key or activation code. Installation requires your clicks; a website cannot install it automatically. Unpacked extensions do not update automatically. Download a fresh ZIP when an update is available. If your organisation blocks Developer mode, ask your IT administrator.</p>
+      </> : <>
+        <p className="text-sm leading-relaxed text-ink-soft">Ask your administrator for your account’s extension activation code. It can be used once, by this account only, within 7 days of being issued. A replacement invalidates the previous code.</p>
+        {access?.expiresAt && access.expiresAt <= new Date() && <p role="status" className="text-sm text-ink-soft">Your activation code has expired. Ask your administrator for a replacement.</p>}
+        <ExtensionActivationForm />
+        <p className="section-caption">Activation unlocks downloading and using the extension. After installation, generate a separate personal capture key in Settings.</p>
+      </>}
+    </section>
   </div>;
 }

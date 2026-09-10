@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireWritableWorkspace } from "@/lib/workspace";
 import { hashToken } from "@/lib/auth-crypto";
 import { newCaptureToken } from "@/lib/capture";
+import { canUseExtension } from "@/lib/extension-access";
 import type { FormState } from "@/lib/formState";
 import { revalidatePath } from "next/cache";
 
@@ -51,13 +52,32 @@ export async function updateSettings(_prev: FormState, formData: FormData): Prom
 // immediately stops the old one working, which is the point.
 export async function regenerateCaptureToken(): Promise<FormState & { token?: string }> {
   const user = await requireWritableWorkspace();
-  const token = newCaptureToken();
-  const captureTokenHash = hashToken(token);
-  await db.settings.upsert({
-    where: { userId: user.id },
-    update: { captureTokenHash },
-    create: { userId: user.id, captureTokenHash },
-  });
+  let token: string;
+  try {
+    const generated = await db.$transaction(async (tx) => {
+      const account = await tx.user.findUnique({
+        where: { id: user.id },
+        select: { role: true, active: true, extensionAccess: { select: { activatedAt: true } } },
+      });
+      if (!account || !canUseExtension(account)) return null;
+      const secret = newCaptureToken();
+      const captureTokenHash = hashToken(secret);
+      await tx.user.update({
+        where: {
+          id: user.id,
+          active: true,
+          OR: [{ role: "admin" }, { extensionAccess: { activatedAt: { not: null } } }],
+        },
+        data: { settings: { upsert: { update: { captureTokenHash }, create: { captureTokenHash } } } },
+        select: { id: true },
+      });
+      return secret;
+    }, { isolationLevel: "Serializable" });
+    if (!generated) return { error: "Extension activation is required before generating a capture key. Activate the extension on your Account page, or ask your administrator for a code." };
+    token = generated;
+  } catch {
+    return { error: "A capture key could not be generated. Refresh the page and try again." };
+  }
   revalidatePath("/settings");
   return { token, notice: "New capture key generated. Copy it now: it will only be shown once. Paste it into the extension; the old key has stopped working." };
 }

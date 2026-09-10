@@ -33,6 +33,7 @@ const test = base.extend<{ accounts: Accounts }>({
         const user = await db.user.create({ data: {
           email: `${role}-${suffix}@test.capture.invalid`, name: `${role} ${suffix}`, role, passwordHash,
           settings: { create: { recruiterName: `Recruiter ${suffix}` } },
+          extensionAccess: { create: { activatedAt: new Date() } },
         } });
         const token = secret();
         await db.session.create({ data: { tokenHash: hashToken(token), userId: user.id, authVersion: user.authVersion, expiresAt: new Date(Date.now() + 3_600_000) } });

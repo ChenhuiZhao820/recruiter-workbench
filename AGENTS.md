@@ -90,6 +90,32 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Public signup is disabled. Activation links use URL fragments and expire after
   24 hours; the raw link is shown only at creation. No default admin password.
 
+## Extension activation and downloads
+
+- Extension access is account-bound, separate from password setup and capture keys.
+  `ExtensionAccess.userId` is the primary key; `codeHash` is unique and hash-only.
+- Admin issues or replaces one pending code per active recruiter. Each code expires
+  after 7 days. Replacement invalidates the old code; redemption is atomic, once,
+  self-scoped and throttled. Activated accounts cannot receive another code.
+- Active admins are exempt. Ordinary accounts (including existing ones) must redeem
+  before downloading, generating capture keys or calling either capture API method.
+  A forwarded ZIP does not grant access. Read-only workspace views cannot issue,
+  redeem or download; account disabling still revokes sessions and capture keys.
+- Account activation persists after the code is consumed, across reinstalls and
+  password changes. The ZIP may be downloaded again; capture keys remain separate
+  and must be generated in Settings. No personal secrets are packaged.
+- `/api/extension/download` is authenticated, private/no-store and serves only five
+  allowlisted extension files. Shared packaging in `lib/extension-package.mjs`
+  uses the configured APP_ORIGIN (exact HTTPS host or local development loopback).
+  Never move ZIPs into public/ or trust a request-supplied workbench origin.
+- Installation still requires desktop Chrome Developer mode / Load unpacked. No
+  silent installation or automatic unpacked-extension updates are promised.
+- Deploy the additive `20260910000000_extension_access` PostgreSQL migration before
+  serving the new app. Do not edit the old initial migration or apply changes to
+  real local/hosted databases without approval. Builds do not apply migrations.
+- `tests/07-extension-access.spec.ts` covers activation, download, forged requests,
+  API permissions and read-only views. Unit tests cover code lifecycle and ZIPs.
+
 ## Setup and migration safety
 
 - `.env.example` describes a NEW local account database. Do not overwrite an
@@ -164,6 +190,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Independently verify before opening the app with `--verify` instead of --apply.
   Existing passwords work on the hosted app; users must sign in again and create
   new capture keys. Pending accounts need fresh activation links from Admin.
+- Extension grants and their ownership/activation timestamps are preserved by
+  account migration. Pending extension code hashes and expiry dates are discarded
+  at source projection; Admin must replace unused codes after cutover. Older
+  snapshots without ExtensionAccess import with no grants, not implicit access.
 - Tests use disposable SQLite databases with real Prisma and a mocked PostgreSQL
   lock check; they do not substitute for verification against the actual target.
 

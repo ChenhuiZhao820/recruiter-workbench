@@ -207,6 +207,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   same environment contract. Do not use SQLite on ephemeral/serverless storage.
 - No cloud resources, production accounts or real-data imports are created by
   a build/test command. The extension must be packaged for the final site origin.
+- Current deployment: `https://capture-workbench.onrender.com`. `APP_ORIGIN` must
+  match it exactly, because `/api/extension/download` packages the extension for
+  that origin and a mismatch ships a package Chrome will not let reach the site.
+- A free instance sleeps when idle. The extension allows 60s for an HTTPS
+  workbench (10s for loopback) and reads 502/503/504 as "not ready", so a
+  cold start does not present as a dead server. Do not shorten that deadline.
 
 ## Layout
 

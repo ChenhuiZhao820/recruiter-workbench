@@ -62,12 +62,16 @@ async function popup(options = {}) {
   const stored = { ...(options.stored ?? config) };
   const requests = [];
   const responses = [...(options.responses || [])];
+  const delays = [];
   let reads = 0;
   let queries = 0;
   const context = vm.createContext({
     URL, AbortSignal, AbortController, clearTimeout,
     ...(options.origins === undefined ? {} : { CAPTURE_WORKBENCH_ORIGINS: options.origins }),
-    setTimeout: (callback, delay) => setTimeout(callback, options.timeout ?? delay),
+    setTimeout: (callback, delay) => {
+      delays.push(delay);
+      return setTimeout(callback, options.timeout ?? delay);
+    },
     document: {
       getElementById: (id) => elements[id],
       createElement: (tag) => new Element(tag),
@@ -111,7 +115,7 @@ async function popup(options = {}) {
   if (options.configSource) vm.runInContext(options.configSource, context);
   await vm.runInContext(options.source || source, context);
   return {
-    elements, stored, requests, responses,
+    elements, stored, requests, responses, delays,
     get reads() { return reads; },
     get queries() { return queries; },
     click: (id) => elements[id].dispatch("click"),
@@ -377,6 +381,26 @@ for (const body of [{ account, roles: [] }, { roles: "invalid" }, null]) {
   });
 }
 
+// A host that is still starting answers from its own front door, not from the
+// app, so there is no JSON error to show and the status is all we have.
+for (const status of [502, 503, 504]) {
+  test(`a ${status} from a starting host reads as not ready rather than not reachable`, async () => {
+    const p = await popup({ responses: [{ status, invalidJson: true }] });
+    assert.equal(p.elements.setup.hidden, false);
+    assert.ok(p.elements["setup-message"].textContent.includes(`not ready yet (${status})`),
+      p.elements["setup-message"].textContent);
+    assert.match(p.elements["setup-message"].textContent, /try again/i);
+    p.responses.push({ status: 200, body: { account, roles } });
+    await p.click("connect");
+    assert.equal(p.elements.capture.hidden, false);
+  });
+}
+
+test("a server error that does explain itself is shown as sent", async () => {
+  const p = await popup({ responses: [{ status: 503, body: { error: "Database maintenance until 14:00." } }] });
+  assert.equal(p.elements["setup-message"].textContent, "Database maintenance until 14:00.");
+});
+
 test("malformed JSON response does not break error recovery", async () => {
   const p = await popup({ responses: [{ status: 502, invalidJson: true }] });
   assert.equal(p.elements.setup.hidden, false);
@@ -570,6 +594,30 @@ test("a configured HTTPS origin is the packaged default and uses the capture tok
     assert.equal(request.redirect, "error");
     assert.equal(request.credentials, "omit");
   }
+});
+
+// A hosted workbench on a free tier sleeps when idle. Waking it is slower than
+// any healthy response, and much slower than the loopback timeout, so the two
+// cases cannot share one deadline or one explanation.
+test("a hosted workbench is given time to wake while loopback still fails fast", async () => {
+  const hosted = await popup({ origins: [hostedOrigin], stored: { url: hostedOrigin, token: config.token } });
+  assert.equal(hosted.requests[0].url, `${hostedOrigin}/api/capture`);
+  assert.ok(hosted.delays.some((delay) => delay >= 60000), `expected a wake-up timeout, saw ${hosted.delays}`);
+  const loopback = await popup();
+  assert.ok(loopback.delays.every((delay) => delay <= 10000), `expected a short timeout, saw ${loopback.delays}`);
+});
+
+test("a hosted connection failure blames sleep rather than a server nobody started", async () => {
+  const p = await popup({
+    origins: [hostedOrigin],
+    stored: { url: hostedOrigin, token: config.token },
+    responses: [new TypeError("Failed to fetch")],
+  });
+  assert.equal(p.elements.setup.hidden, false);
+  assert.match(p.elements["setup-message"].textContent, /wake up/i);
+  assert.doesNotMatch(p.elements["setup-message"].textContent, /running at this address/i);
+  await p.click("connect");
+  assert.equal(p.elements.capture.hidden, false);
 });
 
 for (const address of [

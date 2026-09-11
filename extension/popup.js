@@ -7,8 +7,9 @@
 
 const el = (id) => document.getElementById(id);
 
-const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false };
+const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "" };
 const fields = ["role", "name", "headline", "profile", "notes"];
+const controls = ["settings", "open-role"];
 const hostedOrigins = (Array.isArray(globalThis.CAPTURE_WORKBENCH_ORIGINS)
   ? globalThis.CAPTURE_WORKBENCH_ORIGINS : []).filter((value) => {
   try {
@@ -87,8 +88,13 @@ function workbenchOrigin(value) {
 async function api(path, options = {}) {
   const origin = workbenchOrigin(state.url);
   if (!origin) return { ok: false, status: 0, body: { error: addressError } };
+  // A hosted workbench can be asleep: free tiers spin an idle instance down and
+  // take most of a minute to answer the request that wakes it. A loopback dev
+  // server either answers at once or is not running at all, so it keeps the
+  // short timeout that makes "start your server" obvious quickly.
+  const hosted = origin.startsWith("https:");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), hosted ? 60000 : 10000);
   try {
     const response = await fetch(`${origin}${path}`, {
       ...options,
@@ -108,12 +114,23 @@ async function api(path, options = {}) {
     } catch {
       // fall through with an empty body
     }
+    // A host that is still starting answers from its own front door rather than
+    // from the app: a gateway status and a page, not the JSON error the app
+    // would have sent. Saying "not reachable" there would send people looking
+    // for a problem that fixes itself.
+    if (!response.ok && !body.error && [502, 503, 504].includes(response.status)) {
+      body = { error: `The workbench is not ready yet (${response.status}). If it is waking up or has just been deployed, wait a moment and try again.` };
+    }
     return { ok: response.ok, status: response.status, body };
   } catch {
     return {
       ok: false,
       status: 0,
-      body: { error: "Could not reach the workbench. Check that it is running at this address. If you were saving, check the role before retrying." },
+      body: {
+        error: hosted
+          ? "Could not reach the workbench. A sleeping hosted workbench can take a minute to wake up, so try again. If you were saving, check the role before retrying."
+          : "Could not reach the workbench. Check that it is running at this address. If you were saving, check the role before retrying.",
+      },
     };
   } finally {
     clearTimeout(timeout);
@@ -127,17 +144,39 @@ function say(node, text, tone) {
 
 // --- screens ----------------------------------------------------------------
 
+// Opening the workbench is a convenience, never a requirement: the popup keeps
+// working if the browser refuses the new tab.
+function openWorkbench(path) {
+  const origin = workbenchOrigin(el("url").value.trim() || state.url);
+  if (!origin) {
+    say(el("setup-message"), addressError, "bad");
+    return;
+  }
+  try {
+    chrome.tabs.create({ url: `${origin}${path}` });
+  } catch {
+    say(el("setup-message"), `Could not open a tab. Go to ${origin}${path} yourself.`, "bad");
+  }
+}
+
 function showSetup(message) {
   el("capture").hidden = true;
   el("setup").hidden = false;
   el("url").value = state.url || hostedOrigins[0] || workbenchOrigin(globalThis.CAPTURE_WORKBENCH_DEFAULT) || "http://localhost:3000";
   el("token").value = state.token || "";
+  // Settings is a detour, not a dead end: offer the way back only while there
+  // is a connected account with roles to go back to.
+  const connected = Boolean(state.account) && state.roles.length > 0;
+  el("setup-back").hidden = !connected;
+  el("disconnect").hidden = !state.token;
   say(el("setup-message"), message, message ? "bad" : "");
 }
 
 function clearAccount() {
   state.account = null;
   state.roles = [];
+  state.savedRoleId = "";
+  el("open-role").hidden = true;
   el("connection").hidden = true;
   el("account-name").textContent = "";
   el("account-email").textContent = "";
@@ -163,6 +202,8 @@ async function showCapture() {
   const previousRoleId = sameAccount ? roleSelect.value : "";
   if (!sameAccount) {
     state.saved = false;
+    state.savedRoleId = "";
+    el("open-role").hidden = true;
     say(el("message"), "", "");
   }
   state.roleScope = scope;
@@ -262,9 +303,34 @@ el("connect").addEventListener("click", async () => {
 
 el("settings").addEventListener("click", () => showSetup(""));
 
+el("setup-back").addEventListener("click", async () => {
+  if (!state.account || state.roles.length === 0) return;
+  await showCapture();
+});
+
+el("open-settings").addEventListener("click", () => openWorkbench("/settings"));
+
+el("open-role").addEventListener("click", () => {
+  if (state.savedRoleId) openWorkbench(`/roles/${encodeURIComponent(state.savedRoleId)}`);
+});
+
+el("disconnect").addEventListener("click", async () => {
+  state.token = "";
+  state.roleScope = "";
+  clearAccount();
+  try {
+    await chrome.storage.local.remove("token");
+    showSetup("Key forgotten. Paste a capture key to connect this account again.");
+  } catch {
+    showSetup("Could not access extension storage. Reopen the extension and connect again.");
+  }
+  el("token").focus();
+});
+
 for (const id of fields) {
   const edited = () => {
     state.saved = false;
+    el("open-role").hidden = true;
     el("save").disabled = state.saving;
   };
   el(id).addEventListener("input", edited);
@@ -276,7 +342,7 @@ el("save").addEventListener("click", async () => {
   const button = el("save");
   state.saving = true;
   button.disabled = true;
-  for (const id of [...fields, "settings"]) el(id).disabled = true;
+  for (const id of [...fields, ...controls]) el(id).disabled = true;
   say(el("message"), "Saving...", "");
 
   const roleId = el("role").value;
@@ -301,6 +367,8 @@ el("save").addEventListener("click", async () => {
       } catch {
         warning = `${warning} Could not remember this role. Select it again next time.`.trim();
       }
+      state.savedRoleId = roleId;
+      el("open-role").hidden = false;
       say(el("message"), `Saved ${body.fullName}.${warning ? ` ${warning}` : ""}`, warning ? "bad" : "good");
     } else if (status === 401) {
       await rejectKey(body.error);
@@ -314,7 +382,7 @@ el("save").addEventListener("click", async () => {
     showSetup("Could not access extension storage. Reopen the extension and connect again.");
   } finally {
     state.saving = false;
-    for (const id of [...fields, "settings"]) el(id).disabled = false;
+    for (const id of [...fields, ...controls]) el(id).disabled = false;
     button.disabled = state.saved;
   }
 });

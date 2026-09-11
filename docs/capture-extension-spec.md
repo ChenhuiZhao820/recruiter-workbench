@@ -191,6 +191,9 @@ The notes box must be left for him to fill in. His judgement of a candidate is t
 - 工作台地址，默认 `http://localhost:3000`
 - 采集密钥（capture key），由用户在工作台的「设置」页生成后粘贴过来
 - 「连接」按钮：保存到 `chrome.storage.local`，随即请求角色列表；成功则进入采集界面，失败则显示可操作的错误信息
+- 「打开工作台设置」按钮：在新标签页打开该地址的 `/settings`，密钥就在那里生成，不必手工输网址
+- 「返回」按钮：已连接时才出现；进入设置界面不应变成有去无回的死路
+- 「忘记此密钥」按钮：清除已存的密钥并回到未连接状态，用于换账号或交出这台电脑
 
 **English**
 
@@ -199,6 +202,9 @@ On first open, if `chrome.storage.local` holds no `url` or `token`, show a conne
 - Workbench address, defaulting to `http://localhost:3000`
 - Capture key, which the user generates on the workbench's Settings page and pastes here
 - A "Connect" button: stores both in `chrome.storage.local`, then requests the role list; on success show the capture screen, on failure show an actionable error
+- An "Open workbench settings" button: opens `/settings` at that address in a new tab, where the key is generated, so nobody has to retype a URL to find it
+- A "Back" button, shown only while an account is connected: opening settings must not be a one-way trip
+- A "Forget this key" button: clears the stored key and returns to the unconnected state, for switching accounts or handing the machine on
 
 ### 6.3 采集界面 / Capture screen
 
@@ -214,7 +220,7 @@ On first open, if `chrome.storage.local` holds no `url` or `token`, show a conne
 
 **所有字段都必须可编辑。** LinkedIn 的页面结构会变；某个字段没抓到时，行为应当降级为「用户自己输入」，而不是「扩展坏了」。
 
-保存成功后：记录 `lastRoleId`，清空备注框，显示成功信息。保存失败：显示服务端返回的 `error` 文本，并让保存按钮重新可用。
+保存成功后：记录 `lastRoleId`，清空备注框，显示成功信息，并提供「在工作台中打开该职位」的按钮。保存失败：显示服务端返回的 `error` 文本，并让保存按钮重新可用。
 
 **English**
 
@@ -228,7 +234,7 @@ Fields: role (select, required), name (text, required), headline (text, optional
 
 **Every field must remain editable.** LinkedIn's markup changes; a missed field must degrade to "the user types it" rather than "the extension is broken."
 
-On success: store `lastRoleId`, clear the notes box, show a confirmation. On failure: show the server's `error` text and re-enable the save button.
+On success: store `lastRoleId`, clear the notes box, show a confirmation and a button that opens that role in the workbench. On failure: show the server's `error` text and re-enable the save button.
 
 ### 6.4 页面提取 / Page extraction
 

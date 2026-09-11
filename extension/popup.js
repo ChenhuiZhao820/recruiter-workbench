@@ -10,8 +10,14 @@ const el = (id) => document.getElementById(id);
 const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "" };
 const fields = ["role", "name", "headline", "profile", "notes"];
 const controls = ["settings", "open-role"];
+// Where Capture actually lives. A package built by scripts/package-extension.mjs
+// or by the site's own download endpoint declares its origin in workbench.js and
+// that declaration wins, including the empty one a loopback build ships. Loading
+// this folder straight from the repository declares nothing, so it falls back to
+// the deployment rather than to a workbench nobody is running.
+const WORKBENCH_ORIGINS = ["https://capture-workbench.onrender.com"];
 const hostedOrigins = (Array.isArray(globalThis.CAPTURE_WORKBENCH_ORIGINS)
-  ? globalThis.CAPTURE_WORKBENCH_ORIGINS : []).filter((value) => {
+  ? globalThis.CAPTURE_WORKBENCH_ORIGINS : WORKBENCH_ORIGINS).filter((value) => {
   try {
     const url = new URL(value);
     return url.protocol === "https:" && value === url.origin && !url.username && !url.password;
@@ -314,13 +320,17 @@ el("open-role").addEventListener("click", () => {
   if (state.savedRoleId) openWorkbench(`/roles/${encodeURIComponent(state.savedRoleId)}`);
 });
 
+// Disconnecting drops the address as well as the key. Otherwise a workbench
+// typed in once - a colleague's dev server, an old deployment - is remembered
+// for ever, and the address this build is actually for can never be seen again.
 el("disconnect").addEventListener("click", async () => {
   state.token = "";
+  state.url = "";
   state.roleScope = "";
   clearAccount();
   try {
-    await chrome.storage.local.remove("token");
-    showSetup("Key forgotten. Paste a capture key to connect this account again.");
+    await chrome.storage.local.remove(["token", "url"]);
+    showSetup("Disconnected. Check the address and paste a capture key to connect again.");
   } catch {
     showSetup("Could not access extension storage. Reopen the extension and connect again.");
   }

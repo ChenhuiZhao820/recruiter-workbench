@@ -49,7 +49,7 @@ export default async function AccountPage() {
         <p className="text-sm leading-relaxed text-ink-soft">Ask your administrator for your account’s extension activation code. It can be used once, by this account only, within 7 days of being issued. A replacement invalidates the previous code.</p>
         {access?.expiresAt && access.expiresAt <= new Date() && <p role="status" className="text-sm text-ink-soft">Your activation code has expired. Ask your administrator for a replacement.</p>}
         <ExtensionActivationForm />
-        <p className="section-caption">Activation unlocks downloading and using the extension. After installation, generate a separate personal capture key in Settings.</p>
+        <p className="section-caption">Activation unlocks downloading and using the extension. After installation, generate a separate personal capture key in Settings. <Link href="/getting-started" className="text-accent underline">Follow the step-by-step setup guide</Link> if you would rather be walked through it.</p>
       </>}
     </section>
   </div>;

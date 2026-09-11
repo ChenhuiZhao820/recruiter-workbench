@@ -7,6 +7,8 @@ import { logout } from "@/app/actions/auth";
 import { stopViewing } from "@/app/actions/accounts";
 import { CaptureMark, Icon } from "@/components/Icon";
 
+const setupNavigation = { href: "/getting-started", label: "Getting started", icon: "spark" } as const;
+
 const navigation = [
   { href: "/", label: "Roles", icon: "roles" },
   { href: "/searches", label: "Searches", icon: "search" },
@@ -17,9 +19,12 @@ const navigation = [
 
 type Identity = { name: string; email: string; role: string };
 
-export function ApplicationShell({ user, viewing, ownerId, children }: {
+export function ApplicationShell({ user, viewing, setupPending = false, ownerId, children }: {
   user: Identity | null;
   viewing: { name: string; email: string } | null;
+  // Setup is only advertised while it is unfinished; a finished workspace
+  // keeps the page but loses the nav entry.
+  setupPending?: boolean;
   ownerId?: string;
   children: React.ReactNode;
 }) {
@@ -28,7 +33,8 @@ export function ApplicationShell({ user, viewing, ownerId, children }: {
   useEffect(() => setMenuOpen(false), [pathname]);
   const publicPage = !user || pathname === "/welcome";
   const active = (href: string) => href === "/" ? pathname === "/" || pathname.startsWith("/roles") : pathname.startsWith(href);
-  const pageName = navigation.find((item) => active(item.href))?.label ?? (pathname.startsWith("/admin") ? "Accounts" : pathname.startsWith("/account") ? "Your account" : "Outreach");
+  const items = setupPending ? [setupNavigation, ...navigation] : navigation;
+  const pageName = items.find((item) => active(item.href))?.label ?? (pathname.startsWith("/getting-started") ? setupNavigation.label : pathname.startsWith("/admin") ? "Accounts" : pathname.startsWith("/account") ? "Your account" : "Outreach");
   const initials = user?.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "C";
 
   if (publicPage) return <div className="public-shell">
@@ -60,7 +66,7 @@ export function ApplicationShell({ user, viewing, ownerId, children }: {
         <div className="workspace-switcher"><span className="workspace-symbol"><Icon name="grid" size={17} /></span><div><strong>{viewing ? viewing.name : "My workspace"}</strong><span>{viewing ? "Read-only view" : "Recruiting, in focus"}</span></div><Icon name="lock" size={14} /></div>
         <p className="nav-label">Workspace</p>
         <nav aria-label="Main" className="workspace-navigation">
-          {navigation.map((item) => <Link key={item.href} href={item.href} className={active(item.href) ? "nav-item is-active" : "nav-item"} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} size={19} /><span>{item.label}</span>{active(item.href) && <span className="nav-active-dot" aria-hidden="true" />}</Link>)}
+          {items.map((item) => <Link key={item.href} href={item.href} className={active(item.href) ? "nav-item is-active" : "nav-item"} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} size={19} /><span>{item.label}</span>{active(item.href) && <span className="nav-active-dot" aria-hidden="true" />}</Link>)}
           {user.role === "admin" && <><p className="nav-label admin-nav-label">Administration</p><Link href="/admin" className={pathname.startsWith("/admin") ? "nav-item is-active" : "nav-item"} aria-current={pathname.startsWith("/admin") ? "page" : undefined}><Icon name="shield" size={19} /><span>Accounts</span></Link></>}
         </nav>
         <div className="sidebar-bottom">

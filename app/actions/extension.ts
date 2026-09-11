@@ -13,6 +13,7 @@ function refreshExtensionAccess() {
   revalidatePath("/account");
   revalidatePath("/admin");
   revalidatePath("/settings");
+  revalidatePath("/getting-started");
 }
 
 export async function issueExtensionCode(_state: ExtensionActionState, form: FormData): Promise<ExtensionActionState> {

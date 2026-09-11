@@ -97,6 +97,7 @@ export default async function SettingsPage() {
           <h2 className="text-lg">Activate extension access first</h2>
           <p className="text-sm text-ink-soft">Redeem the extension activation code from your administrator in Your account before generating a capture key.</p>
           <Link href="/account" className="btn-secondary">Activate extension in your account</Link>
+          <Link href="/getting-started" className="block text-sm text-accent underline">Open the step-by-step setup guide</Link>
         </div>}
       </section>
       </div>

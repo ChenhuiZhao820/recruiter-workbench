@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { assertSameOrigin, createSession, endSession, requireUser, takeAuthAttempt } from "@/lib/auth";
 import { hashPassword, hashToken, normalizeEmail, passwordError, validEmail, verifyPassword } from "@/lib/auth-crypto";
+import { isNewAccount } from "@/lib/onboarding";
 import type { FormState } from "@/lib/formState";
 
 export async function login(_state: FormState, form: FormData): Promise<FormState> {
@@ -20,9 +21,13 @@ export async function login(_state: FormState, form: FormData): Promise<FormStat
   if (!valid || !user?.active || !["admin", "recruiter"].includes(user.role)) {
     return { error: "Email or password is incorrect, or this account is unavailable." };
   }
+  // A workspace with nothing in it yet is almost always a first sign-in after
+  // activation, so that visit starts on the setup guide instead of an empty
+  // dashboard. Once anything has been configured, sign-in lands where it always did.
+  const guided = await isNewAccount(user.id, user.role);
   await endSession();
   await createSession(user.id, user.authVersion);
-  redirect("/");
+  redirect(guided ? "/getting-started" : "/");
 }
 
 export async function logout() {

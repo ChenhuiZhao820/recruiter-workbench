@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getWorkspace } from "@/lib/workspace";
 import { getFollowUpBuckets } from "@/lib/followups";
+import { getOnboardingStatus } from "@/lib/onboarding";
 import { MarketingHome } from "@/components/MarketingHome";
 import { RoleDirectory } from "@/components/RoleDirectory";
 import { Icon } from "@/components/Icon";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function RolesPage() {
   if (!await getSession()) return <MarketingHome />;
   const { owner, readOnly } = await getWorkspace();
+  const setup = readOnly ? null : await getOnboardingStatus();
   const [roles, closedRoles, buckets, searchCount] = await Promise.all([
     db.role.findMany({
       where: { userId: owner.id, status: "open" },
@@ -45,6 +47,14 @@ export default async function RolesPage() {
   ] as const;
 
   return <div className="dashboard-page">
+    {setup && !setup.complete && <section className="setup-prompt" aria-label="Finish setting up">
+      <div>
+        <p className="eyebrow">FINISH SETTING UP</p>
+        <strong>{setup.done} of {setup.total} setup steps done</strong>
+        <p>A short guide walks you through your details, your first role and connecting the extension.</p>
+      </div>
+      <Link href="/getting-started" className="btn-primary">Open the setup guide<Icon name="arrow" size={17} /></Link>
+    </section>}
     <header className="page-header"><div><p className="page-eyebrow">Your recruiting workspace</p><h1>Roles</h1><p className="page-description">A clearer view of the people and conversations that matter.</p></div>{!readOnly && <Link href="/roles/new" className="btn-primary"><Icon name="plus" size={18} />New role</Link>}</header>
     <div className="dashboard-metrics">{metrics.map((metric) => <div key={metric.label} className="metric-card"><div><span>{metric.label}</span><Icon name={metric.icon} size={18} /></div><strong className={metric.label === "Follow-ups today" && metric.value ? "text-accent" : ""}>{String(metric.value).padStart(2, "0")}</strong><small>{metric.caption}</small></div>)}</div>
     <div className="dashboard-grid">

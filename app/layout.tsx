@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { getSession } from "@/lib/auth";
+import { getOnboardingStatus } from "@/lib/onboarding";
 import { getWorkspace } from "@/lib/workspace";
 import { ApplicationShell } from "@/components/ApplicationShell";
 import "./globals.css";
@@ -35,6 +36,9 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   const workspace = session ? await getWorkspace() : null;
+  // Setup belongs to the signed-in account, so an admin reading someone else's
+  // workspace is not offered their setup steps.
+  const setup = workspace && !workspace.readOnly ? await getOnboardingStatus() : null;
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body style={{
@@ -45,6 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ApplicationShell
           user={session ? { name: session.user.name, email: session.user.email, role: session.user.role } : null}
           viewing={workspace?.readOnly ? { name: workspace.owner.name, email: workspace.owner.email } : null}
+          setupPending={Boolean(setup && !setup.complete)}
           ownerId={workspace?.owner.id}
         >{children}</ApplicationShell>
       </body>

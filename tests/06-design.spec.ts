@@ -300,6 +300,13 @@ for (const scenario of scenarios.filter((entry) => entry.name !== "reduced motio
     const submit = page.getByRole("button", { name: "Sign in", exact: true });
     await keyboardReach(page, submit);
     await page.keyboard.press("Enter");
+    // A newly activated account has nothing configured yet, so its first
+    // sign-in opens the setup guide rather than an empty dashboard.
+    await expect(page).toHaveURL(`${BASE}/getting-started`);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Welcome");
+    await expectNoOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath("getting-started.png"), fullPage: true });
+    await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Roles", exact: true }).click();
     await expect(page).toHaveURL(`${BASE}/`);
     await expect(page.getByRole("heading", { level: 1, name: "Roles", exact: true })).toBeVisible();
     await expectNoOverflow(page);

@@ -15,6 +15,7 @@ export async function createRole(_prev: FormState, formData: FormData): Promise<
   const jobDesc = String(formData.get("jobDesc") ?? "").trim() || null;
   const role = await db.role.create({ data: { userId: user.id, title, client, jobDesc } });
   revalidatePath("/");
+  revalidatePath("/getting-started");
   redirect(`/roles/${role.id}`);
 }
 

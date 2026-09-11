@@ -45,6 +45,7 @@ export async function updateSettings(_prev: FormState, formData: FormData): Prom
   });
   revalidatePath("/settings");
   revalidatePath("/followups");
+  revalidatePath("/getting-started");
   return { notice: "Settings saved." };
 }
 
@@ -79,6 +80,7 @@ export async function regenerateCaptureToken(): Promise<FormState & { token?: st
     return { error: "A capture key could not be generated. Refresh the page and try again." };
   }
   revalidatePath("/settings");
+  revalidatePath("/getting-started");
   return { token, notice: "New capture key generated. Copy it now: it will only be shown once. Paste it into the extension; the old key has stopped working." };
 }
 
@@ -90,5 +92,6 @@ export async function clearCaptureToken(): Promise<FormState> {
     create: { userId: user.id, captureTokenHash: null },
   });
   revalidatePath("/settings");
+  revalidatePath("/getting-started");
   return { notice: "Capture switched off. The extension can no longer save to this workbench." };
 }

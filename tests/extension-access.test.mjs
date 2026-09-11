@@ -164,7 +164,7 @@ test("issuance stores only hashes for exactly seven days; reissue replaces the o
   assert.equal(h.audits.filter((event) => event.action === "extension_code_issued").length, 2);
   assert.ok((await redeem(h, first.code)).error);
   assert.ok((await redeem(h, second.code)).notice);
-  assert.deepEqual([...new Set(h.paths)].sort(), ["/account", "/admin", "/settings"]);
+  assert.deepEqual([...new Set(h.paths)].sort(), ["/account", "/admin", "/getting-started", "/settings"]);
 });
 
 test("issuance refuses non-admin, inactive, admin, missing and already activated targets", async () => {

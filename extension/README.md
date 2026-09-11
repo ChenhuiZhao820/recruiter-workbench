@@ -64,10 +64,17 @@ That writes `dist/capture-extension`, ready to load unpacked. The origin must be
 an exact HTTPS host with no path; there are no wildcards, and the packaged
 extension can reach that host and loopback, nothing else.
 
-For local development, load this repository's `extension` folder instead. Its
-workbench address defaults to `http://localhost:3000`; account authorization still
-applies. Do not distribute the loopback-only source build for a hosted workbench:
-loaded straight from source it cannot reach the hosted site at all.
+For local development, load this repository's `extension` folder instead. It is
+built for the deployment above and offers that address by default, and it also
+reaches `http://localhost` and `http://127.0.0.1` on any port, so point it at your
+dev server by typing the address. Account authorization still applies either way.
+
+A package built for some other origin reaches that origin and loopback, and
+nothing else - the deployment above is not carried along with it.
+
+If the extension keeps offering an address you no longer use, it is remembering
+the last one you connected to. **Disconnect** in Settings forgets both the key and
+the address and puts back the one this build is for.
 
 ## Use
 

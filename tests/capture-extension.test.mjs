@@ -17,6 +17,8 @@ const roles = [
   { id: "role-b", title: "Controller", client: "Example client" },
 ];
 const account = { id: "user-a", name: "Alice Recruiter", email: "alice@example.test" };
+// The origin the source build is for, and the one a package overrides.
+const deployment = "https://capture-workbench.onrender.com";
 const otherAccount = { id: "user-b", name: "Bob Recruiter", email: "bob@example.test" };
 const roleKey = (url = "http://localhost:3000", id = account.id) => `lastRole:${JSON.stringify([url, id])}`;
 const config = { url: "http://localhost:3000", token: "fixture-capture-key", [roleKey()]: "role-b" };
@@ -83,7 +85,7 @@ async function popup(options = {}) {
           if (options.failRemember && Object.keys(values).some((key) => key.startsWith("lastRole:"))) throw new Error("Storage unavailable");
           Object.assign(stored, values);
         },
-        remove: async (key) => { delete stored[key]; },
+        remove: async (keys) => { for (const key of (Array.isArray(keys) ? keys : [keys])) delete stored[key]; },
       } },
       tabs: { query: async () => {
         queries += 1;
@@ -149,21 +151,23 @@ test("manifest grants only click-triggered reading and loopback workbench access
   }
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
-  assert.deepEqual(manifest.host_permissions, ["http://localhost/*", "http://127.0.0.1/*"]);
+  assert.deepEqual(manifest.host_permissions, ["http://localhost/*", "http://127.0.0.1/*", `${deployment}/*`]);
+  assert.doesNotMatch(JSON.stringify(manifest.host_permissions), /linkedin/i);
+  assert.doesNotMatch(JSON.stringify(manifest), /unsafe-eval|https:\/\/\*|<all_urls>/i);
   assert.equal(manifest.content_scripts, undefined);
   assert.equal(manifest.background, undefined);
   assert.equal(manifest.action.default_popup, "popup.html");
   assert.equal(manifest.optional_host_permissions, undefined);
   assert.equal(manifest.optional_permissions, undefined);
   assert.equal(manifest.content_security_policy.extension_pages,
-    "script-src 'self'; object-src 'self'; connect-src http://localhost:* http://127.0.0.1:*;");
+    `script-src 'self'; object-src 'self'; connect-src http://localhost:* http://127.0.0.1:* ${deployment};`);
   assert.doesNotMatch(html, /workbench\.js|https?:\/\/[^<]+<\/script>/);
 });
 
 test("first run does not request data or read a tab until connected", async () => {
   const p = await popup({ stored: {} });
   assert.equal(p.elements.setup.hidden, false);
-  assert.equal(p.elements.url.value, config.url);
+  assert.equal(p.elements.url.value, deployment);
   assert.equal(p.requests.length, 0);
   assert.equal(p.reads, 0);
   await p.edit("token", config.token);
@@ -580,6 +584,48 @@ test("failed account switch clears the old identity, preserves notes and permits
   assert.equal(p.reads, 1);
 });
 
+// Loading this folder straight from the repository is how the team runs it, and
+// it used to offer a workbench nobody is running.
+test("an unpackaged build offers the deployment and can actually reach it", async () => {
+  const p = await popup({ stored: {} });
+  assert.equal(p.elements.url.value, deployment);
+  await p.edit("token", config.token);
+  await p.click("connect");
+  assert.equal(p.requests[0].url, `${deployment}/api/capture`);
+  assert.equal(p.elements.capture.hidden, false);
+  assert.equal(p.elements["account-origin"].textContent, deployment);
+});
+
+test("an unpackaged build still permits loopback for development", async () => {
+  const p = await popup({ stored: { ...config, url: "http://127.0.0.1:3100" } });
+  assert.equal(p.requests[0].url, "http://127.0.0.1:3100/api/capture");
+  assert.equal(p.elements.capture.hidden, false);
+});
+
+test("a loopback package overrides the deployment rather than inheriting it", async () => {
+  const p = await popup({ origins: [], configSource: 'globalThis.CAPTURE_WORKBENCH_DEFAULT = "http://localhost:3000";', stored: {} });
+  assert.equal(p.elements.url.value, "http://localhost:3000");
+  await p.edit("url", deployment);
+  await p.edit("token", config.token);
+  await p.click("connect");
+  assert.equal(p.requests.length, 0, "a loopback package must not reach the deployment");
+  assert.match(p.elements["setup-message"].textContent, /localhost|127\.0\.0\.1/);
+});
+
+// Disconnecting has to forget the address too, or the workbench typed in once is
+// remembered for ever and the build's own default can never be seen again.
+test("disconnecting returns to the address this build is for", async () => {
+  const p = await popup({ stored: { ...config, url: "http://localhost:3000" } });
+  assert.equal(p.elements.url.value, "http://localhost:3000");
+  await p.click("settings");
+  await p.click("disconnect");
+  assert.equal(p.elements.url.value, deployment);
+  assert.equal(p.elements.token.value, "");
+  assert.equal(p.stored.token, undefined);
+  assert.equal(p.stored.url, undefined);
+  assert.equal(p.elements.connection.hidden, true);
+});
+
 const hostedOrigin = "https://workbench.example.test:8443";
 test("a configured HTTPS origin is the packaged default and uses the capture token without cookies or redirects", async () => {
   const p = await popup({ origins: [hostedOrigin], stored: {} });
@@ -658,7 +704,9 @@ test("packager makes a standalone exact-host build and leaves source loopback-on
   assert.equal(output, join(root, "dist", "capture-extension"));
   assert.deepEqual((await readdir(output)).sort(), ["manifest.json", "popup.css", "popup.html", "popup.js", "workbench.js"]);
   const packaged = JSON.parse(await readFile(join(output, "manifest.json"), "utf8"));
-  assert.deepEqual(packaged.host_permissions, [...manifest.host_permissions, "https://workbench.example.test/*"]);
+  assert.deepEqual(packaged.host_permissions,
+    ["http://localhost/*", "http://127.0.0.1/*", "https://workbench.example.test/*"]);
+  assert.doesNotMatch(JSON.stringify(packaged.host_permissions), new RegExp(deployment));
   assert.deepEqual(packaged.permissions, ["activeTab", "scripting", "storage"]);
   for (const key of ["background", "content_scripts", "optional_permissions", "optional_host_permissions"]) {
     assert.equal(packaged[key], undefined);

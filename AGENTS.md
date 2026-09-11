@@ -210,6 +210,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Current deployment: `https://capture-workbench.onrender.com`. `APP_ORIGIN` must
   match it exactly, because `/api/extension/download` packages the extension for
   that origin and a mismatch ships a package Chrome will not let reach the site.
+- The source extension is built for that deployment: it is in `host_permissions`,
+  in the popup CSP and in `WORKBENCH_ORIGINS`, so an unpackaged build offers a
+  workbench that exists. Host access is still loopback plus exactly one workbench
+  host, and a package replaces the default rather than adding to it. Change all
+  three together, and never widen either list to a wildcard.
 - A free instance sleeps when idle. The extension allows 60s for an HTTPS
   workbench (10s for loopback) and reads 502/503/504 as "not ready", so a
   cold start does not present as a dead server. Do not shorten that deadline.

@@ -41,7 +41,7 @@ export default async function AccountPage() {
         <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-ink-soft">
           <li>Extract the ZIP into a permanent folder on your computer. Keep this folder after installation.</li>
           <li>In desktop Chrome, open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, choose <strong>Load unpacked</strong>, and select the extracted <code>capture-extension</code> folder containing <code>manifest.json</code>.</li>
-          <li>Pin Capture from Chrome’s extensions menu. Go to <Link href="/settings" className="text-accent underline">Settings</Link>, generate your personal capture key, then paste it into the extension. The workbench address is already filled in.</li>
+          <li>Pin Capture from Chrome’s extensions menu. Go to <Link href="/settings" className="text-accent underline">Settings</Link> and generate your personal capture key. <strong className="font-medium text-ink">Copy it before you leave that page: the key is shown once and cannot be displayed again.</strong> Paste it into the extension; the workbench address is already filled in. If you lose it, generate another one — that replaces the old key rather than recovering it.</li>
           <li>Create an open role in your workspace if you do not have one yet. Click Connect and check that the extension shows your name and email.</li>
         </ol>
         <p className="section-caption">The ZIP contains no personal key or activation code. Installation requires your clicks; a website cannot install it automatically. Unpacked extensions do not update automatically. Download a fresh ZIP when an update is available. If your organisation blocks Developer mode, ask your IT administrator.</p>

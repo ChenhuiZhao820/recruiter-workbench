@@ -17,6 +17,12 @@ loopback; hosted packages additionally permit one explicit HTTPS workbench origi
 
 ## Install
 
+The extension is built for one workbench address, and that address is baked into
+the package: Chrome will only let it talk to the host it was packaged for. So
+install it from the site you actually use, not from this source folder.
+
+For the hosted deployment that is <https://capture-workbench.onrender.com>.
+
 1. Sign in to Capture and open **Your account**. Ask your administrator for your
    account's extension activation code and redeem it there within 7 days.
    Codes work once for the assigned account only. A replacement invalidates the
@@ -39,15 +45,45 @@ You can download again without another activation code. Unpacked extensions do
 not update automatically: download a fresh package when an update is available.
 If your organisation blocks Developer mode, contact your IT administrator.
 
+The hosted workbench may be asleep when you first click **Connect**: a free
+instance spins down while nobody is using it and takes up to a minute to answer
+the request that wakes it. The extension waits that long before giving up and
+says so; pressing **Connect** again after the site has woken always works.
+
+## Building for another address
+
+`/api/extension/download` packages for whatever `APP_ORIGIN` the running site is
+configured with, so a correctly configured deployment already serves the right
+package. To build one by hand, from a checkout:
+
+```
+npm run extension:package -- --origin https://capture-workbench.onrender.com
+```
+
+That writes `dist/capture-extension`, ready to load unpacked. The origin must be
+an exact HTTPS host with no path; there are no wildcards, and the packaged
+extension can reach that host and loopback, nothing else.
+
 For local development, load this repository's `extension` folder instead. Its
 workbench address defaults to `http://localhost:3000`; account authorization still
-applies. Do not distribute the loopback-only source build for a hosted workbench.
+applies. Do not distribute the loopback-only source build for a hosted workbench:
+loaded straight from source it cannot reach the hosted site at all.
 
 ## Use
 
 Open a profile, click the extension, check the fields, add a note in your own
 words, pick the role, and save. The note is the part worth typing: it is the
-one thing no page can tell you.
+one thing no page can tell you. After a save, **Open this role in the
+workbench** takes you straight to where the person landed.
+
+**Settings** shows the connected account and the address it saves to. From
+there, **Open workbench settings** jumps to the page that generates capture
+keys, **Back** returns to the profile you were saving, and **Forget this key**
+disconnects the account without touching your website login.
+
+If the popup says it could not reach the workbench, the workbench itself is
+usually not running. Start it, then press **Connect** again; nothing you typed
+is lost.
 
 If LinkedIn changes its markup, the name or headline may come through empty.
 Every field stays editable, so it degrades to typing rather than to breaking.

@@ -5,49 +5,73 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <section id="connection" class="connection" aria-label="Connected capture account" hidden>
-      <span class="hint">Connected capture account</span>
-      <strong id="account-name"></strong>
-      <span id="account-email"></span>
-      <span id="account-origin" class="hint"></span>
-      <p class="hint">Saves belong to this account. Website login is independent; switching accounts on the website does not switch this extension.</p>
-    </section>
-    <div id="setup" class="screen" hidden>
-      <h1>Connect to your workbench</h1>
-      <label for="url">Workbench address</label>
-      <input id="url" type="url" value="http://localhost:3000" spellcheck="false" />
-      <label for="token">Capture key</label>
-      <input id="token" type="password" placeholder="From Settings in the workbench" spellcheck="false" />
-      <p class="hint">Settings &rarr; Browser extension &rarr; Generate your personal capture key. Each key connects one account, independently of your website login. To switch accounts here, paste that account's key.</p>
-      <p class="hint">Use this build's configured HTTPS workbench address, or HTTP localhost/127.0.0.1 for local development. Other remote addresses are not allowed.</p>
-      <button id="connect" class="primary" type="button">Connect</button>
-      <p id="setup-message" class="message" role="status"></p>
-    </div>
+    <header class="topbar">
+      <span class="brand"><svg width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M12 4H4v8M20 4h8v8M28 20v8h-8M12 28H4v-8" stroke="currentColor" stroke-width="3" /><path d="M12 12h8v8h-8z" fill="currentColor" /></svg><span>Capture</span></span>
+      <span class="eyebrow">One page. One click.</span>
+    </header>
 
-    <div id="capture" class="screen" hidden>
-      <div class="row">
-        <h1>Save profile</h1>
-        <button id="settings" class="link" type="button">Settings</button>
+    <main class="shell">
+      <section id="connection" class="card account" aria-label="Connected capture account" hidden>
+        <div class="account-identity">
+          <span class="avatar" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 32 32" fill="none"><path d="M12 4H4v8M20 4h8v8M28 20v8h-8M12 28H4v-8" stroke="currentColor" stroke-width="3" /><path d="M12 12h8v8h-8z" fill="currentColor" /></svg></span>
+          <span class="account-lines">
+            <strong id="account-name"></strong>
+            <span id="account-email" class="account-email"></span>
+          </span>
+        </div>
+        <p class="account-origin"><span class="status-dot"></span><span id="account-origin"></span></p>
+        <p class="hint">Saves belong to this account. Website login is independent; switching accounts on the website does not switch this extension.</p>
+      </section>
+
+      <div id="setup" class="screen card" hidden>
+        <div class="row">
+          <h1>Connect to your workbench</h1>
+          <button id="setup-back" class="btn-quiet" type="button" hidden>Back</button>
+        </div>
+
+        <label class="field-label" for="url">Workbench address</label>
+        <input id="url" class="field-input" type="url" value="http://localhost:3000" spellcheck="false" />
+
+        <label class="field-label" for="token">Capture key</label>
+        <input id="token" class="field-input" type="password" placeholder="From Settings in the workbench" spellcheck="false" />
+
+        <p class="hint">Settings &rarr; Browser extension &rarr; Generate your personal capture key. Each key connects one account, independently of your website login. To switch accounts here, paste that account's key.</p>
+        <p class="hint">Use this build's configured HTTPS workbench address, or HTTP localhost/127.0.0.1 for local development. Other remote addresses are not allowed.</p>
+
+        <button id="connect" class="btn-primary" type="button">Connect</button>
+        <div class="row-actions">
+          <button id="open-settings" class="btn-quiet" type="button">Open workbench settings</button>
+          <button id="disconnect" class="btn-quiet danger" type="button" hidden>Forget this key</button>
+        </div>
+        <p id="setup-message" class="message" role="status"></p>
       </div>
 
-      <label for="role">Role</label>
-      <select id="role" required></select>
+      <div id="capture" class="screen card" hidden>
+        <div class="row">
+          <h1>Save profile</h1>
+          <button id="settings" class="btn-quiet" type="button">Settings</button>
+        </div>
 
-      <label for="name">Name</label>
-      <input id="name" type="text" spellcheck="false" required />
+        <label class="field-label" for="role">Role</label>
+        <select id="role" class="field-input" required></select>
 
-      <label for="headline">Headline</label>
-      <input id="headline" type="text" spellcheck="false" />
+        <label class="field-label" for="name">Name</label>
+        <input id="name" class="field-input" type="text" spellcheck="false" required />
 
-      <label for="profile">Profile link</label>
-      <input id="profile" type="url" spellcheck="false" />
+        <label class="field-label" for="headline">Headline</label>
+        <input id="headline" class="field-input" type="text" spellcheck="false" />
 
-      <label for="notes">Your note</label>
-      <textarea id="notes" rows="3" placeholder="What you actually think. Nobody else can write this."></textarea>
+        <label class="field-label" for="profile">Profile link</label>
+        <input id="profile" class="field-input" type="url" spellcheck="false" />
 
-      <button id="save" class="primary" type="button">Save to workbench</button>
-      <p id="message" class="message" role="status"></p>
-    </div>
+        <label class="field-label" for="notes">Your note</label>
+        <textarea id="notes" class="field-input" rows="3" placeholder="What you actually think. Nobody else can write this."></textarea>
+
+        <button id="save" class="btn-primary" type="button">Save to workbench</button>
+        <p id="message" class="message" role="status"></p>
+        <button id="open-role" class="btn-quiet" type="button" hidden>Open this role in the workbench</button>
+      </div>
+    </main>
 
     <script src="popup.js"></script>
   </body>

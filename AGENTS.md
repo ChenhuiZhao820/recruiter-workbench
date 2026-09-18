@@ -71,6 +71,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `tests/06-design.spec.ts` covers public/private routing, mobile overflow, keyboard
   navigation, tabs, FAQ, password visibility and role filtering. Screenshots use
   test-only fixtures in ignored test-results; no real user data is captured.
+- Role briefings use six independent, initially collapsed native details sections.
+  First-call questions request and save only `{ question }`; legacy answer fields
+  are not displayed. `tests/01-walkthrough.spec.ts` covers toggling, keyboard/mobile
+  use and legacy compatibility; the AI stub checks the questions-only prompt and
+  deliberately returns extra answer fields to verify they are discarded.
 
 ## Accounts and authorization
 
@@ -117,6 +122,14 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   local account databases also need an approved additive schema update; builds
   and tests must not migrate real databases. Multi-account imports preserve tier
   and Trial expiry; older snapshots without these fields default to Basic.
+- `/admin` is a minimal account directory showing only name, email and effective
+  type. Creation lives at `/admin/new`; all per-account status, management actions
+  and target-scoped audit history live at `/admin/[id]`. Every route independently
+  requires Admin; missing detail IDs return 404. Read-only views retain guards.
+- Creation stays on its form to show the one-time setup link, with a separate
+  Manage account link. Never redirect away before the admin can copy the secret.
+  Key detail forms by account identity so secret state cannot carry across accounts.
+  Account and extension mutations must refresh their affected detail route too.
 - `tests/account-tiers.test.mjs` covers tier/expiry boundaries and action/feature
   guards; `tests/08-account-tiers.spec.ts` covers UI, live-session changes and
   forged requests using only disposable test accounts/databases.

@@ -11,7 +11,7 @@ type BriefingJson = {
   search_titles: string[];
   target_companies: string[];
   salary_range: string;
-  first_call_questions: { question: string; strong_answer: string; weak_answer: string }[];
+  first_call_questions: { question: string }[];
 };
 
 const PROMPT = (title: string, jobDesc: string) => `You are helping a recruiter prepare to source candidates for a role. Read the job title and description below, then return a briefing as a single JSON object.
@@ -32,11 +32,11 @@ Return exactly this JSON shape and nothing else. No markdown fences, no preamble
   "target_companies": ["kinds of companies where they tend to work"],
   "salary_range": "typical pay range, for example '£65k to £85k'",
   "first_call_questions": [
-    { "question": "string", "strong_answer": "what a strong answer sounds like", "weak_answer": "what a vague answer sounds like" }
+    { "question": "string" }
   ]
 }
 
-Give five or six key_skills and four to six first_call_questions. Write for a busy recruiter who is not technical: plain, direct, no jargon.`;
+Give five or six key_skills and four to six first_call_questions. For first_call_questions, include only the questions, with no sample answers, answer guidance, or strong/vague assessments. Write for a busy recruiter who is not technical: plain, direct, no jargon.`;
 
 function stripFences(text: string): string {
   return text
@@ -55,9 +55,16 @@ function parseBriefing(text: string): BriefingJson | null {
       Array.isArray(parsed.search_titles) &&
       Array.isArray(parsed.target_companies) &&
       typeof parsed.salary_range === "string" &&
-      Array.isArray(parsed.first_call_questions)
+      Array.isArray(parsed.first_call_questions) &&
+      parsed.first_call_questions.every((q: unknown) =>
+        q !== null && typeof q === "object" && "question" in q &&
+        typeof q.question === "string" && q.question.trim().length > 0
+      )
     ) {
-      return parsed as BriefingJson;
+      return {
+        ...parsed,
+        first_call_questions: parsed.first_call_questions.map(({ question }: { question: string }) => ({ question })),
+      } as BriefingJson;
     }
     return null;
   } catch {

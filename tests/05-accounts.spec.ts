@@ -121,7 +121,7 @@ async function expectCaptureDenied(page: Page, token: string, roleId: string) {
 
 test("A1 unauthenticated workspaces redirect and a website cookie is not a capture key", async ({ accounts }) => {
   const page = await accounts.guest();
-  for (const route of ["/roles/new", "/searches", "/templates", "/followups", "/settings", "/account", "/admin", "/roles/nonexistent", "/candidates/nonexistent/outreach"]) {
+  for (const route of ["/roles/new", "/searches", "/templates", "/followups", "/settings", "/account", "/admin", "/admin/new", "/admin/nonexistent", "/roles/nonexistent", "/candidates/nonexistent/outreach"]) {
     await page.goto(route);
     await expect(page).toHaveURL(`${BASE}/login`);
     await expect(page.getByRole("heading", { name: "Sign in to Capture" })).toBeVisible();
@@ -181,6 +181,19 @@ test("A3 admin creation uses fragment-only activation, consumes once and records
   const admin = await accounts.create("admin");
   const email = `activated-${randomUUID()}@test.capture.invalid`;
   await admin.page.goto("/admin");
+  const overview = admin.page.locator("article", { hasText: admin.email });
+  await expect(overview).toContainText(admin.name);
+  await expect(overview).toContainText("Admin");
+  await expect(overview.getByRole("link")).toHaveAttribute("href", `/admin/${admin.id}`);
+  await expect(admin.page.locator("article").getByText(/Enabled|Disabled/)).toHaveCount(0);
+  await expect(admin.page.locator("article").locator("form, button, details")).toHaveCount(0);
+  await expect(admin.page.getByRole("region", { name: "Audit history" })).toHaveCount(0);
+  await expect(admin.page.getByRole("region", { name: "Create account", exact: true })).toHaveCount(0);
+  const createLink = admin.page.getByRole("link", { name: "Create an account", exact: true });
+  await expect(createLink).toHaveAttribute("href", "/admin/new");
+  await createLink.click();
+  await expect(admin.page).toHaveURL(`${BASE}/admin/new`);
+  await expect(admin.page.getByRole("heading", { name: "Create an account", exact: true })).toBeVisible();
   const create = admin.page.getByRole("region", { name: "Create account", exact: true });
   await create.getByLabel("Name", { exact: true }).fill("Activated Recruiter");
   await create.getByLabel("Email", { exact: true }).fill(email);
@@ -195,6 +208,8 @@ test("A3 admin creation uses fragment-only activation, consumes once and records
   const raw = new URLSearchParams(url.hash.slice(1)).get("token")!;
   expect(raw).toMatch(/^[A-Za-z0-9_-]{43}$/);
   const user = await db.user.findUniqueOrThrow({ where: { email } });
+  await expect(admin.page).toHaveURL(`${BASE}/admin/new`);
+  await expect(admin.page.getByRole("link", { name: "Manage account", exact: true })).toHaveAttribute("href", `/admin/${user.id}`);
   expect(user).toMatchObject({ role: "recruiter", active: true, passwordHash: null });
   expect(await db.activationToken.findUnique({ where: { tokenHash: hashToken(raw) } })).toMatchObject({ userId: user.id });
   await expectAudit(admin.id, user.id, "account_created");
@@ -225,7 +240,23 @@ test("A3 admin creation uses fragment-only activation, consumes once and records
   await expect(guest.getByRole("link", { name: "Accounts", exact: true })).toHaveCount(0);
   await admin.page.reload();
   await expect(admin.page.getByLabel("One-time setup link")).toHaveCount(0);
-  await expect(admin.page.getByRole("region", { name: "Audit history" })).toContainText("account created");
+  await db.auditEvent.create({ data: { actorId: admin.id, targetUserId: admin.id, action: "account_disabled" } });
+  await admin.page.goto(`/admin/${user.id}`);
+  const history = admin.page.getByRole("region", { name: "Audit history", exact: true });
+  await expect(history).toContainText("account created");
+  await expect(history).toContainText("password set");
+  await expect(history).not.toContainText("account disabled");
+  const back = admin.page.getByRole("link", { name: "Back to accounts", exact: true });
+  await expect(back).toHaveAttribute("href", "/admin");
+  await back.click();
+  await expect(admin.page).toHaveURL(`${BASE}/admin`);
+  const account = admin.page.locator("article", { hasText: email });
+  await expect(account).toContainText("Activated Recruiter");
+  await expect(account).toContainText("Basic");
+  await expect(account.getByRole("link")).toHaveAttribute("href", `/admin/${user.id}`);
+  await account.getByRole("link").click();
+  await expect(admin.page).toHaveURL(`${BASE}/admin/${user.id}`);
+  await expect(admin.page.locator("article", { hasText: email })).toContainText("Activated Recruiter");
   const audit = JSON.stringify(await db.auditEvent.findMany({ where: { targetUserId: user.id } }));
   for (const privateValue of [PASSWORD, NEW_PASSWORD, raw, activated.passwordHash!]) expect(audit).not.toContain(privateValue);
 });
@@ -233,7 +264,7 @@ test("A3 admin creation uses fragment-only activation, consumes once and records
 test("A4 reset links expire and reissuing invalidates the previous fragment token", async ({ accounts }) => {
   const admin = await accounts.create("admin");
   const actor = await accounts.create();
-  await admin.page.goto("/admin");
+  await admin.page.goto(`/admin/${actor.id}`);
   const card = admin.page.locator("article", { hasText: actor.email });
   await card.locator("summary").click();
   await card.getByRole("button", { name: "Generate setup/reset link" }).click();
@@ -411,7 +442,9 @@ test("A9 admin view is not impersonation and blocks disabled UI and crafted work
   const recruiterKey = await captureKey(recruiter);
   const ownSettings = await db.settings.findUniqueOrThrow({ where: { userId: admin.id } });
   const targetSettings = await db.settings.findUniqueOrThrow({ where: { userId: recruiter.id } });
-  await admin.page.goto("/admin");
+  const createAccount = await snapshotForm(admin.page, "/admin/new", 'form:has(input[id="new-email"])');
+  const disableAccount = await snapshotForm(admin.page, `/admin/${recruiter.id}`, `form:has(input[value="${recruiter.id}"]):has(input[name="active"])`);
+  await admin.page.goto(`/admin/${recruiter.id}`);
   await admin.page.locator("article", { hasText: recruiter.email }).getByRole("button", { name: "View workspace (read-only)" }).click();
   await expect(admin.page).toHaveURL(`${BASE}/`);
   await expect(admin.page.getByRole("status")).toContainText(`Read-only workspace: ${recruiter.name}`);
@@ -420,6 +453,23 @@ test("A9 admin view is not impersonation and blocks disabled UI and crafted work
   await expect(admin.page.locator("main")).toContainText(target.role.title);
   await expect(admin.page.locator("main")).not.toContainText(own.role.title);
   await expectAudit(admin.id, recruiter.id, "workspace_view_started");
+  await admin.page.goto("/admin/new");
+  await expect(admin.page.getByRole("region", { name: "Create account", exact: true }).locator("form")).toHaveCount(0);
+  await expect(admin.page.getByRole("button", { name: "Create account", exact: true })).toHaveCount(0);
+  await admin.page.goto(`/admin/${recruiter.id}`);
+  const viewingForm = admin.page.locator("article", { hasText: recruiter.email }).locator("form");
+  await expect(viewingForm).toHaveCount(1);
+  await expect(viewingForm.getByRole("button", { name: "View workspace (read-only)", exact: true })).toBeVisible();
+  const accountCount = await db.user.count();
+  const auditCount = await db.auditEvent.count({ where: { actorId: admin.id } });
+  for (const [form, changes] of [[createAccount, { name: "Read-only injection", email: `readonly-${randomUUID()}@test.capture.invalid` }], [disableAccount, { userId: recruiter.id, active: "false" }]] as [FormSnapshot, Record<string, string>][]) {
+    const response = await postForm(admin.page, form, changes);
+    expect(response.status()).toBeGreaterThanOrEqual(400);
+    expect(await response.text()).toContain("read-only");
+  }
+  expect(await db.user.count()).toBe(accountCount);
+  expect((await db.user.findUniqueOrThrow({ where: { id: recruiter.id } })).active).toBe(true);
+  expect(await db.auditEvent.count({ where: { actorId: admin.id } })).toBe(auditCount);
   const cases: { url: string; button: string; selector: string; changes: Record<string, string> }[] = [
     { url: `/roles/${target.role.id}/edit`, button: "Save role", selector: 'form:has(input[name="title"])', changes: { title: "Read-only injection" } },
     { url: `/roles/${target.role.id}`, button: "Add candidate", selector: 'form:has(input[name="roleId"]):has(input[name="fullName"])', changes: { fullName: "Read-only injection" } },
@@ -476,7 +526,7 @@ test("A10 disabling an account revokes every session, activation link and captur
   await expect(second).toHaveURL(`${BASE}/`);
   expect(await db.session.count({ where: { userId: actor.id } })).toBe(2);
   await db.activationToken.create({ data: { userId: actor.id, tokenHash: hashToken(secret()), expiresAt: new Date(Date.now() + 60_000) } });
-  await admin.page.goto("/admin");
+  await admin.page.goto(`/admin/${actor.id}`);
   const card = admin.page.locator("article", { hasText: actor.email });
   await card.getByRole("button", { name: "Disable account" }).click();
   await expect(card.locator('[data-form-message="notice"]')).toContainText("Account disabled");
@@ -555,9 +605,9 @@ test("A13 recruiter cannot invoke administrative actions copied from an administ
   const admin = await accounts.create("admin");
   const actor = await accounts.create();
   const target = await accounts.create();
-  const create = await snapshotForm(admin.page, "/admin", 'form:has(input[id="new-email"])');
-  const view = await snapshotForm(admin.page, "/admin", `form:has(input[value="${target.id}"]):not(:has(input[name="active"]))`);
-  const disable = await snapshotForm(admin.page, "/admin", `form:has(input[value="${target.id}"]):has(input[name="active"])`);
+  const create = await snapshotForm(admin.page, "/admin/new", 'form:has(input[id="new-email"])');
+  const view = await snapshotForm(admin.page, `/admin/${target.id}`, `form:has(input[value="${target.id}"]):not(:has(input[name="active"]))`);
+  const disable = await snapshotForm(admin.page, `/admin/${target.id}`, `form:has(input[value="${target.id}"]):has(input[name="active"])`);
   const before = await db.user.count();
   for (const [form, changes] of [[create, { name: "Escalation", email: `forged-${randomUUID()}@test.capture.invalid` }], [view, { userId: target.id }], [disable, { userId: target.id, active: "false" }]] as [FormSnapshot, Record<string, string>][]) {
     const response = await postForm(actor.page, form, changes);
@@ -568,9 +618,15 @@ test("A13 recruiter cannot invoke administrative actions copied from an administ
   expect((await db.user.findUniqueOrThrow({ where: { id: target.id } })).active).toBe(true);
   expect((await db.session.findUniqueOrThrow({ where: { tokenHash: hashToken(actor.token) } })).viewUserId).toBeNull();
   expect(await db.auditEvent.count({ where: { actorId: actor.id } })).toBe(0);
-  await actor.page.goto("/admin");
-  await expect(actor.page.getByRole("heading", { name: "Account administration" })).toHaveCount(0);
-  expect(await actor.page.content()).not.toContain(target.email);
+  for (const route of ["/admin", "/admin/new", `/admin/${target.id}`]) {
+    await actor.page.goto(route);
+    await expect(actor.page.getByRole("heading", { name: "Account administration" })).toHaveCount(0);
+    await expect(actor.page.getByRole("heading", { name: "Create an account", exact: true })).toHaveCount(0);
+    expect(await actor.page.content()).not.toContain(target.email);
+  }
+  const missing = await admin.page.goto(`/admin/${randomUUID()}`);
+  expect(missing?.status()).toBe(404);
+  await expect(admin.page.getByRole("heading", { name: "404", exact: true })).toBeVisible();
 });
 
 test("A14 expired and auth-version-stale session cookies cannot restore a workspace", async ({ accounts }) => {

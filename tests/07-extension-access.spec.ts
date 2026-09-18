@@ -91,7 +91,7 @@ function issueSelector(actor: Actor) {
 }
 
 async function issueCode(admin: Actor, actor: Actor, extensions: Extensions, replace = false) {
-  await admin.page.goto("/admin");
+  await admin.page.goto(`/admin/${actor.id}`);
   const section = admin.page.locator("article", { hasText: actor.email }).getByRole("region", { name: "Extension access", exact: true });
   await section.getByRole("button", { name: replace ? "Replace extension code" : "Generate extension code", exact: true }).click();
   const output = section.getByLabel("New extension activation code", { exact: true });
@@ -100,7 +100,7 @@ async function issueCode(admin: Actor, actor: Actor, extensions: Extensions, rep
   const code = await output.inputValue();
   expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
   extensions.secrets.push(code);
-  expect(admin.page.url()).toBe(`${BASE}/admin`);
+  expect(admin.page.url()).toBe(`${BASE}/admin/${actor.id}`);
   return code;
 }
 
@@ -384,14 +384,14 @@ test("E5 recruiters and read-only administrators cannot issue or redeem through 
   const actor = await extensions.create();
   const target = await extensions.create();
   const code = await issueCode(admin, actor, extensions);
-  const issue = await snapshotForm(admin.page, "/admin", issueSelector(target));
+  const issue = await snapshotForm(admin.page, `/admin/${target.id}`, issueSelector(target));
   const redeem = await activationSnapshot(actor);
   const denied = await postForm(actor.page, { ...issue, url: "/account" }, { userId: target.id });
   expect(denied.status()).toBe(200);
   expect(await denied.text()).toContain("Administrator access is required");
   expect(await db.extensionAccess.findUnique({ where: { userId: target.id } })).toBeNull();
   expect(await db.auditEvent.count({ where: { actorId: actor.id } })).toBe(0);
-  await admin.page.goto("/admin");
+  await admin.page.goto(`/admin/${actor.id}`);
   await admin.page.locator("article", { hasText: actor.email }).getByRole("button", { name: "View workspace (read-only)", exact: true }).click();
   await expect(admin.page).toHaveURL(`${BASE}/`);
   expect((await db.session.findUniqueOrThrow({ where: { tokenHash: hashToken(admin.token) } })).viewUserId).toBe(actor.id);
@@ -415,7 +415,7 @@ test("E5 recruiters and read-only administrators cannot issue or redeem through 
   await expect(admin.page).toHaveURL(`${BASE}/`);
   await expectPrivateDownload(await admin.page.request.get(DOWNLOAD), 200);
   await activate(actor, code);
-  await admin.page.goto("/admin");
+  await admin.page.goto(`/admin/${actor.id}`);
   await admin.page.locator("article", { hasText: actor.email }).getByRole("button", { name: "View workspace (read-only)", exact: true }).click();
   await expect(admin.page).toHaveURL(`${BASE}/`);
   await admin.page.goto("/account");
@@ -441,7 +441,7 @@ test("E6 admin own-workspace bypass needs no activation and newly created accoun
   expect((await listed.json()).account.id).toBe(admin.id);
   expect((await guest.request.post("/api/capture", { headers, data: { roleId: role.id, fullName: "Admin own capture" } })).status()).toBe(201);
   expect(await db.extensionAccess.findUnique({ where: { userId: admin.id } })).toBeNull();
-  await admin.page.goto("/admin");
+  await admin.page.goto("/admin/new");
   const create = admin.page.getByRole("region", { name: "Create account", exact: true });
   const email = `extension-created-${randomUUID()}@test.capture.invalid`;
   await create.getByLabel("Name", { exact: true }).fill("Extension locked new account");
@@ -451,6 +451,11 @@ test("E6 admin own-workspace bypass needs no activation and newly created accoun
   const user = await db.user.findUniqueOrThrow({ where: { email }, include: { extensionAccess: true, settings: true } });
   expect(user.extensionAccess).toBeNull();
   expect(user.settings?.captureTokenHash ?? null).toBeNull();
+  await expect(admin.page).toHaveURL(`${BASE}/admin/new`);
+  const manage = admin.page.getByRole("link", { name: "Manage account", exact: true });
+  await expect(manage).toHaveAttribute("href", `/admin/${user.id}`);
+  await manage.click();
+  await expect(admin.page).toHaveURL(`${BASE}/admin/${user.id}`);
   await expect(admin.page.locator("article", { hasText: email }).getByRole("region", { name: "Extension access", exact: true }).getByRole("button", { name: "Generate extension code", exact: true })).toBeVisible();
 });
 
@@ -459,7 +464,7 @@ test("E7 missing and foreign origins cannot issue or redeem extension grants", a
   const actor = await extensions.create();
   const target = await extensions.create();
   const code = await issueCode(admin, actor, extensions);
-  const issue = await snapshotForm(admin.page, "/admin", issueSelector(target));
+  const issue = await snapshotForm(admin.page, `/admin/${target.id}`, issueSelector(target));
   const { form, field } = await activationSnapshot(actor);
   const before = await db.extensionAccess.findUniqueOrThrow({ where: { userId: actor.id } });
   for (const origin of [null, "http://localhost:3999", "https://attacker.example.invalid"]) {

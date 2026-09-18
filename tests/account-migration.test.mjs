@@ -191,6 +191,34 @@ test("PostgreSQL schema changes only the datasource provider and retains the sha
   assert.match(migrations[extensionIndex], /PRIMARY KEY \("userId"\)/);
   assert.match(migrations[extensionIndex], /FOREIGN KEY \("userId"\) REFERENCES "User"\("id"\) ON DELETE CASCADE ON UPDATE CASCADE/);
   assert.match(migrations[extensionIndex], /CREATE UNIQUE INDEX "ExtensionAccess_codeHash_key"/);
+  const tiersIndex = directories.indexOf("20260918000000_account_tiers");
+  assert.ok(tiersIndex > extensionIndex);
+  for (const previous of migrations.slice(0, tiersIndex)) assert.doesNotMatch(previous, /accountTier|trialExpiresAt/);
+  assert.match(postgres, /accountTier\s+String\s+@default\("basic"\)/);
+  assert.match(postgres, /trialExpiresAt\s+DateTime\?/);
+  assert.match(postgres, /role\s+String\s+@default\("recruiter"\)/);
+  const statements = migrations[tiersIndex].split(";").map((sql) => sql.trim()).filter(Boolean);
+  assert.equal(statements.length, 2);
+  assert.match(statements[0], /^ALTER TABLE "User" ADD COLUMN "accountTier" TEXT NOT NULL DEFAULT 'basic'$/);
+  assert.match(statements[1], /^ALTER TABLE "User" ADD COLUMN "trialExpiresAt" TIMESTAMP\(3\)$/);
+});
+
+test("additive tier migration defaults existing and new accounts without changing roles or timestamps", async (t) => {
+  const directory = await temp(t);
+  const sqlite = new DatabaseSync(resolve(directory, "tier-migration.db"));
+  resources.get(t).push(() => sqlite.close());
+  sqlite.exec('CREATE TABLE "User" ("id" TEXT PRIMARY KEY, "role" TEXT NOT NULL DEFAULT \'recruiter\', "createdAt" DATETIME NOT NULL, "updatedAt" DATETIME NOT NULL)');
+  for (const role of ["admin", "recruiter"]) insert(sqlite, "User", { id: role, role, createdAt: epoch, updatedAt: epoch });
+  const migration = await readFile(new URL("../prisma/postgresql/migrations/20260918000000_account_tiers/migration.sql", import.meta.url), "utf8");
+  sqlite.exec(migration);
+  for (const row of sqlite.prepare('SELECT * FROM "User"').all()) {
+    assert.deepEqual({ ...row }, { id: row.role, role: row.role, createdAt: epoch, updatedAt: epoch, accountTier: "basic", trialExpiresAt: null });
+  }
+  insert(sqlite, "User", { id: "new", createdAt: epoch, updatedAt: epoch });
+  const row = sqlite.prepare('SELECT * FROM "User" WHERE "id" = ?').get("new");
+  assert.equal(row.role, "recruiter");
+  assert.equal(row.accountTier, "basic");
+  assert.equal(row.trialExpiresAt, null);
 });
 
 test("CLI rejects unknown, duplicate and missing arguments and unsafe origins", () => {

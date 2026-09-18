@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { canUseExtension } from "@/lib/extension-access";
 import { ExtensionActivationForm, PasswordForm } from "@/components/AccountForms";
 import { Icon } from "@/components/Icon";
+import { accountTierLabels, getAccountTier } from "@/lib/account-tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,8 @@ export default async function AccountPage() {
   const { user, readOnly } = await getWorkspace();
   const access = await db.extensionAccess.findUnique({ where: { userId: user.id }, select: { activatedAt: true, expiresAt: true } });
   const extensionEnabled = canUseExtension({ ...user, extensionAccess: access });
+  const tier = getAccountTier(user);
+  const trialExpiry = user.trialExpiresAt?.toISOString().replace("T", " ").replace(":00.000Z", " UTC");
   return <div className="max-w-4xl space-y-8">
     <header className="page-header">
       <div>
@@ -26,6 +29,12 @@ export default async function AccountPage() {
         <div>
           <p className="text-xl font-medium">{user.name}</p>
           <p className="mt-1 break-words text-sm text-ink-soft">{user.email}</p>
+        </div>
+        <div className="space-y-2 border-t border-line pt-4">
+          <p className="field-label">Account type</p>
+          <p className="font-medium">{accountTierLabels[tier]}</p>
+          {tier === "trial" && <p className="section-caption">Pro access until {trialExpiry}. Your account automatically returns to Basic at expiry.</p>}
+          {user.role !== "admin" && user.accountTier === "trial" && tier === "basic" && <p className="section-caption">Trial expired{trialExpiry ? ` · ${trialExpiry}` : ""}. Your account now uses Basic. Your workspace data is unchanged.</p>}
         </div>
       </section>
       <section className="space-y-4" aria-label="Account security">

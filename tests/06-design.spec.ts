@@ -306,6 +306,7 @@ for (const scenario of scenarios.filter((entry) => entry.name !== "reduced motio
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Welcome");
     await expectNoOverflow(page);
     await page.screenshot({ path: testInfo.outputPath("getting-started.png"), fullPage: true });
+    if (scenario.mobile) await page.getByRole("button", { name: "Toggle navigation", exact: true }).click();
     await page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Roles", exact: true }).click();
     await expect(page).toHaveURL(`${BASE}/`);
     await expect(page.getByRole("heading", { level: 1, name: "Roles", exact: true })).toBeVisible();

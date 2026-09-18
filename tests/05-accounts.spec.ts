@@ -1,6 +1,6 @@
 import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 import { randomBytes, randomUUID } from "node:crypto";
-import { db, TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD } from "./helpers";
+import { db } from "./helpers";
 import { hashPassword, hashToken, verifyPassword } from "../lib/auth-crypto";
 
 const BASE = "http://localhost:3100";
@@ -154,11 +154,12 @@ test("A1 public home is reachable without an account and never includes private 
 });
 
 test("A2 login rejects bad credentials, creates a hashed session and logout revokes it", async ({ accounts }) => {
+  const admin = await accounts.create("admin");
   const page = await accounts.guest();
-  await login(page, TEST_ADMIN_EMAIL, "not-the-test-password");
+  await login(page, admin.email, "not-the-test-password");
   await expect(page.locator("main").getByRole("alert")).toHaveText("Email or password is incorrect, or this account is unavailable.");
   expect((await page.context().cookies()).find((cookie) => cookie.name === "capture_session")).toBeUndefined();
-  await login(page, TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD);
+  await login(page, admin.email);
   await expect(page).toHaveURL(`${BASE}/`);
   await expect(page).toHaveTitle("Capture");
   await expect(page.getByRole("banner").getByRole("link", { name: "Capture", exact: true })).toBeVisible();
@@ -166,7 +167,7 @@ test("A2 login rejects bad credentials, creates a hashed session and logout revo
   expect(cookie).toMatchObject({ httpOnly: true, sameSite: "Lax", path: "/" });
   expect(cookie.value).toMatch(/^[A-Za-z0-9_-]{43}$/);
   const session = await db.session.findUniqueOrThrow({ where: { tokenHash: hashToken(cookie.value) }, include: { user: true } });
-  expect(session.user.email).toBe(TEST_ADMIN_EMAIL);
+  expect(session.user.email).toBe(admin.email);
   expect(session.tokenHash).not.toBe(cookie.value);
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(`${BASE}/login`);

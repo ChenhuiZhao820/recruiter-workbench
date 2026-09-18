@@ -107,6 +107,27 @@ export function ExtensionActivationForm() {
   </form>;
 }
 
+export function AccountTierFields({ id, initialTier = "basic", trialExpiresAt = null }: {
+  id: string;
+  initialTier?: "basic" | "pro" | "trial";
+  trialExpiresAt?: string | null;
+}) {
+  const [tier, setTier] = useState(initialTier);
+  return <>
+    <div>
+      <label htmlFor={`${id}-tier`} className="field-label">Account type</label>
+      <select id={`${id}-tier`} name="accountTier" value={tier} onChange={(event) => setTier(event.target.value as typeof tier)} className="field-input">
+        <option value="basic">Basic</option><option value="pro">Pro</option><option value="trial">Trial</option>
+      </select>
+    </div>
+    {tier === "trial" && <div>
+      <label htmlFor={`${id}-expiry`} className="field-label">Trial expires at (UTC)</label>
+      <input id={`${id}-expiry`} name="trialExpiresAt" type="datetime-local" step={60} defaultValue={trialExpiresAt?.slice(0, 16) ?? ""} required aria-describedby={`${id}-expiry-help`} className="field-input" />
+      <p id={`${id}-expiry-help`} className="mt-2 section-caption">Use UTC, not local time. Trial includes Pro access until this time, then automatically returns to Basic.</p>
+    </div>}
+  </>;
+}
+
 export function AccountManagementForm({ action, children, submitLabel }: {
   action: (state: AccountActionState, form: FormData) => Promise<AccountActionState>;
   children?: React.ReactNode;

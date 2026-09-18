@@ -118,6 +118,23 @@ for (const origin of ["http://localhost:3000", "https://capture.example.test"]) 
   });
 }
 
+test("existing sessions read current account tiers and Trial expiry without cached entitlements", async () => {
+  const h = sessionHarness("http://localhost:3000");
+  const token = h.add("capture_session", "recruiter");
+  const record = h.records.get(crypto.hashToken(token));
+  const tiers = load("lib/account-tiers.ts");
+  assert.equal(h.auth.publicUserSelect.accountTier, true);
+  assert.equal(h.auth.publicUserSelect.trialExpiresAt, true);
+  assert.equal(h.auth.publicUserSelect.passwordHash, undefined);
+  for (const accountTier of ["basic", "pro", "trial"]) {
+    Object.assign(record.user, { accountTier, trialExpiresAt: new Date(Date.now() + 60_000) });
+    assert.equal(tiers.getAccountTier((await h.auth.getSession()).user), accountTier);
+  }
+  record.user.trialExpiresAt = new Date(0);
+  assert.equal(tiers.getAccountTier((await h.auth.getSession()).user), "basic");
+  assert.equal(record.user.accountTier, "trial");
+});
+
 test("passwords are salted, verifiable and never stored as plaintext", async () => {
   const password = "TEST-ONLY-security-password-3100!";
   const first = await crypto.hashPassword(password);

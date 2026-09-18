@@ -7,20 +7,43 @@ import { db } from "@/lib/db";
 import { appOrigin, assertSameOrigin, getSession, requireAdmin } from "@/lib/auth";
 import { hashToken, newSecret, normalizeEmail, validEmail } from "@/lib/auth-crypto";
 import type { FormState } from "@/lib/formState";
+import { parseAccountTier } from "@/lib/account-tiers";
+import { requireWritableWorkspace } from "@/lib/workspace";
 
 export type AccountActionState = FormState & { activationUrl?: string };
+
+export async function setAccountTier(_state: FormState, form: FormData): Promise<FormState> {
+  assertSameOrigin();
+  const admin = await requireAdmin();
+  await requireWritableWorkspace();
+  const userId = String(form.get("userId") ?? "");
+  const tier = parseAccountTier(form.get("accountTier"), form.get("trialExpiresAt"));
+  if (!tier.data) return { error: tier.error };
+  const changed = await db.$transaction(async (tx) => {
+    const updated = await tx.user.updateMany({ where: { id: userId, role: "recruiter" }, data: tier.data });
+    if (!updated.count) return false;
+    await tx.auditEvent.create({ data: { actorId: admin.id, targetUserId: userId, action: `account_tier_changed_to_${tier.data.accountTier}` } });
+    return true;
+  });
+  if (!changed) return { error: "This account cannot be changed here. Administrator roles are managed separately." };
+  revalidatePath("/", "layout");
+  return { notice: "Account type saved. Access is checked on each request; expired trials use Basic access." };
+}
 
 export async function createAccount(_state: AccountActionState, form: FormData): Promise<AccountActionState> {
   assertSameOrigin();
   const admin = await requireAdmin();
+  await requireWritableWorkspace();
   const email = normalizeEmail(String(form.get("email") ?? ""));
   const name = String(form.get("name") ?? "").trim();
   if (!validEmail(email)) return { error: "Enter a valid email address." };
   if (!name || name.length > 120) return { error: "Enter a name of up to 120 characters." };
+  const tier = parseAccountTier(form.get("accountTier") ?? "basic", form.get("trialExpiresAt"));
+  if (!tier.data) return { error: tier.error };
   const token = newSecret();
   try {
     await db.$transaction(async (tx) => {
-      const user = await tx.user.create({ data: { email, name, role: "recruiter" } });
+      const user = await tx.user.create({ data: { email, name, role: "recruiter", ...tier.data } });
       await tx.settings.create({ data: { userId: user.id, recruiterName: name } });
       await tx.activationToken.create({ data: { userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 86400000) } });
       await tx.auditEvent.create({ data: { actorId: admin.id, targetUserId: user.id, action: "account_created" } });
@@ -36,6 +59,7 @@ export async function createAccount(_state: AccountActionState, form: FormData):
 export async function issueActivation(_state: AccountActionState, form: FormData): Promise<AccountActionState> {
   assertSameOrigin();
   const admin = await requireAdmin();
+  await requireWritableWorkspace();
   const userId = String(form.get("userId") ?? "");
   const token = newSecret();
   const issued = await db.$transaction(async (tx) => {
@@ -53,6 +77,7 @@ export async function issueActivation(_state: AccountActionState, form: FormData
 export async function setAccountActive(_state: FormState, form: FormData): Promise<FormState> {
   assertSameOrigin();
   const admin = await requireAdmin();
+  await requireWritableWorkspace();
   const userId = String(form.get("userId") ?? "");
   const active = form.get("active") === "true";
   if (userId === admin.id) return { error: "You cannot disable your own administrator account." };

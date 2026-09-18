@@ -12,6 +12,8 @@ model User {
   email            String            @unique
   name             String
   role             String            @default("recruiter")
+  accountTier      String            @default("basic")
+  trialExpiresAt   DateTime?
   active           Boolean           @default(true)
   passwordHash     String?
   authVersion      Int               @default(0)

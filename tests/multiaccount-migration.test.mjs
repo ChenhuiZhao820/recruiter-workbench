@@ -215,6 +215,130 @@ test("source reader rejects malformed ExtensionAccess schemas and orphan grants"
   });
 });
 
+test("account tier validation defaults old snapshots and preserves supported tiers and exact trial dates", () => {
+  const legacy = structuredClone(source);
+  for (const row of legacy.User) {
+    delete row.accountTier;
+    delete row.trialExpiresAt;
+  }
+  const original = structuredClone(legacy);
+  for (const row of validateAccounts(legacy, adminEmail).data.user) {
+    assert.equal(row.accountTier, "basic");
+    assert.equal(row.trialExpiresAt, null);
+  }
+  assert.deepEqual(legacy, original);
+  for (const accountTier of ["basic", "pro", "trial"]) {
+    for (const trialExpiresAt of [createdAt, updatedAt.toISOString(), new Date("2035-01-02T03:04:05.006Z").getTime(), ...(accountTier === "trial" ? [] : [null])]) {
+      const input = structuredClone(legacy);
+      for (const row of input.User) Object.assign(row, { accountTier, trialExpiresAt });
+      const before = structuredClone(input);
+      const users = validateAccounts(input, adminEmail).data.user;
+      for (const row of users) {
+        assert.equal(row.accountTier, accountTier);
+        assert.deepEqual(row.trialExpiresAt, trialExpiresAt === null ? null : new Date(trialExpiresAt));
+        assert.equal(row.role, input.User.find((user) => user.id === row.id).role);
+      }
+      assert.deepEqual(input, before);
+    }
+  }
+});
+
+test("account tier validation refuses partial, mixed, unsupported and malformed values before writes", async (t) => {
+  const cases = [
+    ["missing tier", (row) => { delete row.accountTier; }],
+    ["missing expiry", (row) => { delete row.trialExpiresAt; }],
+    ["mixed old and new rows", (row) => { delete row.accountTier; delete row.trialExpiresAt; }],
+    ...["admin", "enterprise", "PRO", "", null, undefined, 1].map((value) => [`unsupported tier ${String(value)}`, (row) => { row.accountTier = value; }]),
+    ...[null, undefined, "not-a-date", "2024-02-31T00:00:00Z", new Date(NaN), Infinity].map((value, index) => [`invalid trial expiry ${index}`, (row) => { row.accountTier = "trial"; row.trialExpiresAt = value; }]),
+    ["malformed basic expiry", (row) => { row.trialExpiresAt = "not-a-date"; }],
+  ];
+  for (const [name, mutate] of cases) await t.test(name, async () => {
+    const input = structuredClone(source);
+    for (const row of input.User) Object.assign(row, { accountTier: "basic", trialExpiresAt: null });
+    mutate(input.User[1]);
+    assert.throws(() => validateAccounts(input, adminEmail));
+    await withTarget(async (db) => {
+      await assert.rejects(importAccounts(db, input, adminEmail, { provider: "sqlite", confirmed: true }));
+      await assertEmpty(db);
+    });
+  });
+});
+
+test("pre-tier SQLite snapshots project basic and null without source writes and import safely", async () => {
+  const path = join(directory, "pre-tier-source.db");
+  await copyFile(sourcePath, path);
+  const sqlite = new DatabaseSync(path);
+  try {
+    const columns = sqlite.prepare('PRAGMA table_info("User")').all().map((column) => column.name);
+    for (const column of ["accountTier", "trialExpiresAt"]) if (columns.includes(column)) sqlite.exec(`ALTER TABLE "User" DROP COLUMN "${column}"`);
+  } finally { sqlite.close(); }
+  const before = await readFile(path);
+  const legacy = await readAccounts(path);
+  for (const row of legacy.User) {
+    assert.equal(row.accountTier, "basic");
+    assert.equal(row.trialExpiresAt, null);
+  }
+  const backup = join(directory, "pre-tier-snapshot.db");
+  await snapshotAccounts(path, backup);
+  assert.deepEqual(await readAccounts(backup), legacy);
+  await withTarget(async (db) => {
+    await importAccounts(db, legacy, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, legacy, adminEmail);
+    for (const row of await db.user.findMany()) {
+      assert.equal(row.accountTier, "basic");
+      assert.equal(row.trialExpiresAt, null);
+    }
+  });
+  assert.deepEqual(await readFile(path), before);
+});
+
+test("tier SQLite projection, snapshots and imports preserve stored tiers and expired trial timestamps", async () => {
+  const path = join(directory, "tier-source.db");
+  await copyFile(sourcePath, path);
+  const sqlite = new DatabaseSync(path);
+  try {
+    sqlite.prepare('UPDATE "User" SET "accountTier" = ?, "trialExpiresAt" = ? WHERE "id" = ?').run("pro", null, "fixture-user-admin");
+    sqlite.prepare('UPDATE "User" SET "accountTier" = ?, "trialExpiresAt" = ? WHERE "id" = ?').run("trial", createdAt.getTime(), "fixture-user-recruiter");
+  } finally { sqlite.close(); }
+  const before = await readFile(path);
+  const input = await readAccounts(path);
+  const expected = validateAccounts(input, adminEmail).data.user;
+  assert.equal(expected.find((row) => row.role === "admin").accountTier, "pro");
+  const trial = expected.find((row) => row.role === "recruiter");
+  assert.equal(trial.accountTier, "trial");
+  assert.deepEqual(trial.trialExpiresAt, createdAt);
+  const backup = join(directory, "tier-snapshot.db");
+  await snapshotAccounts(path, backup);
+  assert.deepEqual(await readAccounts(backup), input);
+  await withTarget(async (db) => {
+    await importAccounts(db, input, adminEmail, { provider: "sqlite", confirmed: true });
+    assert.deepEqual(sorted(await db.user.findMany()), sorted(expected));
+    await verifyAccounts(db, input, adminEmail);
+    const changed = structuredClone(input);
+    changed.User.find((row) => row.role === "recruiter").trialExpiresAt = updatedAt.getTime();
+    await assert.rejects(verifyAccounts(db, changed, adminEmail), /user content/);
+  });
+  assert.deepEqual(await readFile(path), before);
+});
+
+test("source reader refuses partially present and wrongly typed tier columns even with no users", async (t) => {
+  const cases = [
+    ["missing tier", 'ALTER TABLE "User" DROP COLUMN "accountTier"'],
+    ["missing expiry", 'ALTER TABLE "User" DROP COLUMN "trialExpiresAt"'],
+    ["wrong tier type", 'ALTER TABLE "User" DROP COLUMN "accountTier"; ALTER TABLE "User" ADD COLUMN "accountTier" INTEGER'],
+    ["wrong expiry type", 'ALTER TABLE "User" DROP COLUMN "trialExpiresAt"; ALTER TABLE "User" ADD COLUMN "trialExpiresAt" TEXT'],
+  ];
+  for (const [name, sql] of cases) await t.test(name, async () => {
+    const path = join(directory, `tier-malformed-${name.replaceAll(" ", "-")}.db`);
+    await copyFile(emptyPath, path);
+    const sqlite = new DatabaseSync(path);
+    try { sqlite.exec(sql); } finally { sqlite.close(); }
+    const before = await readFile(path);
+    await assert.rejects(readAccounts(path), /unsupported User column/);
+    assert.deepEqual(await readFile(path), before);
+  });
+});
+
 test("selected admin lookup accepts normalized email without changing account identities", () => {
   assert.equal(validateAccounts(source, "  ADMIN@FIXTURE.INVALID  ").adminId, "fixture-user-admin");
 });
@@ -400,6 +524,8 @@ test("post-import verification detects content, ownership, audit and authenticat
     ["candidate content", (db) => db.candidate.update({ where: { id: "fixture-candidate-admin" }, data: { notes: "fixture tampering" } })],
     ["password hash", (db) => db.user.update({ where: { id: "fixture-user-recruiter" }, data: { passwordHash: null } })],
     ["auth version", (db) => db.user.update({ where: { id: "fixture-user-admin" }, data: { authVersion: 99 } })],
+    ["account tier", (db) => db.user.update({ where: { id: "fixture-user-recruiter" }, data: { accountTier: "pro", updatedAt } })],
+    ["trial expiry", (db) => db.user.update({ where: { id: "fixture-user-recruiter" }, data: { trialExpiresAt: createdAt, updatedAt } })],
     ["template owner", (db) => db.messageTemplate.update({ where: { id: "fixture-template-admin" }, data: { userId: "fixture-user-recruiter" } })],
     ["original audit", (db) => db.auditEvent.update({ where: { id: "fixture-audit-admin" }, data: { action: "fixture.tampered" } })],
     ["missing import audit", (db) => db.auditEvent.deleteMany({ where: { action: "accounts.import" } })],

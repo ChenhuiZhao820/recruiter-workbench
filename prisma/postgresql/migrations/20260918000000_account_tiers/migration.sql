@@ -1,0 +1,2 @@
+ALTER TABLE "User" ADD COLUMN "accountTier" TEXT NOT NULL DEFAULT 'basic';
+ALTER TABLE "User" ADD COLUMN "trialExpiresAt" TIMESTAMP(3);

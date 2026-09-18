@@ -9,7 +9,7 @@ import { normalizeEmail, parseArgs, SafeError, targetProvider } from "./bootstra
 
 const settingsColumns = Object.fromEntries(Object.entries(legacyColumns.Settings).filter(([column]) => column !== "captureToken"));
 export const accountColumns = {
-  User: { id: "id", email: "email", name: "text", role: "userRole", active: "bool", passwordHash: "password?", authVersion: "int", createdAt: "date", updatedAt: "date" },
+  User: { id: "id", email: "email", name: "text", role: "userRole", accountTier: "accountTier", trialExpiresAt: "date?", active: "bool", passwordHash: "password?", authVersion: "int", createdAt: "date", updatedAt: "date" },
   ExtensionAccess: { userId: "id", codeHash: "discard", expiresAt: "date?", activatedAt: "date?", createdAt: "date", updatedAt: "date" },
   Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus" },
   MessageTemplate: { ...legacyColumns.MessageTemplate, userId: "id" },
@@ -31,6 +31,7 @@ const allModels = allTables.map(modelFor);
 const primaryFor = (table) => table === "ExtensionAccess" ? "userId" : Object.hasOwn(accountColumns, table) ? "id" : table === "LoginThrottle" ? "key" : "tokenHash";
 const passwordPattern = /^scrypt\$32768\$8\$3\$[a-f0-9]{32}\$[a-f0-9]{128}$/;
 const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", "rejected", "placed"];
+const tierDefaults = { accountTier: "basic", trialExpiresAt: null };
 const invalid = (detail) => { throw new SafeError(`Invalid multi-account source: ${detail}. No data values are printed.`); };
 const countsFor = (data) => Object.fromEntries(Object.entries(data).map(([model, rows]) => [model, rows.length]));
 
@@ -52,6 +53,7 @@ function convert(value, descriptor) {
   if (type === "email" && normalizeEmail(value) !== value) invalid("email is not normalized");
   if (type === "password" && !passwordPattern.test(value)) invalid("unsupported password hash; upgrade the migration tool before proceeding");
   if (type === "userRole" && !["admin", "recruiter"].includes(value)) invalid("unknown account role");
+  if (type === "accountTier" && !["basic", "pro", "trial"].includes(value)) invalid("unknown account tier");
   if (type === "roleStatus" && !["open", "closed"].includes(value)) invalid("unknown role status");
   if (type === "stage" && !stages.includes(value)) invalid("unknown candidate stage");
   if (type === "kind" && !["message", "connection_note"].includes(value)) invalid("unknown outreach kind");
@@ -66,6 +68,7 @@ export function validateAccounts(source, adminEmail) {
   for (const [table, columns] of Object.entries(accountColumns)) {
     const rows = table === "ExtensionAccess" && !Object.hasOwn(source, table) ? [] : source[table];
     if (!Array.isArray(rows)) invalid(`missing ${table} table`);
+    const legacyTiers = table === "User" && rows.every((row) => row && typeof row === "object" && Object.keys(tierDefaults).every((column) => !Object.hasOwn(row, column)));
     const model = modelFor(table);
     const primary = primaryFor(table);
     byId[table] = new Map();
@@ -73,12 +76,17 @@ export function validateAccounts(source, adminEmail) {
       if (!row || typeof row !== "object" || Object.keys(row).some((column) => !Object.hasOwn(columns, column))) invalid(`unexpected ${table} column`);
       const result = {};
       for (const [column, descriptor] of Object.entries(columns)) {
+        if (legacyTiers && Object.hasOwn(tierDefaults, column)) {
+          result[column] = tierDefaults[column];
+          continue;
+        }
         if (!Object.hasOwn(row, column)) invalid(`missing ${table} column`);
         result[column] = convert(row[column], descriptor);
       }
       if (byId[table].has(result[primary])) invalid(`duplicate ${table} identifier`);
       if (table === "ExtensionAccess") result.expiresAt = null;
       if (table === "User") {
+        if (result.accountTier === "trial" && result.trialExpiresAt === null) invalid("trial account requires an expiry");
         if (result.authVersion >= 2147483647) invalid("account version overflow");
         result.authVersion++;
       }
@@ -130,7 +138,8 @@ export async function readAccounts(sourcePath) {
         continue;
       }
       const actual = db.prepare(`PRAGMA table_info("${table}")`).all();
-      if (actual.length !== Object.keys(columns).length || actual.some((column) => !Object.hasOwn(columns, column.name))) invalid(`unsupported ${table} columns`);
+      const legacyTiers = table === "User" && actual.every((column) => !Object.hasOwn(tierDefaults, column.name));
+      if (actual.length !== Object.keys(columns).length - (legacyTiers ? 2 : 0) || actual.some((column) => !Object.hasOwn(columns, column.name))) invalid(`unsupported ${table} columns`);
       for (const column of actual) {
         const descriptor = columns[column.name];
         const type = descriptor.startsWith("date") ? "DATETIME" : descriptor === "int" ? "INTEGER" : descriptor === "bool" ? "BOOLEAN" : "TEXT";
@@ -138,7 +147,11 @@ export async function readAccounts(sourcePath) {
         if (column.type.toUpperCase() !== type || column.pk !== Number(column.name === primary)) invalid(`unsupported ${table} column type or primary key`);
       }
       if (!Object.hasOwn(accountColumns, table)) continue;
-      const selected = Object.keys(columns).map((column) => columns[column] === "discard" || (table === "ExtensionAccess" && column === "expiresAt") ? `NULL AS "${column}"` : `"${column}"`);
+      const selected = Object.keys(columns).map((column) => {
+        if (legacyTiers && column === "accountTier") return `'basic' AS "accountTier"`;
+        if (legacyTiers && column === "trialExpiresAt") return 'NULL AS "trialExpiresAt"';
+        return columns[column] === "discard" || (table === "ExtensionAccess" && column === "expiresAt") ? `NULL AS "${column}"` : `"${column}"`;
+      });
       rows[table] = db.prepare(`SELECT ${selected.join(", ")} FROM "${table}"`).all();
     }
     db.exec("COMMIT");

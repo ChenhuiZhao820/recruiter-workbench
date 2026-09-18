@@ -20,7 +20,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Dev server: `npm run dev` (http://localhost:3000)
 - Local build + typecheck: `npm run build`
 - Lint: `npm run lint`
-- Typecheck without a build: `npx tsc --noEmit`
+- Typecheck without a build: `npx tsc --noEmit`. Run it after, not concurrently
+  with, a build: Next regenerates included `.next-build/types` files during build.
 - Unit/regression suites: `npm run test:unit`
 - Extension-only regression tests: `npm run test:extension` (mocked DOM, Chrome APIs
   and fetch; no live LinkedIn/browser/network needed)
@@ -89,6 +90,36 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   account disabling revoke sessions and capture keys; no raw stored capture keys.
 - Public signup is disabled. Activation links use URL fragments and expire after
   24 hours; the raw link is shown only at creation. No default admin password.
+
+## Account classification
+
+- Preserve `User.role` (`admin` / `recruiter`) as the administrative boundary.
+  `User.accountTier` is `basic` (default), `pro` or `trial`; `trialExpiresAt` is UTC.
+  Existing admins remain Admin and existing recruiters default to Basic. Never
+  infer privileges from a name or email. Tier management cannot grant/revoke Admin.
+- `lib/account-tiers.ts` computes the effective Admin / Pro / Trial / Basic type.
+  Trial is valid strictly before its expiry; expired, missing or invalid expiry
+  means Basic immediately on every check, without a scheduled job or data write.
+  The stored Trial/expiry remains for history and renewal; do not authorize by the
+  raw `accountTier` field or cache an entitlement in a session or browser.
+- Only Admin in their own writable workspace can create classified accounts or
+  change tiers. Trial requires an explicit future UTC expiry. Changes are audited
+  transactionally, clear obsolete expiry, and never change business ownership,
+  administrator roles, passwords or extension activation.
+- Future Pro-only UI must be omitted for Basic, not teased or merely disabled.
+  Use `canUseProFeatures` on server-authorized accounts; protect direct page reads
+  with `requireProWorkspace` and mutations with `requireWritableProWorkspace` in
+  `lib/feature-access.ts`. Both actor and owner must qualify, so read-only Admin
+  viewing Basic sees the Basic workspace; viewing Pro never permits writes.
+  Check API entitlements server-side too; hiding a link is not authorization.
+- Apply the additive `20260918000000_account_tiers` PostgreSQL migration before
+  serving this version, only with explicit target/deployment approval. Existing
+  local account databases also need an approved additive schema update; builds
+  and tests must not migrate real databases. Multi-account imports preserve tier
+  and Trial expiry; older snapshots without these fields default to Basic.
+- `tests/account-tiers.test.mjs` covers tier/expiry boundaries and action/feature
+  guards; `tests/08-account-tiers.spec.ts` covers UI, live-session changes and
+  forged requests using only disposable test accounts/databases.
 
 ## Extension activation and downloads
 
@@ -218,6 +249,20 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - A free instance sleeps when idle. The extension allows 60s for an HTTPS
   workbench (10s for loopback) and reads 502/503/504 as "not ready", so a
   cold start does not present as a dead server. Do not shorten that deadline.
+- The current service auto-deploys from `origin/main`. Apply and verify approved
+  additive database migrations before pushing a version that requires them.
+- The current Render database is on the Free plan: dashboard backup exports and
+  point-in-time recovery are unavailable. Use a private PostgreSQL custom-format
+  dump and verify a restore into an isolated disposable database before an
+  authorized migration; do not upgrade paid resources without explicit approval.
+- On 2026-09-18, `20260918000000_account_tiers` was applied and registered on the
+  current hosted database, with a verified restore rehearsal and unchanged old
+  table contents. Local `prisma/accounts.db` received the equivalent additive
+  columns and its missing ExtensionAccess table. Both schemas were verified.
+  Backups, verification reports and the private migration connection file remain
+  under ignored, ACL-protected `prisma/private-local/`; never stage that directory.
+  The local database is an older, separate workspace, not a mirror to sync over
+  the hosted data. Recheck live migration state before future operations.
 
 ## Layout
 

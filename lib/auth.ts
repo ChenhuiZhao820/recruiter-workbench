@@ -9,9 +9,11 @@ export type SessionUser = {
   name: string;
   role: "admin" | "recruiter";
   active: boolean;
+  accountTier: string;
+  trialExpiresAt: Date | null;
 };
 
-export const publicUserSelect = { id: true, email: true, name: true, role: true, active: true } as const;
+export const publicUserSelect = { id: true, email: true, name: true, role: true, active: true, accountTier: true, trialExpiresAt: true } as const;
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
 
 export function appOrigin(): string {

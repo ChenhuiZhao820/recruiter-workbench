@@ -102,16 +102,70 @@ test("03 generate briefing", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "What they do all day" })).toBeVisible({
     timeout: 30_000,
   });
-  firstDayToDay = (await db.briefing.findUnique({ where: { roleId } }))!.dayToDay;
+  const briefing = (await db.briefing.findUnique({ where: { roleId } }))!;
+  firstDayToDay = briefing.dayToDay;
+  const questions = JSON.parse(briefing.firstCallQuestions);
+  expect(questions).toHaveLength(4);
+  for (const question of questions) {
+    expect(Object.keys(question)).toEqual(["question"]);
+    expect(question.question).toEqual(expect.any(String));
+  }
+  const sections = page.getByRole("region", { name: "Briefing" }).locator("details");
+  await expect(sections).toHaveCount(6);
+  for (const section of await sections.all()) {
+    await expect(section).not.toHaveAttribute("open", "");
+    await section.locator("summary").click();
+    await expect(section).toHaveAttribute("open", "");
+  }
+  await expect(sections.locator("summary")).toHaveText([
+    "What they do all day", "Skills that matter", "Also goes by",
+    "Where they tend to work", "Typical pay", "First-call questions",
+  ]);
+  await expect(page.getByText(firstDayToDay)).toBeVisible();
   await expect(page.getByText("Lean manufacturing.")).toBeVisible();
   await expect(page.getByText("Head of Operations", { exact: true })).toBeVisible();
   await expect(page.getByText("Mid-size manufacturers")).toBeVisible();
   await expect(page.getByText("£75k to £95k")).toBeVisible();
   await expect(page.getByText("Walk me through a shift that went wrong.")).toBeVisible();
+  await expect(sections.locator("text=/^(Strong|Vague):/")).toHaveCount(0);
+  const daySummary = sections.first().locator("summary");
+  await daySummary.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(firstDayToDay)).toBeHidden();
+  await expect(page.getByText("Lean manufacturing.")).toBeVisible();
+  await page.keyboard.press("Space");
+  await expect(page.getByText(firstDayToDay)).toBeVisible();
+  for (const section of await sections.all()) {
+    await section.locator("summary").click();
+    await expect(section).not.toHaveAttribute("open", "");
+  }
+});
+
+test("03b existing briefings show only questions on mobile", async ({ page }) => {
+  await db.briefing.update({
+    where: { roleId },
+    data: { firstCallQuestions: JSON.stringify([{
+      question: "What did you improve?",
+      strong_answer: "Legacy strong answer guidance",
+      weak_answer: "Legacy vague answer guidance",
+    }]) },
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/roles/${roleId}`);
+  const questions = page.getByRole("region", { name: "Briefing" }).locator("details").filter({ hasText: "First-call questions" });
+  await expect(questions.getByText("What did you improve?")).toBeHidden();
+  await questions.locator("summary").click();
+  await expect(questions.getByText("What did you improve?")).toBeVisible();
+  await expect(questions).not.toContainText("Legacy strong answer guidance");
+  await expect(questions).not.toContainText("Legacy vague answer guidance");
+  await expect(questions).not.toContainText("Strong:");
+  await expect(questions).not.toContainText("Vague:");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test("04 regenerate briefing overwrites", async ({ page }) => {
   await page.goto(`/roles/${roleId}`);
+  await page.locator("summary", { hasText: "What they do all day" }).click();
   await expect(page.getByText(firstDayToDay)).toBeVisible();
   await page.getByRole("button", { name: "Regenerate briefing" }).click();
   // The new text replaces the old one in place rather than being appended.

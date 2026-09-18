@@ -32,6 +32,12 @@ const server = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     if (req.method === "POST" && req.url?.startsWith("/v1/messages")) {
+      const prompt = JSON.parse(body).messages?.[0]?.content;
+      if (typeof prompt !== "string" || prompt.includes("strong_answer") || prompt.includes("weak_answer") || !prompt.includes("include only the questions")) {
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "First-call questions must request questions only." }));
+        return;
+      }
       calls += 1;
       // A role titled BADJSON makes the stub answer with prose instead of
       // JSON, so tests can exercise the parse-failure and retry path.

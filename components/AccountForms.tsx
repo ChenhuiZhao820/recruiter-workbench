@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
 import { login, activateAccount, changePassword } from "@/app/actions/auth";
@@ -141,6 +142,9 @@ export function AccountManagementForm({ action, children, submitLabel }: {
       <CopyButton text={state.activationUrl} label="Copy setup link" />
     </div>}
     {children}
-    <Submit>{submitLabel}</Submit>
+    <div className="flex flex-wrap items-center gap-3">
+      <Submit>{submitLabel}</Submit>
+      {state.accountUrl && <Link href={state.accountUrl} className="btn-secondary">Manage account</Link>}
+    </div>
   </form>;
 }

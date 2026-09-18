@@ -10,7 +10,7 @@ import type { FormState } from "@/lib/formState";
 import { parseAccountTier } from "@/lib/account-tiers";
 import { requireWritableWorkspace } from "@/lib/workspace";
 
-export type AccountActionState = FormState & { activationUrl?: string };
+export type AccountActionState = FormState & { activationUrl?: string; accountUrl?: string };
 
 export async function setAccountTier(_state: FormState, form: FormData): Promise<FormState> {
   assertSameOrigin();
@@ -41,19 +41,21 @@ export async function createAccount(_state: AccountActionState, form: FormData):
   const tier = parseAccountTier(form.get("accountTier") ?? "basic", form.get("trialExpiresAt"));
   if (!tier.data) return { error: tier.error };
   const token = newSecret();
+  let userId: string;
   try {
-    await db.$transaction(async (tx) => {
+    userId = await db.$transaction(async (tx) => {
       const user = await tx.user.create({ data: { email, name, role: "recruiter", ...tier.data } });
       await tx.settings.create({ data: { userId: user.id, recruiterName: name } });
       await tx.activationToken.create({ data: { userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 86400000) } });
       await tx.auditEvent.create({ data: { actorId: admin.id, targetUserId: user.id, action: "account_created" } });
+      return user.id;
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { error: "An account already uses this email address." };
     throw error;
   }
   revalidatePath("/admin");
-  return { notice: "Account created. Share this one-time link privately; it expires in 24 hours and is shown only here.", activationUrl: `${appOrigin()}/activate#token=${token}` };
+  return { notice: "Account created. Share this one-time link privately; it expires in 24 hours and is shown only here.", activationUrl: `${appOrigin()}/activate#token=${token}`, accountUrl: `/admin/${encodeURIComponent(userId)}` };
 }
 
 export async function issueActivation(_state: AccountActionState, form: FormData): Promise<AccountActionState> {
@@ -71,6 +73,7 @@ export async function issueActivation(_state: AccountActionState, form: FormData
     return true;
   });
   if (!issued) return { error: "Enable this account before issuing a link." };
+  revalidatePath(`/admin/${encodeURIComponent(userId)}`);
   return { notice: "Share this one-time password setup/reset link privately. It expires in 24 hours and replaces earlier links.", activationUrl: `${appOrigin()}/activate#token=${token}` };
 }
 
@@ -91,6 +94,7 @@ export async function setAccountActive(_state: FormState, form: FormData): Promi
     return true;
   });
   revalidatePath("/admin");
+  if (changed) revalidatePath(`/admin/${encodeURIComponent(userId)}`);
   return changed ? { notice: active ? "Account enabled. Issue a new activation link if needed." : "Account disabled. Sessions, activation links and capture keys have been revoked." } : { error: "This account cannot be changed here." };
 }
 

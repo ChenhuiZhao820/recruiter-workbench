@@ -6,8 +6,8 @@ The optional Capture extension uses a toolbar click for one active-tab
 profile read via `activeTab` and `scripting`. It may also live in Chrome's side
 panel (`sidePanel`), which changes where the same page sits, not what it may
 read. No LinkedIn host permissions, registered content scripts, background page
-reading, bulk capture, polling, crawling or automated messaging. Fields remain editable, notes are written only
-by the user, and saving requires a user click. This click-triggered exception
+reading, bulk capture, polling, crawling or automated messaging. Fields remain
+editable, notes are written only by the user, and saving requires a user click. This click-triggered exception
 supersedes the former blanket prohibition on extensions and page reading.
 
 The hosted-account version extends the original capture specification: source
@@ -72,6 +72,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `tests/06-design.spec.ts` covers public/private routing, mobile overflow, keyboard
   navigation, tabs, FAQ, password visibility and role filtering. Screenshots use
   test-only fixtures in ignored test-results; no real user data is captured.
+- Outbound message text passes through `normalizeMessage` in `lib/render.ts`:
+  one kind of line ending, no trailing spaces, at most one blank line between
+  paragraphs, nothing before the first word or after the last. Single newlines
+  and indentation survive, so lists stay lists. It runs on the rendered message,
+  on a template as it is saved, and on the body recorded by `markAsSent`, so the
+  preview, the count judged against the connection-note limit, the clipboard and
+  the outreach log cannot disagree. Route new outbound text through it rather
+  than tidying whitespace at the point of copying. `tests/03-render.spec.ts`
+  covers it as a pure function alongside the article rule.
 
 ## Accounts and authorization
 

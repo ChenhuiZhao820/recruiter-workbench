@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireWritableWorkspace } from "@/lib/workspace";
+import { normalizeMessage } from "@/lib/render";
 import { revalidatePath } from "next/cache";
 
 // Stages that already say more than "I have messaged this person". Sending
@@ -24,7 +25,9 @@ export async function markAsSent(formData: FormData) {
   const user = await requireWritableWorkspace();
   const candidateId = String(formData.get("candidateId") ?? "");
   const templateId = String(formData.get("templateId") ?? "").trim() || null;
-  const renderedBody = String(formData.get("renderedBody") ?? "");
+  // The body arrives from the page rather than from the template, so it is
+  // tidied here too: the record of what was sent should read like what was sent.
+  const renderedBody = normalizeMessage(String(formData.get("renderedBody") ?? ""));
   if (!candidateId || !renderedBody) return;
 
   const roleId = await db.$transaction(async (tx) => {

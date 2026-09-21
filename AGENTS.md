@@ -276,6 +276,19 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   under ignored, ACL-protected `prisma/private-local/`; never stage that directory.
   The local database is an older, separate workspace, not a mirror to sync over
   the hosted data. Recheck live migration state before future operations.
+- On 2026-09-21, `20260921000000_saved_search_url` was applied and registered the
+  same way, on the hosted database and on the local account database, each after
+  its own backup and restore rehearsal. The feature it was for was then reverted,
+  so `SavedSearch."searchUrl"` exists in both databases, with no rows using it,
+  while `prisma/schema.prisma` deliberately does not declare it. The databases
+  are one harmless nullable column ahead of the code; the reverted code never
+  selects it. Keep the migration directory: deleting it would leave an applied
+  migration with no local counterpart and `db:deploy:hosted` would refuse to run.
+  Never edit its SQL either - its checksum is recorded in `_prisma_migrations`,
+  and any change to the file fails verification. If the feature returns, add the
+  field back to the schema without writing a second migration. To retire it
+  instead, drop the column and its `_prisma_migrations` row as its own approved,
+  backed-up operation. The run's dump and reports are in `prisma/private-local/`.
 
 ## Layout
 

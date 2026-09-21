@@ -3,9 +3,10 @@
 A private workspace for a recruiter's pipeline. The main application never contacts
 LinkedIn: it only builds a profile or search URL and opens it on a user click.
 The optional Capture extension uses a toolbar click for one active-tab
-profile read via `activeTab` and `scripting`. No LinkedIn host permissions,
-registered content scripts, background page reading, bulk capture, polling,
-crawling or automated messaging. Fields remain editable, notes are written only
+profile read via `activeTab` and `scripting`. It may also live in Chrome's side
+panel (`sidePanel`), which changes where the same page sits, not what it may
+read. No LinkedIn host permissions, registered content scripts, background page
+reading, bulk capture, polling, crawling or automated messaging. Fields remain editable, notes are written only
 by the user, and saving requires a user click. This click-triggered exception
 supersedes the former blanket prohibition on extensions and page reading.
 
@@ -141,6 +142,17 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   Never move ZIPs into public/ or trust a request-supplied workbench origin.
 - Installation still requires desktop Chrome Developer mode / Load unpacked. No
   silent installation or automatic unpacked-extension updates are promised.
+- The popup and the side panel are one file, `popup.html`, opened twice. The
+  panel is opened only from a click, at `popup.html#panel`, and recognises itself
+  by that fragment or by the absence of a popup context. Never give the panel a
+  capability the popup lacks, and never let it read a page without a click: its
+  only extra permission is `sidePanel`. Because the panel outlives the page it
+  read, it watches `tabs.onActivated`/`onUpdated` (no `tabs` permission, no URL
+  access) and, when the tab it read moves, refills from a permitted read or
+  clears the page-derived fields and asks for one. A stale profile must never
+  sit under a new page, and a typed note is never discarded by a refused read.
+- `lib/extension-package.mjs` pins the permission list exactly, so any change to
+  it is a deliberate, reviewed edit in the packager, its tests and this file.
 - Deploy the additive `20260910000000_extension_access` PostgreSQL migration before
   serving the new app. Do not edit the old initial migration or apply changes to
   real local/hosted databases without approval. Builds do not apply migrations.
@@ -277,6 +289,6 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 Review LinkedIn references: allow clicked profile/search URLs, placeholders,
 documentation, fixtures, and the extension's single-profile extraction. Never
 fetch LinkedIn from the app or extension. Verify extension permissions remain
-`activeTab`, `scripting`, `storage`, no content scripts/background, and host access
-limited to loopback plus the packaged workbench host. Run unit and account-isolation
+`activeTab`, `scripting`, `sidePanel`, `storage`, no content scripts/background, and
+host access limited to loopback plus the packaged workbench host. Run unit and account-isolation
 regressions, including foreign IDs, read-only admin views and revoked capture keys.

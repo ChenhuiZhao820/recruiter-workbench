@@ -189,7 +189,8 @@ async function expectZip(page: Page, privateValues: string[]) {
   const manifestName = Array.from(files.keys()).find((name) => /(^|\/)manifest\.json$/.test(name));
   expect(manifestName).toBeTruthy();
   const manifest = JSON.parse(files.get(manifestName!)!);
-  expect(manifest.permissions).toEqual(["activeTab", "scripting", "storage"]);
+  expect(manifest.permissions).toEqual(["activeTab", "scripting", "sidePanel", "storage"]);
+  expect(manifest.side_panel).toEqual({ default_path: "popup.html" });
   expect(manifest.host_permissions).toEqual(["http://localhost/*", "http://127.0.0.1/*"]);
   expect(manifest.optional_permissions).toBeUndefined();
   expect(manifest.optional_host_permissions).toBeUndefined();

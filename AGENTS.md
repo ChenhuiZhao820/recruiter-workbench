@@ -93,6 +93,26 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   to be a re-tick checklist; without one, Run search still builds the keyword
   people-search URL as before.
 
+- `/roles/[id]/outreach` is the guided outreach queue: one shortlist, one
+  template, one candidate on screen, with `?c=` ids and `?i=` index in the
+  address. It removes navigation only. It must never send, paste into another
+  site, open anything on its own, advance without a click, or offer an
+  "open all"/"send all"/auto-advance control: that is what makes a recruiter's
+  own LinkedIn account look automated, and the restriction lands on them.
+  `tests/10-outreach-queue.spec.ts` asserts the absence of those controls, so
+  adding one fails the suite rather than shipping quietly.
+- Queue ids are scoped server-side to the role and the owner before anything is
+  rendered; unknown or foreign ids are dropped rather than reported. Both the
+  single-candidate page and the queue record through one `recordSend` helper in
+  `app/actions/outreach.ts`, so "contacted", the nudge counters and the log
+  cannot differ by route. `markSentAndAdvance` only redirects to a path matching
+  this app's own queue route.
+- `lib/pace.ts` counts what has been logged today and the invitations logged in
+  the last seven days, and says so on every screen of a run, with a stronger
+  line as the weekly invitation count climbs. It is advisory and never blocks a
+  send: the real limit is LinkedIn's, unpublished and per account. Keep the
+  counting honest and the thresholds conservative rather than precise.
+
 ## Accounts and authorization
 
 - `lib/auth.ts`: opaque hashed database sessions, HttpOnly/SameSite cookies,
@@ -257,6 +277,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Independently verify before opening the app with `--verify` instead of --apply.
   Existing passwords work on the hosted app; users must sign in again and create
   new capture keys. Pending accounts need fresh activation links from Admin.
+- Columns added after the first multi-account databases existed are listed in
+  `lateColumns` in `scripts/import-accounts.mjs` (account tiers, and a saved
+  search's `searchUrl`). A source from before a group has none of that group's
+  columns and imports with the stated defaults; a source with part of a group is
+  refused, not guessed at. Add any future column there, with a test for both the
+  old and the current shape, or the importer will reject current databases.
 - Extension grants and their ownership/activation timestamps are preserved by
   account migration. Pending extension code hashes and expiry dates are discarded
   at source projection; Admin must replace unused codes after cutover. Older

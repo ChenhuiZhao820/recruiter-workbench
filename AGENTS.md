@@ -82,6 +82,17 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   than tidying whitespace at the point of copying. `tests/03-render.spec.ts`
   covers it as a pure function alongside the article rule.
 
+- A saved search may carry `SavedSearch.searchUrl`: an address the recruiter
+  copied out of LinkedIn or Recruiter after building and saving the search
+  there. Industries and Recruiter's filters cannot be expressed in an address
+  this app composes, so that one is reopened as given. `lib/linkedin.ts` only
+  validates it (HTTPS, a linkedin.com host including country subdomains, a
+  path under `/talent/` or `/search/`) and never parses, rewrites, keeps in
+  step with a filter table, or requests it. A refused address is reported, not
+  dropped. With a link present the filter chips stay visible but stop claiming
+  to be a re-tick checklist; without one, Run search still builds the keyword
+  people-search URL as before.
+
 ## Accounts and authorization
 
 - `lib/auth.ts`: opaque hashed database sessions, HttpOnly/SameSite cookies,
@@ -122,6 +133,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `lib/feature-access.ts`. Both actor and owner must qualify, so read-only Admin
   viewing Basic sees the Basic workspace; viewing Pro never permits writes.
   Check API entitlements server-side too; hiding a link is not authorization.
+- Apply the additive `20260921000000_saved_search_url` PostgreSQL migration
+  (`SavedSearch.searchUrl`, nullable) before serving a version that stores saved
+  LinkedIn search links, with the same approval and backup rules as any other.
+  A local SQLite account database needs the equivalent additive column.
 - Apply the additive `20260918000000_account_tiers` PostgreSQL migration before
   serving this version, only with explicit target/deployment approval. Existing
   local account databases also need an approved additive schema update; builds

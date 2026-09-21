@@ -418,7 +418,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   {(industries.length > 0 || locations.length > 0 || s.filterNotes) && (
                     <div className="mt-2 text-sm">
                       <p className="font-mono text-xs uppercase tracking-wide text-ink/60">
-                        Apply these filters in LinkedIn after it opens:
+                        {s.searchUrl
+                          ? "Also recorded here; the saved LinkedIn search is what applies them:"
+                          : "Apply these filters in LinkedIn after it opens:"}
                       </p>
                       <ul className="mt-1 flex flex-wrap gap-2">
                         {locations.map((l, i) => (
@@ -436,7 +438,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} />}
+                    {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} searchUrl={s.searchUrl} />}
                     <Link href={`/searches/${s.id}/edit`} className="btn-quiet">
                       {readOnly ? "View details" : "Edit"}
                     </Link>

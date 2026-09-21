@@ -325,6 +325,14 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   under ignored, ACL-protected `prisma/private-local/`; never stage that directory.
   The local database is an older, separate workspace, not a mirror to sync over
   the hosted data. Recheck live migration state before future operations.
+- On 2026-09-21, `20260921000000_saved_search_url` was applied and registered on
+  the hosted database the same way: a custom-format dump taken under the
+  transaction's own snapshot, restored and rehearsed in a disposable container,
+  per-table fingerprints unchanged before and after, then committed, registered
+  and independently verified (2 saved searches, 0 carrying a link, as an
+  additive nullable column requires). Local `prisma/accounts.db` received the
+  equivalent column after its own backup and rehearsal. The run's dump and two
+  JSON reports are in `prisma/private-local/`.
 
 ## Layout
 

@@ -6,11 +6,9 @@ retyping a name, a headline and a URL you are both looking at.
 ## What it does, and what it deliberately does not
 
 It reads **one page, when you click it**. There is no background script, no
-crawler, and no bulk save. The side panel below changes where the extension
-sits, not what it may read: a profile is still only read on a click. The
-extension asks for `activeTab` rather than permission over `linkedin.com`,
-which means Chrome itself only grants it access to the tab after you click the
-toolbar button. It cannot read anything while
+crawler, and no bulk save. The extension asks for `activeTab` rather than
+permission over `linkedin.com`, which means Chrome itself only grants it access
+to the tab after you click the toolbar button. It cannot read anything while
 you browse, even if it wanted to: that is enforced by the browser, not by a
 promise in this file.
 
@@ -85,36 +83,14 @@ words, pick the role, and save. The note is the part worth typing: it is the
 one thing no page can tell you. After a save, **Open this role in the
 workbench** takes you straight to where the person landed.
 
-## Keeping it open while you work a list
-
-The popup closes the moment it loses focus, so working through a list of
-profiles means clicking the toolbar button on every one of them. **Keep open**
-in the top corner moves the same page into Chrome's side panel, where it stays
-while you walk from profile to profile. Chrome remembers that the panel is open
-across page loads and tab switches, so it is there on the next profile without
-being asked for again. **Close panel**, or Chrome's own X, puts it away; the
-toolbar button brings it back.
-
-The panel notices when the tab moves to another page. If Chrome still allows the
-read it fills in the new person and clears the note, which belonged to the last
-one. If it does not - Chrome only permits a read just after you click the
-toolbar button - the panel empties the name, headline and link rather than
-showing you somebody else's details, and offers **Read this profile** once you
-have clicked the toolbar button. Your note is kept either way: it is the one
-thing you typed. A stale name is never left sitting next to a new profile.
-
-The panel is the same page as the popup, with the same single permission behind
-it. It cannot read a page you have not asked it to read, and nothing is saved
-without your click.
-
 **Settings** shows the connected account and the address it saves to. From
 there, **Open workbench settings** jumps to the page that generates capture
 keys, **Back** returns to the profile you were saving, and **Forget this key**
 disconnects the account without touching your website login.
 
-If the popup or panel says it could not reach the workbench, the workbench
-itself is usually not running. Start it, then press **Connect** again; nothing
-you typed is lost.
+If the popup says it could not reach the workbench, the workbench itself is
+usually not running. Start it, then press **Connect** again; nothing you typed
+is lost.
 
 If LinkedIn changes its markup, the name or headline may come through empty.
 Every field stays editable, so it degrades to typing rather than to breaking.

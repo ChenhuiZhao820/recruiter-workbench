@@ -1,19 +1,15 @@
 "use strict";
 
-// Everything happens in response to the toolbar click that opened this page.
+// Everything happens in response to the toolbar click that opened this popup.
 // There is no background script and no content script registered in the
 // manifest: the page is read once, here, with activeTab permission that Chrome
 // only grants because of that click.
-//
-// The same page is served twice: as the toolbar popup, which Chrome throws away
-// the moment it loses focus, and as the side panel, which stays put while the
-// recruiter walks from profile to profile. Everything below is written for both.
 
 const el = (id) => document.getElementById(id);
 
-const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", stale: false };
+const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "" };
 const fields = ["role", "name", "headline", "profile", "notes"];
-const controls = ["settings", "open-role", "reread"];
+const controls = ["settings", "open-role"];
 // Where Capture actually lives. A package built by scripts/package-extension.mjs
 // or by the site's own download endpoint declares its origin in workbench.js and
 // that declaration wins, including the empty one a loopback build ships. Loading
@@ -70,9 +66,6 @@ async function readActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) return null;
-    // Which tab the fields on screen describe, so a load finishing in some
-    // other tab cannot be mistaken for this one moving on.
-    state.tabId = tab.id;
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: readProfile,
@@ -82,171 +75,6 @@ async function readActiveTab() {
     // Chrome refuses to inject into its own pages and the Web Store.
     return null;
   }
-}
-
-// --- popup or side panel ----------------------------------------------------
-
-// Chrome keeps a side panel open while the recruiter navigates, which is the
-// whole point of offering one: Paul walks a search result list and the panel is
-// already there on every profile. It costs one permission and no page access -
-// there is still no content script, no background page and no LinkedIn host
-// permission, and a profile is still only read on a click.
-
-// The panel is opened at this address so that it can recognise itself on load.
-const PANEL_PATH = "popup.html#panel";
-
-// Older browsers, and the tests, have no sidePanel API. Everything about the
-// panel is optional: without it this page is exactly the popup it always was.
-function sidePanelApi() {
-  try {
-    return chrome.sidePanel && typeof chrome.sidePanel.open === "function" ? chrome.sidePanel : null;
-  } catch {
-    return null;
-  }
-}
-
-async function remember(values) {
-  try {
-    await chrome.storage.local.set(values);
-  } catch {
-    // A forgotten preference is not worth interrupting anyone for.
-  }
-}
-
-async function recall(keys) {
-  try {
-    return (await chrome.storage.local.get(keys)) || {};
-  } catch {
-    return {};
-  }
-}
-
-// Which of the two surfaces this page is. The hash is how the panel is opened
-// from here; the context check catches a panel opened from Chrome's own side
-// panel menu, where nothing of ours put a hash on the address.
-async function detectSurface() {
-  if (globalThis.location && globalThis.location.hash === "#panel") return "panel";
-  if (!sidePanelApi()) return "popup";
-  try {
-    const contexts = await chrome.runtime.getContexts({ contextTypes: ["POPUP"] });
-    if (Array.isArray(contexts) && contexts.length === 0) return "panel";
-  } catch {
-    // Not a browser that can tell us. Assume the popup, which needs nothing.
-  }
-  return "popup";
-}
-
-// Whichever message line the visible screen owns.
-function statusNode() {
-  return el("setup").hidden ? el("message") : el("setup-message");
-}
-
-async function applySurface() {
-  state.surface = await detectSurface();
-  const panel = sidePanelApi();
-  const inPanel = state.surface === "panel";
-  el("page").className = inPanel ? "surface-panel" : "";
-  el("eyebrow").hidden = inPanel;
-  el("panel-open").hidden = inPanel || !panel;
-  el("panel-close").hidden = !inPanel;
-  if (panel) {
-    // Make sure the next panel Chrome opens - including one opened from its own
-    // menu after a restart - arrives at an address that identifies itself.
-    try {
-      await panel.setOptions({ path: PANEL_PATH, enabled: true });
-    } catch {
-      // Then it falls back to the context check above.
-    }
-  }
-  if (inPanel) {
-    watchTabs();
-    await remember({ panelPinned: true });
-    return;
-  }
-  if (panel) {
-    const stored = await recall(["panelPinned"]);
-    el("panel-open").textContent = stored.panelPinned ? "Show panel" : "Keep open";
-  }
-}
-
-// --- keeping the panel honest about which page it is looking at --------------
-
-// The popup dies between profiles, so it can only ever show the page it was
-// opened on. The panel outlives the page it read, which is a new way to be
-// wrong: the fields would still describe the last person while the recruiter
-// looks at the next one. So the panel watches for the tab moving and clears
-// what it can no longer vouch for.
-let watchingTabs = false;
-
-function watchTabs() {
-  if (watchingTabs) return;
-  watchingTabs = true;
-  // Chrome ignores what a tab listener returns; the promise is handed back so
-  // that a caller which can wait - the tests - is able to.
-  const moved = () => refreshProfile();
-  try {
-    chrome.tabs.onActivated.addListener(moved);
-  } catch {
-    watchingTabs = false;
-  }
-  try {
-    chrome.tabs.onUpdated.addListener((tabId, info) => (
-      info && info.status === "complete" && tabId === state.tabId ? moved() : undefined
-    ));
-  } catch {
-    // One of the two is enough to notice most moves; neither is a silent save.
-  }
-}
-
-function applyProfile(profile) {
-  state.stale = false;
-  state.saved = false;
-  state.savedRoleId = "";
-  state.profileUrl = profile.profileUrl || "";
-  el("open-role").hidden = true;
-  el("reread").hidden = true;
-  el("name").value = profile.name || "";
-  el("headline").value = profile.headline || "";
-  el("profile").value = profile.profileUrl || "";
-  el("save").disabled = false;
-  if (!profile.isProfile) {
-    say(el("message"), "This does not look like a profile page. Check the details before saving.", "bad");
-  } else if (!profile.name) {
-    say(el("message"), "No name found on the page. Type one in.", "bad");
-  } else {
-    say(el("message"), "", "");
-  }
-}
-
-// Called when the panel can no longer read the page. `clear` empties the fields
-// taken off the page: once the tab has moved they describe somebody who is no
-// longer on screen, and saving them against whoever is would be a quiet lie.
-// The note is never cleared here - it is the one thing the recruiter typed, and
-// a note with no name attached cannot be saved against the wrong person anyway.
-function markStale(message, { clear = false } = {}) {
-  state.stale = true;
-  state.saved = false;
-  state.savedRoleId = "";
-  el("open-role").hidden = true;
-  el("reread").hidden = false;
-  el("save").disabled = false;
-  if (clear) {
-    state.profileUrl = "";
-    for (const id of ["name", "headline", "profile"]) el(id).value = "";
-  }
-  say(el("message"), message, "bad");
-}
-
-async function refreshProfile() {
-  if (el("capture").hidden || state.saving) return;
-  const profile = await readActiveTab();
-  if (!profile) {
-    markStale("This is a different page now, and Chrome only lets Capture read a page just after you click its toolbar icon. Click the icon, then Read this profile.", { clear: true });
-    return;
-  }
-  if (profile.profileUrl && profile.profileUrl === state.profileUrl && !state.stale) return;
-  applyProfile(profile);
-  el("notes").value = "";
 }
 
 // --- talking to the workbench ----------------------------------------------
@@ -402,9 +230,15 @@ async function showCapture() {
     const profile = await readActiveTab();
     if (!profile) {
       say(el("message"), "Could not read this tab. Type the details in and save.", "bad");
-      el("reread").hidden = false;
     } else {
-      applyProfile(profile);
+      el("name").value = profile.name || "";
+      el("headline").value = profile.headline || "";
+      el("profile").value = profile.profileUrl || "";
+      if (!profile.isProfile) {
+        say(el("message"), "This does not look like a profile page. Check the details before saving.", "bad");
+      } else if (!profile.name) {
+        say(el("message"), "No name found on the page. Type one in.", "bad");
+      }
     }
   }
 
@@ -471,49 +305,6 @@ el("connect").addEventListener("click", async () => {
   } finally {
     button.disabled = false;
   }
-});
-
-// Opening the panel is a click of its own, because Chrome only lets an
-// extension open one in answer to a gesture. After that it stays until it is
-// closed, across every profile the recruiter walks through.
-el("panel-open").addEventListener("click", async () => {
-  const panel = sidePanelApi();
-  if (!panel) return;
-  try {
-    await panel.setOptions({ path: PANEL_PATH, enabled: true });
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    // A panel opened for the window follows the recruiter from tab to tab; one
-    // opened for a single tab does not, so the window is what we ask for.
-    const target = tab && tab.windowId !== undefined ? { windowId: tab.windowId } : { tabId: tab && tab.id };
-    if (target.windowId === undefined && target.tabId === undefined) throw new Error("No window to open in");
-    await panel.open(target);
-    await remember({ panelPinned: true });
-    // Chrome closes this popup by itself as the panel takes focus.
-  } catch {
-    say(statusNode(), "Could not open the side panel. This popup still works, and Chrome's own side panel menu can open Capture too.", "bad");
-  }
-});
-
-// The panel closes itself. Chrome's own X does the same thing, and either way
-// the toolbar icon brings it back.
-el("panel-close").addEventListener("click", async () => {
-  await remember({ panelPinned: false });
-  try {
-    globalThis.close();
-  } catch {
-    say(statusNode(), "Could not close the panel from here. Use the X at the top of the side panel.", "bad");
-  }
-});
-
-el("reread").addEventListener("click", async () => {
-  if (state.saving) return;
-  say(el("message"), "Reading this page...", "");
-  const profile = await readActiveTab();
-  if (!profile) {
-    markStale("Chrome only lets Capture read a page just after you click its toolbar icon. Click the icon, then press Read this profile again.");
-    return;
-  }
-  applyProfile(profile);
 });
 
 el("settings").addEventListener("click", () => showSetup(""));
@@ -607,7 +398,6 @@ el("save").addEventListener("click", async () => {
 });
 
 (async function start() {
-  await applySurface();
   try {
     const stored = await chrome.storage.local.get(["url", "token"]);
     state.url = stored.url || "";

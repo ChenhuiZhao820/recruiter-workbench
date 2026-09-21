@@ -55,8 +55,7 @@ test("download bundle shares exact hosted origin restrictions and preserves sour
   const decoded = unpack(extensionZip(files));
   for (const name of names) assert.equal(decoded[`capture-extension/${name}`].text, files[name]);
   const manifest = JSON.parse(files["manifest.json"]);
-  assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "sidePanel", "storage"]);
-  assert.deepEqual(manifest.side_panel, { default_path: "popup.html" });
+  assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
   assert.deepEqual(manifest.host_permissions, ["http://localhost/*", "http://127.0.0.1/*", "https://capture.example.test/*"]);
   assert.equal(manifest.background, undefined);
   assert.equal(manifest.content_scripts, undefined);

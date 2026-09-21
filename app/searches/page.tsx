@@ -90,9 +90,7 @@ export default async function SearchesPage() {
                       {(industries.length > 0 || locations.length > 0 || s.filterNotes) && (
                         <div className="mt-2 text-sm">
                           <p className="font-mono text-xs uppercase tracking-wide text-ink/60">
-                            {s.searchUrl
-                              ? "Also recorded here; the saved LinkedIn search is what applies them:"
-                              : "Apply these filters in LinkedIn after it opens:"}
+                            Apply these filters in LinkedIn after it opens:
                           </p>
                           <ul className="mt-1 flex flex-wrap gap-2">
                             {locations.map((l, i) => (
@@ -110,7 +108,7 @@ export default async function SearchesPage() {
                         </div>
                       )}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} searchUrl={s.searchUrl} />}
+                        {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} />}
                         <Link href={`/searches/${s.id}/edit`} className="btn-quiet">
                           {readOnly ? "View details" : "Edit"}
                         </Link>

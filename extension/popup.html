@@ -4,14 +4,10 @@
     <meta charset="utf-8" />
     <link rel="stylesheet" href="popup.css" />
   </head>
-  <body id="page">
+  <body>
     <header class="topbar">
       <span class="brand"><svg width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M12 4H4v8M20 4h8v8M28 20v8h-8M12 28H4v-8" stroke="currentColor" stroke-width="3" /><path d="M12 12h8v8h-8z" fill="currentColor" /></svg><span>Capture</span></span>
-      <span class="topbar-actions">
-        <span id="eyebrow" class="eyebrow">One page. One click.</span>
-        <button id="panel-open" class="btn-quiet" type="button" hidden>Keep open</button>
-        <button id="panel-close" class="btn-quiet" type="button" hidden>Close panel</button>
-      </span>
+      <span class="eyebrow">One page. One click.</span>
     </header>
 
     <main class="shell">
@@ -55,8 +51,6 @@
           <h1>Save profile</h1>
           <button id="settings" class="btn-quiet" type="button">Settings</button>
         </div>
-
-        <button id="reread" class="btn-quiet" type="button" hidden>Read this profile</button>
 
         <label class="field-label" for="role">Role</label>
         <select id="role" class="field-input" required></select>

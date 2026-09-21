@@ -40,24 +40,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/*
-  The side panel is the same instrument again, this time in a column the
-  recruiter sizes themselves: it has to give up the popup's fixed width and
-  fill the height it is given, without becoming a different-looking product.
-*/
-body.surface-panel {
-  width: auto;
-  min-width: 288px;
-  min-height: 100vh;
-}
-
-body.surface-panel .topbar { position: sticky; top: 0; z-index: 1; }
-body.surface-panel .shell { max-width: 420px; }
-
-.topbar-actions { display: inline-flex; align-items: center; gap: 8px; }
-
-#reread { width: 100%; margin-top: 4px; }
-
 [hidden] { display: none !important; }
 ::selection { background: #dbe3ff; color: var(--color-ink); }
 

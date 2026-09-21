@@ -62,7 +62,6 @@ export default async function GettingStartedPage() {
         <li>Extract the ZIP into a permanent folder. Keep that folder after installing: an unpacked extension is loaded from where it sits.</li>
         <li>In desktop Chrome, open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, choose <strong>Load unpacked</strong>, and select the extracted <code>capture-extension</code> folder containing <code>manifest.json</code>.</li>
         <li>Pin Capture from Chrome&rsquo;s extensions menu so the toolbar button is one click away.</li>
-        <li>Working through a list of profiles? Open Capture and choose <strong>Keep open</strong>. It moves into Chrome&rsquo;s side panel and stays there as you go from profile to profile, until you close it.</li>
       </ol>,
       doneNote: "Download the ZIP again whenever you reinstall or update. Unpacked extensions do not update themselves.",
       action: status.extensionEnabled

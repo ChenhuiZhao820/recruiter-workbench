@@ -196,16 +196,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
 
       {/* Candidates */}
       <section aria-labelledby="candidates-heading">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 id="candidates-heading" className="text-2xl">
-            Candidates
-          </h2>
-          {!readOnly && role.candidates.length > 0 && (
-            <Link href={`/roles/${role.id}/outreach`} className="btn-secondary">
-              Send outreach
-            </Link>
-          )}
-        </div>
+        <h2 id="candidates-heading" className="mb-3 text-2xl">
+          Candidates
+        </h2>
         {role.candidates.length === 0 && (
           <p className="mb-3 text-ink/70">
             No candidates yet. When you find someone on LinkedIn, paste their profile link and
@@ -427,9 +420,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   {(industries.length > 0 || locations.length > 0 || s.filterNotes) && (
                     <div className="mt-2 text-sm">
                       <p className="font-mono text-xs uppercase tracking-wide text-ink/60">
-                        {s.searchUrl
-                          ? "Also recorded here; the saved LinkedIn search is what applies them:"
-                          : "Apply these filters in LinkedIn after it opens:"}
+                        Apply these filters in LinkedIn after it opens:
                       </p>
                       <ul className="mt-1 flex flex-wrap gap-2">
                         {locations.map((l, i) => (
@@ -447,7 +438,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} searchUrl={s.searchUrl} />}
+                    {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} />}
                     <Link href={`/searches/${s.id}/edit`} className="btn-quiet">
                       {readOnly ? "View details" : "Edit"}
                     </Link>

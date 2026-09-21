@@ -3,6 +3,7 @@ import {
   KNOWN_PLACEHOLDERS,
   isKnownPlaceholder,
   needsAn,
+  normalizeMessage,
   placeholderSplitPattern,
   renderTemplate,
   unknownPlaceholders,
@@ -151,6 +152,55 @@ test("a connection note is capped, a message is not", () => {
   expect(templateKindLabel("message")).toBe("Message");
   expect(isTemplateKind("connection_note")).toBe(true);
   expect(isTemplateKind("carrier_pigeon")).toBe(false);
+});
+
+test.describe("whitespace a recruiter would otherwise delete by hand", () => {
+  test("the message starts at the first word and ends at the last", () => {
+    expect(normalizeMessage("\n\n  Hi Sam,\n\nBest,\nAlex\n   \n\n")).toBe("Hi Sam,\n\nBest,\nAlex");
+  });
+
+  test("nobody means three blank lines", () => {
+    expect(normalizeMessage("One.\n\n\nTwo.")).toBe("One.\n\nTwo.");
+    expect(normalizeMessage("One.\n\n\n\n\nTwo.")).toBe("One.\n\nTwo.");
+  });
+
+  test("one blank line between paragraphs is left exactly as written", () => {
+    const body = "Hi Sam,\n\nI'm hiring for an Ops Director.\n\nBest,\nAlex";
+    expect(normalizeMessage(body)).toBe(body);
+  });
+
+  test("a list is not collapsed into a paragraph", () => {
+    const body = "Two things:\n- Based in Leeds\n- Reports to the MD\n\nWorth a chat?";
+    expect(normalizeMessage(body)).toBe(body);
+  });
+
+  test("trailing spaces go, indentation stays", () => {
+    expect(normalizeMessage("Hi Sam,   \n- one   \n  - nested\n")).toBe("Hi Sam,\n- one\n  - nested");
+  });
+
+  test("a pasted Windows draft arrives with one kind of line ending", () => {
+    expect(normalizeMessage("Hi Sam,\r\n\r\nBest,\r\nAlex")).toBe("Hi Sam,\n\nBest,\nAlex");
+    expect(normalizeMessage("Hi Sam,\r\r\rBest")).toBe("Hi Sam,\n\nBest");
+  });
+
+  test("a message of nothing but whitespace is nothing", () => {
+    // markAsSent refuses an empty body, so this cannot be recorded as sent.
+    expect(normalizeMessage(" \n\t\r\n  ")).toBe("");
+  });
+
+  test("a rendered message is tidied before it is copied, counted or recorded", () => {
+    const body = "\nHi {{first_name}},\n\n\n\nI'm hiring for a {{role_title}}.   \n\n";
+    const rendered = renderTemplate(body, { first_name: "Sam", role_title: "Ops Director" });
+    expect(rendered).toBe("Hi Sam,\n\nI'm hiring for an Ops Director.");
+    // The count the connection-note limit is judged by is the tidied one.
+    expect(rendered.length).toBeLessThan(body.length);
+  });
+
+  test("tidying never disturbs a gap marker", () => {
+    expect(renderTemplate("Grab a time:\n\n\n{{calendar_link}}", {})).toBe(
+      "Grab a time:\n\n[MISSING: calendar_link]"
+    );
+  });
 });
 
 test("placeholders change the length that actually matters", () => {

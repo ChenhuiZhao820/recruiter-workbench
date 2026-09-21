@@ -91,6 +91,27 @@ function substitute(name: string, values: PlaceholderValues): string {
   return value && value.trim() ? value.trim() : `[MISSING: ${name}]`;
 }
 
+// --- whitespace -------------------------------------------------------------
+//
+// A message leaves this app to be pasted into a box somebody else wrote, and
+// whitespace that reads as nothing here is visible there: a gap above the
+// greeting, a hole between two short paragraphs, a trailing space that makes a
+// line look wrong when it wraps. None of it is deliberate - it comes from
+// editing a template, from a pasted draft, or from a placeholder that turned
+// out shorter than the line it was written into - so it is removed before the
+// text is copied, counted or recorded.
+//
+// What is deliberate is kept. A single newline still breaks a line, so bullets
+// and short lines survive, and one blank line still separates paragraphs. Only
+// runs longer than that are shortened, because nobody means three blank lines.
+export function normalizeMessage(text: string): string {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function renderTemplate(body: string, values: PlaceholderValues): string {
   // Fill the gaps that follow an article first, correcting the article to
   // agree with whatever actually landed there.
@@ -104,7 +125,7 @@ export function renderTemplate(body: string, values: PlaceholderValues): string 
       return `${articleLike(article, filled)}${gap}${filled}`;
     }
   );
-  return withArticles.replace(TOKEN, (_match, name: string) => substitute(name, values));
+  return normalizeMessage(withArticles.replace(TOKEN, (_match, name: string) => substitute(name, values)));
 }
 
 // Placeholder names in a template body that this app cannot fill in.

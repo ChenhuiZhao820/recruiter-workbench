@@ -121,6 +121,12 @@ model SavedSearch {
   industries  String   @default("[]")  // JSON string, shown as re-apply checklist
   locations   String   @default("[]")  // JSON string, shown as re-apply checklist
   filterNotes String?
+  // A LinkedIn search address the recruiter built and saved in LinkedIn itself,
+  // Recruiter or ordinary search. Opening it restores whatever filters LinkedIn
+  // stored behind it, industries included. Stored opaquely: this app never
+  // interprets, requests or rewrites it, it only validates that it is a
+  // LinkedIn search address and opens it on a click.
+  searchUrl   String?
   lastUsedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

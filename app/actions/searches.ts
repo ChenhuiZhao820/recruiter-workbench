@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireWritableWorkspace } from "@/lib/workspace";
 import type { FormState } from "@/lib/formState";
 import { splitList } from "@/lib/json";
+import { searchLinkProblem, searchLinkUrl } from "@/lib/linkedin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -17,7 +18,16 @@ function searchDataFrom(formData: FormData) {
     industries: JSON.stringify(splitList(String(formData.get("industries") ?? ""))),
     locations: JSON.stringify(splitList(String(formData.get("locations") ?? ""))),
     filterNotes: String(formData.get("filterNotes") ?? "").trim() || null,
+    // Kept as LinkedIn gave it, or not kept at all. searchDataFrom is also
+    // where a bad address would slip through unnoticed, so the caller checks
+    // the raw text for a problem before using this.
+    searchUrl: searchLinkUrl(String(formData.get("searchUrl") ?? "")) || null,
   };
+}
+
+// The pasted address, judged before anything is written.
+function linkProblem(formData: FormData): string | null {
+  return searchLinkProblem(String(formData.get("searchUrl") ?? ""));
 }
 
 function revalidateSearches(roleId?: string | null) {
@@ -33,6 +43,8 @@ export async function createSearch(_prev: FormState, formData: FormData): Promis
   const user = await requireWritableWorkspace();
   const { roleId, ...data } = searchDataFrom(formData);
   if (!data.name) return { error: "Give the search a name before creating it." };
+  const badLink = linkProblem(formData);
+  if (badLink) return { error: badLink };
   if (roleId && !await db.role.findUnique({ where: { id: roleId, userId: user.id }, select: { id: true } })) {
     return { error: "That role could not be found." };
   }
@@ -53,6 +65,8 @@ export async function updateSearch(_prev: FormState, formData: FormData): Promis
   const { roleId, ...data } = searchDataFrom(formData);
   if (!id) return { error: "That search could not be found." };
   if (!data.name) return { error: "A search needs a name. Nothing was saved." };
+  const badLink = linkProblem(formData);
+  if (badLink) return { error: badLink };
   const original = await db.savedSearch.findUnique({ where: { id, ...ownedSearch(user.id) } });
   if (!original) return { error: "That search could not be found." };
   if (roleId && !await db.role.findUnique({ where: { id: roleId, userId: user.id }, select: { id: true } })) {
@@ -84,6 +98,7 @@ export async function duplicateSearch(formData: FormData) {
       industries: original.industries,
       locations: original.locations,
       filterNotes: original.filterNotes,
+      searchUrl: original.searchUrl,
     },
   });
   revalidateSearches(original.roleId);

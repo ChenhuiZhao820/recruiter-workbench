@@ -18,6 +18,7 @@ export function SearchForm({
     industries?: string;
     locations?: string;
     filterNotes?: string;
+    searchUrl?: string;
   };
   searchId?: string;
 }) {
@@ -115,6 +116,28 @@ export function SearchForm({
             placeholder="United Kingdom, Manchester"
           />
         </div>
+      </div>
+      <div>
+        <label htmlFor="s-url" className="field-label">
+          Saved LinkedIn search link (optional)
+        </label>
+        <input
+          id="s-url"
+          name="searchUrl"
+          type="url"
+          defaultValue={initial.searchUrl ?? ""}
+          className="field-input"
+          placeholder="https://www.linkedin.com/talent/search?..."
+          spellCheck={false}
+        />
+        <p className="mt-1 text-sm text-ink-soft">
+          Industries and most Recruiter filters cannot be put into an address from
+          out here — LinkedIn keeps them behind a search of its own. Build the
+          filters once in LinkedIn or Recruiter, save the search there, copy the
+          address from the browser bar and paste it here. Run search then reopens
+          that search with its filters already applied, instead of a plain
+          keyword search you have to filter again.
+        </p>
       </div>
       <div>
         <label htmlFor="s-notes" className="field-label">

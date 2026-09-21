@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { requireWritableWorkspace } from "@/lib/workspace";
 import type { FormState } from "@/lib/formState";
-import { unknownPlaceholders } from "@/lib/render";
+import { normalizeMessage, unknownPlaceholders } from "@/lib/render";
 import { CONNECTION_NOTE_LIMIT, isTemplateKind } from "@/lib/templates";
 import { revalidatePath } from "next/cache";
 
@@ -33,7 +33,9 @@ function readKind(formData: FormData): string {
 export async function createTemplate(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await requireWritableWorkspace();
   const name = String(formData.get("name") ?? "").trim();
-  const body = String(formData.get("body") ?? "").trim();
+  // Stored the way it will be pasted, so the template, the preview and the
+  // message that reaches the candidate cannot disagree about its whitespace.
+  const body = normalizeMessage(String(formData.get("body") ?? ""));
   if (!name) return { error: "Give the template a name." };
   if (!body) return { error: "Write the message before saving the template." };
   const kind = readKind(formData);
@@ -49,7 +51,7 @@ export async function updateTemplate(_prev: FormState, formData: FormData): Prom
   const user = await requireWritableWorkspace();
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const body = String(formData.get("body") ?? "").trim();
+  const body = normalizeMessage(String(formData.get("body") ?? ""));
   if (!id) return { error: "That template could not be found." };
   if (!name) return { error: "A template needs a name. Nothing was saved." };
   if (!body) return { error: "A template needs a message. Nothing was saved." };

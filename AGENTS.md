@@ -72,6 +72,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `tests/06-design.spec.ts` covers public/private routing, mobile overflow, keyboard
   navigation, tabs, FAQ, password visibility and role filtering. Screenshots use
   test-only fixtures in ignored test-results; no real user data is captured.
+- Role briefings use six independent, initially collapsed native details sections.
+  First-call questions request and save only `{ question }`; legacy answer fields
+  are not displayed. `tests/01-walkthrough.spec.ts` covers toggling, keyboard/mobile
+  use and legacy compatibility; the AI stub checks the questions-only prompt and
+  deliberately returns extra answer fields to verify they are discarded.
 - Outbound message text passes through `normalizeMessage` in `lib/render.ts`:
   one kind of line ending, no trailing spaces, at most one blank line between
   paragraphs, nothing before the first word or after the last. Single newlines
@@ -81,7 +86,6 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   the outreach log cannot disagree. Route new outbound text through it rather
   than tidying whitespace at the point of copying. `tests/03-render.spec.ts`
   covers it as a pure function alongside the article rule.
-
 - A saved search may carry `SavedSearch.searchUrl`: an address the recruiter
   copied out of LinkedIn or Recruiter after building and saving the search
   there. Industries and Recruiter's filters cannot be expressed in an address
@@ -92,7 +96,6 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   dropped. With a link present the filter chips stay visible but stop claiming
   to be a re-tick checklist; without one, Run search still builds the keyword
   people-search URL as before.
-
 - `/roles/[id]/outreach` is the guided outreach queue: one shortlist, one
   template, one candidate on screen, with `?c=` ids and `?i=` index in the
   address. It removes navigation only. It must never send, paste into another
@@ -162,6 +165,14 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   local account databases also need an approved additive schema update; builds
   and tests must not migrate real databases. Multi-account imports preserve tier
   and Trial expiry; older snapshots without these fields default to Basic.
+- `/admin` is a minimal account directory showing only name, email and effective
+  type. Creation lives at `/admin/new`; all per-account status, management actions
+  and target-scoped audit history live at `/admin/[id]`. Every route independently
+  requires Admin; missing detail IDs return 404. Read-only views retain guards.
+- Creation stays on its form to show the one-time setup link, with a separate
+  Manage account link. Never redirect away before the admin can copy the secret.
+  Key detail forms by account identity so secret state cannot carry across accounts.
+  Account and extension mutations must refresh their affected detail route too.
 - `tests/account-tiers.test.mjs` covers tier/expiry boundaries and action/feature
   guards; `tests/08-account-tiers.spec.ts` covers UI, live-session changes and
   forged requests using only disposable test accounts/databases.

@@ -9,9 +9,10 @@ import type { FormState } from "@/lib/formState";
 
 export type ExtensionActionState = FormState & { code?: string };
 
-function refreshExtensionAccess() {
+function refreshExtensionAccess(userId: string) {
   revalidatePath("/account");
   revalidatePath("/admin");
+  revalidatePath(`/admin/${encodeURIComponent(userId)}`);
   revalidatePath("/settings");
   revalidatePath("/getting-started");
 }
@@ -47,7 +48,7 @@ export async function issueExtensionCode(_state: ExtensionActionState, form: For
   } catch {
     return { error: "The extension code could not be issued. Refresh the page and try again." };
   }
-  refreshExtensionAccess();
+  refreshExtensionAccess(userId);
   return { code, notice: "Share this code privately with this recruiter. It expires in 7 days, replaces any earlier code, and is only shown here once." };
 }
 
@@ -81,6 +82,6 @@ export async function redeemExtensionCode(_state: ExtensionActionState, form: Fo
   } catch {
     return { error: "Extension activation could not be completed. Refresh the page and try again." };
   }
-  refreshExtensionAccess();
+  refreshExtensionAccess(user.id);
   return { notice: "Extension activated for your account. You can now generate a capture key in Settings." };
 }

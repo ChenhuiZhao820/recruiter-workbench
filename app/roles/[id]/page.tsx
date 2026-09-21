@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { Icon } from "@/components/Icon";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
@@ -18,7 +20,19 @@ import { OUTREACH_KIND_SUMMARY, isTemplateKind } from "@/lib/templates";
 export const dynamic = "force-dynamic";
 
 type Skill = { skill: string; real_vs_buzzword: string };
-type Question = { question: string; strong_answer: string; weak_answer: string };
+type Question = { question: string };
+
+function BriefingSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <details className="group rounded border border-line">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded p-4 hover:bg-sunken [&::-webkit-details-marker]:hidden">
+        <h3 className="text-lg">{title}</h3>
+        <Icon name="down" size={18} className="text-ink/60 group-open:rotate-180 group-open:text-accent" />
+      </summary>
+      <div className="px-4 pb-4">{children}</div>
+    </details>
+  );
+}
 
 export default async function RolePage({ params }: { params: { id: string } }) {
   const { owner, readOnly } = await getWorkspace();
@@ -122,62 +136,50 @@ export default async function RolePage({ params }: { params: { id: string } }) {
           </div>
         ) : (
           <div className="card space-y-5">
-            <div>
-              <h3 className="mb-1 text-lg">What they do all day</h3>
-              <p>{briefing.dayToDay}</p>
-            </div>
-            <div>
-              <h3 className="mb-1 text-lg">Skills that matter</h3>
-              <ul className="space-y-2">
-                {skills.map((s, i) => (
-                  <li key={i}>
-                    <span className="font-medium">{s.skill}.</span>{" "}
-                    <span className="text-ink/80">{s.real_vs_buzzword}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h3 className="mb-1 text-lg">Also goes by</h3>
-              <ul className="flex flex-wrap gap-2">
-                {searchTitles.map((t, i) => (
-                  <li key={i} className="chip">
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h3 className="mb-1 text-lg">Where they tend to work</h3>
-              <ul className="flex flex-wrap gap-2">
-                {targetCompanies.map((t, i) => (
-                  <li key={i} className="chip">
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h3 className="mb-1 text-lg">Typical pay</h3>
-              <p>{briefing.salaryRange}</p>
-            </div>
-            <div>
-              <h3 className="mb-1 text-lg">First-call questions</h3>
-              <ul className="space-y-3">
-                {questions.map((q, i) => (
-                  <li key={i} className="rounded border border-line bg-sunken p-3">
-                    <p className="font-medium">{q.question}</p>
-                    <p className="mt-1 text-sm">
-                      <span className="font-mono text-xs uppercase tracking-wide">Strong:</span>{" "}
-                      {q.strong_answer}
-                    </p>
-                    <p className="mt-1 text-sm">
-                      <span className="font-mono text-xs uppercase tracking-wide">Vague:</span>{" "}
-                      {q.weak_answer}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+            <div className="space-y-2">
+              <BriefingSection title="What they do all day">
+                <p>{briefing.dayToDay}</p>
+              </BriefingSection>
+              <BriefingSection title="Skills that matter">
+                <ul className="space-y-2">
+                  {skills.map((s, i) => (
+                    <li key={i}>
+                      <span className="font-medium">{s.skill}.</span>{" "}
+                      <span className="text-ink/80">{s.real_vs_buzzword}</span>
+                    </li>
+                  ))}
+                </ul>
+              </BriefingSection>
+              <BriefingSection title="Also goes by">
+                <ul className="flex flex-wrap gap-2">
+                  {searchTitles.map((t, i) => (
+                    <li key={i} className="chip">
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </BriefingSection>
+              <BriefingSection title="Where they tend to work">
+                <ul className="flex flex-wrap gap-2">
+                  {targetCompanies.map((t, i) => (
+                    <li key={i} className="chip">
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </BriefingSection>
+              <BriefingSection title="Typical pay">
+                <p>{briefing.salaryRange}</p>
+              </BriefingSection>
+              <BriefingSection title="First-call questions">
+                <ul className="space-y-3">
+                  {questions.map((q, i) => (
+                    <li key={i} className="rounded border border-line bg-sunken p-3">
+                      <p className="font-medium">{q.question}</p>
+                    </li>
+                  ))}
+                </ul>
+              </BriefingSection>
             </div>
             <p className="text-sm text-ink/60">
               Pay and skills are estimates to sanity check, not facts.

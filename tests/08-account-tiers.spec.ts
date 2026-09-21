@@ -106,9 +106,12 @@ async function tierEvents(actorId: string) {
   return db.auditEvent.findMany({ where: { actorId, action: { startsWith: "account_tier_changed_to_" } }, orderBy: { createdAt: "asc" } });
 }
 
-test("T1 ordinary accounts default to Basic while administrators remain Admin without a tier editor", async ({ accounts }) => {
+test("T1 ordinary accounts default to Basic while administrators remain Admin without a tier editor", async ({ accounts }, testInfo) => {
   const actor = await accounts.create();
   const admin = await accounts.create({ role: "admin" });
+  const expiry = new Date(`${utcMinute()}:00.000Z`);
+  const trial = await accounts.create({ accountTier: "trial", trialExpiresAt: expiry });
+  await db.user.update({ where: { id: trial.id }, data: { active: false } });
   expect(await db.user.findUniqueOrThrow({ where: { id: actor.id } })).toMatchObject({ role: "recruiter", accountTier: "basic", trialExpiresAt: null });
   await actor.page.goto("/account");
   await expectAccountType(actor.page, "Basic");
@@ -118,12 +121,64 @@ test("T1 ordinary accounts default to Basic while administrators remain Admin wi
   await admin.page.goto("/admin");
   await expectArticleType(admin.page, actor.email, "Basic");
   await expectArticleType(admin.page, admin.email, "Admin");
-  const editor = article(admin.page, actor.email).getByLabel("Account type", { exact: true });
+  await expectArticleType(admin.page, trial.email, "Trial");
+  await expect(article(admin.page, trial.email)).not.toContainText(expiry.toISOString().slice(0, 10));
+  for (const name of ["Account types", "Create account", "Manage account type", "Extension access", "Audit history"]) {
+    await expect(admin.page.getByRole("region", { name, exact: true })).toHaveCount(0);
+  }
+  const rows = admin.page.locator("article");
+  await expect(rows.locator("form, button, input, select, details")).toHaveCount(0);
+  for (const row of await rows.all()) {
+    await expect(row).not.toContainText(/Enabled|Disabled|Trial expires|Trial expired|Extension access|Recent account activity|UTC/);
+    await expect(row.getByRole("link")).toHaveCount(1);
+  }
+  await expect(admin.page.locator(CREATE_FORM)).toHaveCount(0);
+  await expect(admin.page.getByRole("heading", { name: "Account types", exact: true })).toHaveCount(0);
+  const createLink = admin.page.getByRole("link", { name: "Create an account", exact: true });
+  await expect(createLink).toHaveAttribute("href", "/admin/new");
+  await createLink.click();
+  await expect(admin.page).toHaveURL(`${BASE}/admin/new`);
+  await expect(admin.page.getByRole("heading", { name: "Create an account", exact: true })).toBeVisible();
+  await expect(admin.page.getByRole("region", { name: "Create account", exact: true }).locator(CREATE_FORM)).toBeVisible();
+  await admin.page.getByRole("link", { name: "Back to accounts", exact: true }).click();
+  await expect(admin.page).toHaveURL(`${BASE}/admin`);
+  const accountLink = article(admin.page, actor.email).getByRole("link");
+  await expect(accountLink).toHaveAttribute("href", `/admin/${actor.id}`);
+  await expect(accountLink).toContainText(actor.name);
+  await expect(accountLink).toContainText(actor.email);
+  await expect(accountLink).toContainText("Basic");
+  await accountLink.click();
+  await expect(admin.page).toHaveURL(`${BASE}/admin/${actor.id}`);
+  await expect(admin.page.getByRole("heading", { name: actor.name, level: 1, exact: true })).toBeVisible();
+  const management = admin.page.getByRole("article", { name: "Account management", exact: true });
+  await expect(management).toContainText(actor.email);
+  await expect(management).toContainText("Enabled");
+  const editor = management.getByLabel("Account type", { exact: true });
   await expect(editor).toHaveValue("basic");
   await expect(editor.locator("option")).toHaveText(["Basic", "Pro", "Trial"]);
-  await expect(article(admin.page, actor.email).getByLabel("Trial expires at (UTC)", { exact: true })).toHaveCount(0);
+  await expect(management.getByLabel("Trial expires at (UTC)", { exact: true })).toHaveCount(0);
+  for (const name of ["Save account type", "View workspace (read-only)", "Generate extension code", "Disable account"]) {
+    await expect(management.getByRole("button", { name, exact: true })).toBeVisible();
+  }
+  await management.getByText("Activation / password reset", { exact: true }).click();
+  await expect(management.getByRole("button", { name: "Generate setup/reset link", exact: true })).toBeVisible();
+  await expect(admin.page.getByRole("region", { name: "Audit history", exact: true })).toBeVisible();
+  await admin.page.getByRole("link", { name: "Back to accounts", exact: true }).click();
+  await expect(admin.page).toHaveURL(`${BASE}/admin`);
+  await accountLink.focus();
+  await expect(accountLink).toBeFocused();
+  await admin.page.keyboard.press("Enter");
+  await expect(admin.page).toHaveURL(`${BASE}/admin/${actor.id}`);
+  await admin.page.goto(`/admin/${admin.id}`);
   await expect(article(admin.page, admin.email).getByLabel("Account type", { exact: true })).toHaveCount(0);
   await expect(article(admin.page, admin.email).getByRole("button", { name: "Save account type", exact: true })).toHaveCount(0);
+  await admin.page.setViewportSize({ width: 390, height: 844 });
+  for (const path of ["/admin", "/admin/new", `/admin/${actor.id}`]) {
+    await admin.page.goto(path);
+    expect(await admin.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const name = path === "/admin" ? "overview" : path === "/admin/new" ? "create" : "detail";
+    await admin.page.screenshot({ path: testInfo.outputPath(`admin-${name}-mobile.png`), fullPage: true });
+  }
 });
 
 for (const tier of ["basic", "pro", "trial"] as const) {
@@ -131,7 +186,8 @@ for (const tier of ["basic", "pro", "trial"] as const) {
     const admin = await accounts.create({ role: "admin" });
     const email = `tier-created-${randomUUID()}@test.capture.invalid`;
     const expiry = utcMinute();
-    await admin.page.goto("/admin");
+    await admin.page.goto("/admin/new");
+    await expect(admin.page.getByRole("heading", { name: "Create an account", exact: true })).toBeVisible();
     const create = admin.page.getByRole("region", { name: "Create account", exact: true });
     const select = create.getByLabel("Account type", { exact: true });
     await expect(select).toHaveValue("basic");
@@ -153,9 +209,17 @@ for (const tier of ["basic", "pro", "trial"] as const) {
     const user = await db.user.findUniqueOrThrow({ where: { email }, include: { extensionAccess: true } });
     expect(user).toMatchObject({ role: "recruiter", accountTier: tier, trialExpiresAt: tier === "trial" ? new Date(`${expiry}:00.000Z`) : null, extensionAccess: null });
     const label = tier[0].toUpperCase() + tier.slice(1);
+    await expect(admin.page).toHaveURL(`${BASE}/admin/new`);
+    const activationUrl = await setup.inputValue();
+    const manageLink = admin.page.getByRole("link", { name: "Manage account", exact: true });
+    await expect(manageLink).toHaveAttribute("href", `/admin/${user.id}`);
+    await expect(setup).toHaveValue(activationUrl);
+    await manageLink.click();
+    await expect(admin.page).toHaveURL(`${BASE}/admin/${user.id}`);
+    await expect(admin.page.getByRole("heading", { name: user.name, level: 1, exact: true })).toBeVisible();
     await expectArticleType(admin.page, email, label);
     const page = await accounts.guest();
-    await page.goto(await setup.inputValue());
+    await page.goto(activationUrl);
     await expect(page.locator('input[name="token"]')).not.toHaveValue("");
     await page.getByLabel("New password", { exact: true }).fill(PASSWORD);
     await page.getByLabel("Confirm new password", { exact: true }).fill(PASSWORD);
@@ -182,8 +246,8 @@ test("T3 upgrades and downgrades update existing sessions without changing role,
   const expiry = utcMinute();
   await actor.page.goto("/account");
   await expectAccountType(actor.page, "Basic");
-  await admin.page.goto("/admin");
-  const card = article(admin.page, actor.email);
+  await admin.page.goto(`/admin/${actor.id}`);
+  const card = admin.page.getByRole("article", { name: "Account management", exact: true });
   for (const tier of ["pro", "trial", "basic"] as const) {
     await card.getByLabel("Account type", { exact: true }).selectOption(tier);
     if (tier === "trial") await card.getByLabel("Trial expires at (UTC)", { exact: true }).fill(expiry);
@@ -208,8 +272,8 @@ test("T3 upgrades and downgrades update existing sessions without changing role,
 test("T4 strict trial validation rejects missing, invalid and expired UTC dates in real creation and classification actions", async ({ accounts }) => {
   const admin = await accounts.create({ role: "admin" });
   const actor = await accounts.create({ accountTier: "pro" });
-  const update = await snapshotForm(admin.page, "/admin", tierSelector(actor));
-  const create = await snapshotForm(admin.page, "/admin", CREATE_FORM);
+  const update = await snapshotForm(admin.page, `/admin/${actor.id}`, tierSelector(actor));
+  const create = await snapshotForm(admin.page, "/admin/new", CREATE_FORM);
   const before = await db.user.findUniqueOrThrow({ where: { id: actor.id } });
   const invalidDates = ["", "not-a-date", utcMinute(Date.now() - DAY), utcMinute(Date.now()), "2099-02-29T12:30", "2099-04-31T12:30", "2099-13-01T12:30", "2099-01-01T24:00", "2099-01-01", "2099-01-01T12:30Z", "2099-01-01T12:30+01:00", "2099-01-01T12:30:45"];
   for (const trialExpiresAt of invalidDates) {
@@ -226,7 +290,7 @@ test("T4 strict trial validation rejects missing, invalid and expired UTC dates 
   const expiry = utcMinute();
   expect((await postForm(admin.page, update, { accountTier: "trial", trialExpiresAt: expiry })).ok()).toBe(true);
   expect(await db.user.findUniqueOrThrow({ where: { id: actor.id } })).toMatchObject({ role: "recruiter", accountTier: "trial", trialExpiresAt: new Date(`${expiry}:00.000Z`) });
-  await admin.page.goto("/admin");
+  await admin.page.goto(`/admin/${actor.id}`);
   await expect(article(admin.page, actor.email).getByLabel("Trial expires at (UTC)", { exact: true })).toHaveValue(expiry);
 });
 
@@ -253,8 +317,8 @@ for (const tier of ["basic", "pro", "trial"] as const) {
     const admin = await accounts.create({ role: "admin" });
     const actor = await accounts.create({ accountTier: tier, trialExpiresAt: tier === "trial" ? new Date(Date.now() + DAY) : null });
     const target = await accounts.create();
-    const update = await snapshotForm(admin.page, "/admin", tierSelector(target));
-    const create = await snapshotForm(admin.page, "/admin", CREATE_FORM);
+    const update = await snapshotForm(admin.page, `/admin/${target.id}`, tierSelector(target));
+    const create = await snapshotForm(admin.page, "/admin/new", CREATE_FORM);
     expect((await postForm(admin.page, update, { accountTier: "pro" })).ok()).toBe(true);
     expect((await db.user.findUniqueOrThrow({ where: { id: target.id } })).accountTier).toBe("pro");
     const users = await db.user.findMany({ where: { id: { in: [actor.id, target.id, admin.id] } }, orderBy: { id: "asc" } });
@@ -269,9 +333,14 @@ for (const tier of ["basic", "pro", "trial"] as const) {
     expect(await db.user.findUnique({ where: { email } })).toBeNull();
     expect(await db.user.findMany({ where: { id: { in: [actor.id, target.id, admin.id] } }, orderBy: { id: "asc" } })).toEqual(users);
     expect(await db.auditEvent.count({ where: { actorId: actor.id } })).toBe(0);
-    await actor.page.goto("/admin");
-    await expect(actor.page.getByRole("heading", { name: "Account administration", exact: true })).toHaveCount(0);
-    expect(await actor.page.content()).not.toContain(target.email);
+    for (const path of ["/admin", "/admin/new", `/admin/${target.id}`, `/admin/${randomUUID()}`]) {
+      const response = await actor.page.goto(path);
+      expect(response?.status()).toBeGreaterThanOrEqual(400);
+      await expect(actor.page.getByRole("heading", { name: "Account administration", exact: true })).toHaveCount(0);
+      await expect(actor.page.getByRole("article", { name: "Account management", exact: true })).toHaveCount(0);
+      await expect(actor.page.locator(CREATE_FORM)).toHaveCount(0);
+      expect(await actor.page.content()).not.toContain(target.email);
+    }
   });
 }
 
@@ -279,8 +348,8 @@ test("T7 administrator targets and forged Admin or unknown tiers are rejected wi
   const admin = await accounts.create({ role: "admin" });
   const otherAdmin = await accounts.create({ role: "admin" });
   const actor = await accounts.create();
-  const update = await snapshotForm(admin.page, "/admin", tierSelector(actor));
-  const create = await snapshotForm(admin.page, "/admin", CREATE_FORM);
+  const update = await snapshotForm(admin.page, `/admin/${actor.id}`, tierSelector(actor));
+  const create = await snapshotForm(admin.page, "/admin/new", CREATE_FORM);
   const ids = [admin.id, otherAdmin.id, actor.id];
   const before = await db.user.findMany({ where: { id: { in: ids } }, orderBy: { id: "asc" } });
   const attempts: Record<string, string>[] = [{ userId: admin.id, accountTier: "pro" }, { userId: otherAdmin.id, accountTier: "trial", trialExpiresAt: utcMinute() }, { userId: actor.id, accountTier: "admin" }, { userId: actor.id, accountTier: "enterprise" }];
@@ -303,10 +372,10 @@ test("T7 administrator targets and forged Admin or unknown tiers are rejected wi
 test("T8 same-origin and writable-workspace checks protect all account management mutations", async ({ accounts }) => {
   const admin = await accounts.create({ role: "admin" });
   const actor = await accounts.create();
-  const update = await snapshotForm(admin.page, "/admin", tierSelector(actor));
-  const create = await snapshotForm(admin.page, "/admin", CREATE_FORM);
-  const reset = await snapshotForm(admin.page, "/admin", `article:has(input[value="${actor.id}"]) details form`);
-  const disable = await snapshotForm(admin.page, "/admin", `article:has(input[value="${actor.id}"]) form:has(input[name="active"])`);
+  const update = await snapshotForm(admin.page, `/admin/${actor.id}`, tierSelector(actor));
+  const create = await snapshotForm(admin.page, "/admin/new", CREATE_FORM);
+  const reset = await snapshotForm(admin.page, `/admin/${actor.id}`, `article:has(input[value="${actor.id}"]) details form`);
+  const disable = await snapshotForm(admin.page, `/admin/${actor.id}`, `article:has(input[value="${actor.id}"]) form:has(input[name="active"])`);
   const before = await db.user.findUniqueOrThrow({ where: { id: actor.id } });
   for (const origin of [null, "http://localhost:3999", "https://attacker.example.invalid"]) {
     expect((await postForm(admin.page, update, { accountTier: "pro" }, origin)).status()).toBeGreaterThanOrEqual(400);
@@ -316,7 +385,7 @@ test("T8 same-origin and writable-workspace checks protect all account managemen
     expect(await db.user.findUnique({ where: { id: actor.id } })).toEqual(before);
   }
   expect(await db.auditEvent.count({ where: { actorId: admin.id } })).toBe(0);
-  await admin.page.goto("/admin");
+  await admin.page.goto(`/admin/${actor.id}`);
   await article(admin.page, actor.email).getByRole("button", { name: "View workspace (read-only)", exact: true }).click();
   await expect(admin.page).toHaveURL(`${BASE}/`);
   await expect(admin.page.getByRole("status")).toContainText(`Read-only workspace: ${actor.name}`);
@@ -344,9 +413,22 @@ test("T8 same-origin and writable-workspace checks protect all account managemen
     expect(await db.settings.findUnique({ where: { userId: actor.id } })).toEqual(settings);
     expect(await db.auditEvent.count({ where: { actorId: admin.id } })).toBe(auditCount);
   }
-  await admin.page.goto("/admin");
-  const card = article(admin.page, actor.email);
-  for (const name of ["Save account type", "Generate setup/reset link", "Disable account"]) await expect(card.getByRole("button", { name, exact: true })).toHaveCount(0);
+  for (const path of ["/admin", "/admin/new", `/admin/${actor.id}`]) {
+    await admin.page.goto(path);
+    await expect(admin.page.getByRole("link", { name: "Create an account", exact: true })).toHaveCount(0);
+    await expect(admin.page.locator(CREATE_FORM)).toHaveCount(0);
+    await expect(admin.page.locator('select[name="accountTier"], input[name="trialExpiresAt"], input[aria-label="New extension activation code"]')).toHaveCount(0);
+    for (const name of ["Create account", "Save account type", "Generate setup/reset link", "Disable account", "Enable account", "Generate extension code", "Replace extension code"]) {
+      await expect(admin.page.getByRole("button", { name, exact: true })).toHaveCount(0);
+    }
+    if (path === "/admin/new") {
+      await expect(admin.page.getByRole("region", { name: "Create account", exact: true })).toContainText("Return to your own workspace");
+      await expect(admin.page.getByRole("link", { name: "Back to accounts", exact: true })).toHaveAttribute("href", "/admin");
+    }
+    if (path === `/admin/${actor.id}`) {
+      await expect(admin.page.getByRole("article", { name: "Account management", exact: true })).toContainText(actor.email);
+    }
+  }
   await admin.page.goto("/account");
   await expectAccountType(admin.page, "Admin");
   const details = admin.page.getByRole("region", { name: "Account details", exact: true });
@@ -362,7 +444,7 @@ test("T9 copied actions require a currently active administrator and a valid ses
   const actor = await accounts.create();
   for (const failure of ["disabled", "demoted", "expired", "version", "anonymous"] as const) {
     const admin = await accounts.create({ role: "admin" });
-    const form = await snapshotForm(admin.page, "/admin", tierSelector(actor));
+    const form = await snapshotForm(admin.page, `/admin/${actor.id}`, tierSelector(actor));
     if (failure === "disabled") await db.user.update({ where: { id: admin.id }, data: { active: false } });
     if (failure === "demoted") await db.user.update({ where: { id: admin.id }, data: { role: "recruiter", accountTier: "pro" } });
     if (failure === "expired") await db.session.update({ where: { tokenHash: hashToken(admin.token) }, data: { expiresAt: new Date(Date.now() - 1000) } });
@@ -373,6 +455,56 @@ test("T9 copied actions require a currently active administrator and a valid ses
     expect(await db.user.findUnique({ where: { id: actor.id } })).toEqual(before);
     expect(await tierEvents(admin.id)).toEqual([]);
   }
+});
+
+test("T11 anonymous admin routes redirect to login and missing accounts return 404 only to administrators", async ({ accounts }) => {
+  const target = await accounts.create();
+  const admin = await accounts.create({ role: "admin" });
+  const guest = await accounts.guest();
+  const missingPath = `/admin/${randomUUID()}`;
+  for (const path of ["/admin", "/admin/new", `/admin/${target.id}`, missingPath]) {
+    const response = await guest.request.get(path, { maxRedirects: 0 });
+    expect([302, 303, 307, 308]).toContain(response.status());
+    expect(new URL(response.headers().location, BASE).pathname).toBe("/login");
+    expect(await response.text()).not.toContain(target.email);
+    await guest.goto(path);
+    await expect(guest).toHaveURL(/\/login(?:\?|$)/);
+    expect(await guest.content()).not.toContain(target.email);
+  }
+  const missing = await admin.page.request.get(missingPath);
+  expect(missing.status()).toBe(404);
+  expect(await missing.text()).not.toContain(target.email);
+});
+
+test("T12 account detail includes only audit events targeting the selected account", async ({ accounts }) => {
+  const admin = await accounts.create({ role: "admin" });
+  const target = await accounts.create();
+  const foreign = await accounts.create();
+  const selectedAction = `selected account audit ${randomUUID()}`;
+  const foreignAction = `foreign account audit ${randomUUID()}`;
+  const actorOnlyAction = `actor only audit ${randomUUID()}`;
+  const untargetedAction = `untargeted audit ${randomUUID()}`;
+  await db.auditEvent.createMany({ data: [
+    { actorId: admin.id, targetUserId: target.id, action: selectedAction },
+    { actorId: admin.id, targetUserId: foreign.id, action: foreignAction },
+    { actorId: target.id, targetUserId: foreign.id, action: actorOnlyAction },
+    { actorId: admin.id, targetUserId: null, action: untargetedAction },
+  ] });
+  await admin.page.goto(`/admin/${target.id}`);
+  await expect(admin.page.getByRole("heading", { name: target.name, level: 1, exact: true })).toBeVisible();
+  await expect(admin.page.getByRole("article", { name: "Account management", exact: true })).toHaveCount(1);
+  const audit = admin.page.getByRole("region", { name: "Audit history", exact: true });
+  await expect(audit).toContainText(selectedAction);
+  await expect(audit.getByRole("listitem")).toHaveCount(1);
+  for (const value of [foreignAction, actorOnlyAction, untargetedAction, foreign.email, foreign.name]) {
+    expect(await admin.page.content()).not.toContain(value);
+  }
+  await admin.page.goto(`/admin/${foreign.id}`);
+  await expect(audit).toContainText(foreignAction);
+  await expect(audit).toContainText(actorOnlyAction);
+  await expect(audit).not.toContainText(selectedAction);
+  await expect(audit).not.toContainText(untargetedAction);
+  await expect(audit.getByRole("listitem")).toHaveCount(2);
 });
 
 for (const state of ["basic", "pro", "trial", "expired"] as const) {

@@ -182,7 +182,7 @@ test("O4: an administrator needs no activation code but still sees the remaining
 test("O5: a read-only workspace view offers no setup actions", async ({ setup }) => {
   const admin = await setup.create({ role: "admin" });
   const recruiter = await setup.create();
-  await admin.page.goto("/admin");
+  await admin.page.goto(`/admin/${recruiter.id}`);
   await admin.page.locator("article", { hasText: recruiter.email }).getByRole("button", { name: /View workspace/i }).click();
   await expect(admin.page.getByRole("status").filter({ hasText: recruiter.email })).toBeVisible();
 

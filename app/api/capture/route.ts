@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeProfileUrl } from "@/lib/urls";
+import { memberIdOrNull } from "@/lib/linkedin";
 import { corsHeaders } from "@/lib/capture";
 import { hashToken } from "@/lib/auth-crypto";
 import { canUseExtension } from "@/lib/extension-access";
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
 type CaptureBody = {
   roleId?: unknown;
   profileUrl?: unknown;
+  memberId?: unknown;
   fullName?: unknown;
   headline?: unknown;
   notes?: unknown;
@@ -120,6 +122,10 @@ export async function POST(request: Request) {
       fullName,
       profileUrl,
       headline: text(body.headline) || null,
+      // LinkedIn's own member id, read from the profile the extension was
+      // looking at. Only stored when it looks like one; it exists to open
+      // LinkedIn's message box later, never to identify anyone elsewhere.
+      memberId: memberIdOrNull(text(body.memberId)),
       notes: text(body.notes) || null,
     },
     select: { id: true, fullName: true },

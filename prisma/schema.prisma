@@ -140,6 +140,11 @@ model Candidate {
   roleId         String
   fullName       String
   profileUrl     String?              // pasted by the recruiter
+  // LinkedIn's own id for this member, read from their profile page by the
+  // extension on the click that saved them. It is the only thing that can open
+  // LinkedIn's message box directly, instead of opening the profile and hunting
+  // for the Message button. Optional: candidates saved by hand do not have one.
+  memberId       String?
   headline       String?
   notes          String?
   stage          String   @default("sourced")

@@ -14,8 +14,8 @@ export const accountColumns = {
   Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus" },
   MessageTemplate: { ...legacyColumns.MessageTemplate, userId: "id" },
   Briefing: legacyColumns.Briefing,
-  SavedSearch: { ...legacyColumns.SavedSearch, userId: "id" },
-  Candidate: { ...legacyColumns.Candidate, stage: "stage" },
+  SavedSearch: { ...legacyColumns.SavedSearch, userId: "id", searchUrl: "text?" },
+  Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?" },
   OutreachLog: legacyColumns.OutreachLog,
   Settings: { ...settingsColumns, userId: "id", captureTokenHash: "discard" },
   AuditEvent: { id: "id", actorId: "id", targetUserId: "id?", action: "text", createdAt: "date" },
@@ -31,7 +31,17 @@ const allModels = allTables.map(modelFor);
 const primaryFor = (table) => table === "ExtensionAccess" ? "userId" : Object.hasOwn(accountColumns, table) ? "id" : table === "LoginThrottle" ? "key" : "tokenHash";
 const passwordPattern = /^scrypt\$32768\$8\$3\$[a-f0-9]{32}\$[a-f0-9]{128}$/;
 const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", "rejected", "placed"];
-const tierDefaults = { accountTier: "basic", trialExpiresAt: null };
+// Columns added after the first multi-account databases were written. A source
+// made before one of these groups existed has none of that group's columns and
+// imports with the defaults below; a source with some of a group but not all of
+// it is refused rather than guessed at. The SQL literal is what the reader
+// selects in place of a column that is not there.
+const lateColumns = {
+  User: { accountTier: { value: "basic", sql: "'basic'" }, trialExpiresAt: { value: null, sql: "NULL" } },
+  SavedSearch: { searchUrl: { value: null, sql: "NULL" } },
+  Candidate: { memberId: { value: null, sql: "NULL" } },
+};
+const lateFor = (table) => lateColumns[table] ?? {};
 const invalid = (detail) => { throw new SafeError(`Invalid multi-account source: ${detail}. No data values are printed.`); };
 const countsFor = (data) => Object.fromEntries(Object.entries(data).map(([model, rows]) => [model, rows.length]));
 
@@ -68,7 +78,9 @@ export function validateAccounts(source, adminEmail) {
   for (const [table, columns] of Object.entries(accountColumns)) {
     const rows = table === "ExtensionAccess" && !Object.hasOwn(source, table) ? [] : source[table];
     if (!Array.isArray(rows)) invalid(`missing ${table} table`);
-    const legacyTiers = table === "User" && rows.every((row) => row && typeof row === "object" && Object.keys(tierDefaults).every((column) => !Object.hasOwn(row, column)));
+    const late = lateFor(table);
+    const fromBefore = Object.keys(late).length > 0 &&
+      rows.every((row) => row && typeof row === "object" && Object.keys(late).every((column) => !Object.hasOwn(row, column)));
     const model = modelFor(table);
     const primary = primaryFor(table);
     byId[table] = new Map();
@@ -76,8 +88,8 @@ export function validateAccounts(source, adminEmail) {
       if (!row || typeof row !== "object" || Object.keys(row).some((column) => !Object.hasOwn(columns, column))) invalid(`unexpected ${table} column`);
       const result = {};
       for (const [column, descriptor] of Object.entries(columns)) {
-        if (legacyTiers && Object.hasOwn(tierDefaults, column)) {
-          result[column] = tierDefaults[column];
+        if (fromBefore && Object.hasOwn(late, column)) {
+          result[column] = late[column].value;
           continue;
         }
         if (!Object.hasOwn(row, column)) invalid(`missing ${table} column`);
@@ -138,8 +150,9 @@ export async function readAccounts(sourcePath) {
         continue;
       }
       const actual = db.prepare(`PRAGMA table_info("${table}")`).all();
-      const legacyTiers = table === "User" && actual.every((column) => !Object.hasOwn(tierDefaults, column.name));
-      if (actual.length !== Object.keys(columns).length - (legacyTiers ? 2 : 0) || actual.some((column) => !Object.hasOwn(columns, column.name))) invalid(`unsupported ${table} columns`);
+      const late = lateFor(table);
+      const fromBefore = Object.keys(late).length > 0 && actual.every((column) => !Object.hasOwn(late, column.name));
+      if (actual.length !== Object.keys(columns).length - (fromBefore ? Object.keys(late).length : 0) || actual.some((column) => !Object.hasOwn(columns, column.name))) invalid(`unsupported ${table} columns`);
       for (const column of actual) {
         const descriptor = columns[column.name];
         const type = descriptor.startsWith("date") ? "DATETIME" : descriptor === "int" ? "INTEGER" : descriptor === "bool" ? "BOOLEAN" : "TEXT";
@@ -148,8 +161,7 @@ export async function readAccounts(sourcePath) {
       }
       if (!Object.hasOwn(accountColumns, table)) continue;
       const selected = Object.keys(columns).map((column) => {
-        if (legacyTiers && column === "accountTier") return `'basic' AS "accountTier"`;
-        if (legacyTiers && column === "trialExpiresAt") return 'NULL AS "trialExpiresAt"';
+        if (fromBefore && Object.hasOwn(late, column)) return `${late[column].sql} AS "${column}"`;
         return columns[column] === "discard" || (table === "ExtensionAccess" && column === "expiresAt") ? `NULL AS "${column}"` : `"${column}"`;
       });
       rows[table] = db.prepare(`SELECT ${selected.join(", ")} FROM "${table}"`).all();

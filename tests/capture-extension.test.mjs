@@ -62,6 +62,8 @@ async function popup(options = {}) {
   const elements = Object.fromEntries([...(options.html || html).matchAll(/<(\w+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)]
     .map(([, tag, attributes, id]) => [id, new Element(tag, attributes)]));
   const stored = { ...(options.stored ?? config) };
+  const listeners = { activated: [], updated: [] };
+  const panel = { opened: [], options: [], closed: 0 };
   const requests = [];
   const responses = [...(options.responses || [])];
   const delays = [];
@@ -87,18 +89,31 @@ async function popup(options = {}) {
         },
         remove: async (keys) => { for (const key of (Array.isArray(keys) ? keys : [keys])) delete stored[key]; },
       } },
-      tabs: { query: async () => {
-        queries += 1;
-        if (options.queryError) throw new Error("No tab access");
-        return options.noTab ? [] : [{ id: 7 }];
-      } },
+      tabs: {
+        query: async () => {
+          queries += 1;
+          if (options.queryError) throw new Error("No tab access");
+          return options.noTab ? [] : [{ id: 7, windowId: 3 }];
+        },
+        onActivated: { addListener: (fn) => listeners.activated.push(fn) },
+        onUpdated: { addListener: (fn) => listeners.updated.push(fn) },
+      },
       scripting: { executeScript: async ({ target, func }) => {
         reads += 1;
         assert.deepEqual(copy(target), { tabId: 7 });
         if (options.injectionError) throw new Error("Cannot access this page");
         return [{ result: extract(func, options.profile) }];
       } },
+      // Chrome 116+ only. Left out by default so every other test also proves
+      // the page still works where there is no side panel to offer.
+      ...(options.sidePanel ? { sidePanel: {
+        open: async (target) => { panel.opened.push(copy(target)); },
+        setOptions: async (settings) => { panel.options.push(copy(settings)); },
+      } } : {}),
+      runtime: { getContexts: async () => options.contexts ?? [{ contextType: "POPUP" }] },
     },
+    location: { hash: options.hash ?? "" },
+    close: () => { panel.closed += 1; },
     fetch: async (url, init) => {
       requests.push({ url, ...init });
       const next = responses.shift() ?? { status: 200, body: { account, roles } };
@@ -117,7 +132,14 @@ async function popup(options = {}) {
   if (options.configSource) vm.runInContext(options.configSource, context);
   await vm.runInContext(options.source || source, context);
   return {
-    elements, stored, requests, responses, delays,
+    elements, stored, requests, responses, delays, listeners, panel,
+    // Walking to the next profile: the tab reports a finished load, and from
+    // then on the page reads whatever `options.profile` now describes.
+    navigate: async (profile) => {
+      options.profile = profile;
+      for (const fn of listeners.updated) await fn(7, { status: "complete" });
+      for (const fn of listeners.activated) await fn({ tabId: 7 });
+    },
     get reads() { return reads; },
     get queries() { return queries; },
     click: (id) => elements[id].dispatch("click"),
@@ -126,7 +148,11 @@ async function popup(options = {}) {
 }
 
 function extract(func, options = {}) {
-  const nodes = options.nodes ?? { "main h1": " Priya   Kaur ", "main .text-body-medium": " Finance Analyst " };
+  const nodes = options.nodes ?? {
+    "main h1": " Priya   Kaur ",
+    "main .text-body-medium": " Finance Analyst ",
+    'a[href*="/messaging/compose/"]': "/messaging/compose/?recipient=ACoAAB1234xyz&profileUrn=urn",
+  };
   const context = vm.createContext({
     location: new URL(options.url || "https://www.linkedin.com/in/priya-kaur/details/experience/?tracking=1"),
     document: {
@@ -150,18 +176,162 @@ test("manifest grants only click-triggered reading and loopback workbench access
     assert.doesNotMatch(text, /basanite|recruiter workbench|capture capture/i);
   }
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "storage"]);
+  assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "sidePanel", "storage"]);
   assert.deepEqual(manifest.host_permissions, ["http://localhost/*", "http://127.0.0.1/*", `${deployment}/*`]);
   assert.doesNotMatch(JSON.stringify(manifest.host_permissions), /linkedin/i);
   assert.doesNotMatch(JSON.stringify(manifest), /unsafe-eval|https:\/\/\*|<all_urls>/i);
   assert.equal(manifest.content_scripts, undefined);
   assert.equal(manifest.background, undefined);
   assert.equal(manifest.action.default_popup, "popup.html");
+  // The side panel is the same page, so it cannot reach anything the popup
+  // could not reach either.
+  assert.deepEqual(manifest.side_panel, { default_path: "popup.html" });
   assert.equal(manifest.optional_host_permissions, undefined);
   assert.equal(manifest.optional_permissions, undefined);
   assert.equal(manifest.content_security_policy.extension_pages,
     `script-src 'self'; object-src 'self'; connect-src http://localhost:* http://127.0.0.1:* ${deployment};`);
   assert.doesNotMatch(html, /workbench\.js|https?:\/\/[^<]+<\/script>/);
+});
+
+const otherProfile = {
+  url: "https://www.linkedin.com/in/sam-okafor/",
+  title: "Sam Okafor | LinkedIn",
+  nodes: { "main h1": " Sam Okafor ", "main .text-body-medium": " Plant Manager " },
+};
+
+test("a browser without a side panel is never offered one", async () => {
+  const p = await popup();
+  assert.equal(p.elements["panel-open"].hidden, true);
+  assert.equal(p.elements["panel-close"].hidden, true);
+  assert.equal(p.elements.eyebrow.hidden, false);
+  assert.equal(p.elements.page.className, "");
+  assert.equal(p.elements.capture.hidden, false);
+  assert.equal(p.elements.name.value, "Priya Kaur");
+});
+
+test("the popup offers to keep Capture open, and opens the panel for the whole window", async () => {
+  const p = await popup({ sidePanel: true });
+  assert.equal(p.elements["panel-open"].hidden, false);
+  assert.equal(p.elements["panel-open"].textContent, "Keep open");
+  assert.equal(p.elements["panel-close"].hidden, true);
+  await p.click("panel-open");
+  // For the window, not the tab: a tab-scoped panel would vanish on the next
+  // profile, which is the entire thing being fixed here.
+  assert.deepEqual(p.panel.opened, [{ windowId: 3 }]);
+  assert.deepEqual(p.panel.options.at(-1), { path: "popup.html#panel", enabled: true });
+  assert.equal(p.stored.panelPinned, true);
+  assert.equal(p.panel.closed, 0);
+});
+
+test("a popup opened while the panel is pinned says so", async () => {
+  const p = await popup({ sidePanel: true, stored: { ...config, panelPinned: true } });
+  assert.equal(p.elements["panel-open"].textContent, "Show panel");
+});
+
+test("the page opened as a panel knows it, offers a way out and is remembered", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel" });
+  assert.equal(p.elements.page.className, "surface-panel");
+  assert.equal(p.elements["panel-close"].hidden, false);
+  assert.equal(p.elements["panel-open"].hidden, true);
+  assert.equal(p.elements.eyebrow.hidden, true);
+  assert.equal(p.stored.panelPinned, true);
+  assert.equal(p.elements.capture.hidden, false);
+  await p.click("panel-close");
+  assert.equal(p.panel.closed, 1);
+  assert.equal(p.stored.panelPinned, false);
+});
+
+test("a panel opened from Chrome's own menu still recognises itself", async () => {
+  // No hash, because nothing of ours put one there. No popup context is open,
+  // and this page is running, so this page is the panel.
+  const p = await popup({ sidePanel: true, contexts: [] });
+  assert.equal(p.elements.page.className, "surface-panel");
+  assert.equal(p.elements["panel-close"].hidden, false);
+});
+
+test("the panel follows the recruiter to the next profile", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel" });
+  assert.equal(p.elements.name.value, "Priya Kaur");
+  await p.edit("notes", "Worth a call.");
+  await p.navigate(otherProfile);
+  assert.equal(p.elements.name.value, "Sam Okafor");
+  assert.equal(p.elements.headline.value, "Plant Manager");
+  assert.equal(p.elements.profile.value, "https://www.linkedin.com/in/sam-okafor/");
+  // The note was about somebody else.
+  assert.equal(p.elements.notes.value, "");
+  assert.equal(p.elements.message.textContent, "");
+  assert.equal(p.elements.reread.hidden, true);
+  assert.equal(p.requests.length, 1, "navigating is not a reason to talk to the workbench");
+});
+
+test("staying on the same profile does not disturb a note being typed", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel" });
+  await p.edit("notes", "Worth a call.");
+  await p.navigate(undefined);
+  assert.equal(p.elements.notes.value, "Worth a call.");
+  assert.equal(p.elements.name.value, "Priya Kaur");
+});
+
+test("a panel refused a read after navigation empties the fields rather than guessing", async () => {
+  const options = { sidePanel: true, hash: "#panel" };
+  const p = await popup(options);
+  await p.edit("notes", "Worth a call.");
+  options.injectionError = true;
+  await p.navigate(otherProfile);
+  for (const id of ["name", "headline", "profile"]) assert.equal(p.elements[id].value, "");
+  // The note is the one thing nobody else could have written. It survives, and
+  // without a name it cannot be saved against the wrong person.
+  assert.equal(p.elements.notes.value, "Worth a call.");
+  assert.equal(p.elements.reread.hidden, false);
+  assert.match(p.elements.message.textContent, /toolbar icon/);
+  assert.equal(p.elements.message.className, "message bad");
+
+  // The recruiter clicks the toolbar icon, which is what grants the read, then
+  // asks the panel to try again.
+  options.injectionError = false;
+  options.profile = otherProfile;
+  await p.click("reread");
+  assert.equal(p.elements.name.value, "Sam Okafor");
+  assert.equal(p.elements.reread.hidden, true);
+  assert.equal(p.elements.message.textContent, "");
+});
+
+test("a load finishing in another tab leaves the panel alone", async () => {
+  const options = { sidePanel: true, hash: "#panel" };
+  const p = await popup(options);
+  await p.edit("notes", "Worth a call.");
+  const before = p.reads;
+  options.injectionError = true;
+  // Some other tab the recruiter left loading in the background.
+  for (const fn of p.listeners.updated) await fn(99, { status: "complete" });
+  assert.equal(p.reads, before, "an unrelated tab is not a reason to read this one");
+  assert.equal(p.elements.name.value, "Priya Kaur");
+  assert.equal(p.elements.notes.value, "Worth a call.");
+  assert.equal(p.elements.message.textContent, "");
+});
+
+test("a refused re-read keeps whatever was typed by hand", async () => {
+  const options = { sidePanel: true, hash: "#panel", injectionError: true };
+  const p = await popup(options);
+  assert.equal(p.elements.reread.hidden, false);
+  await p.edit("name", "Sam Okafor");
+  await p.edit("notes", "Met at the plant tour.");
+  await p.click("reread");
+  assert.equal(p.elements.name.value, "Sam Okafor");
+  assert.equal(p.elements.notes.value, "Met at the plant tour.");
+  assert.match(p.elements.message.textContent, /toolbar icon/);
+});
+
+test("the panel saves the profile it is showing, exactly as the popup does", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel", responses: [{ status: 200, body: { account, roles } }, saved] });
+  await p.navigate(otherProfile);
+  await p.edit("notes", "Runs the Leeds site.");
+  await p.click("save");
+  const body = JSON.parse(p.requests[1].body);
+  assert.equal(body.fullName, "Sam Okafor");
+  assert.equal(body.profileUrl, "https://www.linkedin.com/in/sam-okafor/");
+  assert.equal(body.notes, "Runs the Leeds site.");
+  assert.equal(p.elements.save.disabled, true);
 });
 
 test("first run does not request data or read a tab until connected", async () => {
@@ -188,6 +358,21 @@ test("capture prefills the profile, recalls the role, focuses empty notes and ne
   assert.equal(p.elements.notes.focused, true);
   assert.equal(p.requests.length, 1);
   assert.equal(p.reads, 1);
+});
+
+test("the member id is read from the profile's own Message link, or left empty", async () => {
+  // It is not a field: LinkedIn's id is not something anyone would type, and it
+  // exists only so the workbench can open the message box instead of the
+  // profile later. Nothing extra is read to get it - it is on the page already.
+  const p = await popup();
+  p.responses.push(saved);
+  await p.click("save");
+  assert.equal(JSON.parse(p.requests.at(-1).body).memberId, "ACoAAB1234xyz");
+
+  const bare = await popup({ profile: { nodes: { "main h1": "No Message Link" } } });
+  bare.responses.push(saved);
+  await bare.click("save");
+  assert.equal(JSON.parse(bare.requests.at(-1).body).memberId, "");
 });
 
 test("stale last role falls back to an available role", async () => {
@@ -227,7 +412,7 @@ for (const [label, options] of [
     await p.click("save");
     assert.deepEqual(JSON.parse(p.requests.at(-1).body), {
       roleId: "role-b", fullName: "Manual Name", headline: "Edited headline",
-      profileUrl: "www.linkedin.com/in/manual/", notes: "My own judgement",
+      profileUrl: "www.linkedin.com/in/manual/", notes: "My own judgement", memberId: "",
     });
   });
 }
@@ -707,7 +892,7 @@ test("packager makes a standalone exact-host build and leaves source loopback-on
   assert.deepEqual(packaged.host_permissions,
     ["http://localhost/*", "http://127.0.0.1/*", "https://workbench.example.test/*"]);
   assert.doesNotMatch(JSON.stringify(packaged.host_permissions), new RegExp(deployment));
-  assert.deepEqual(packaged.permissions, ["activeTab", "scripting", "storage"]);
+  assert.deepEqual(packaged.permissions, ["activeTab", "scripting", "sidePanel", "storage"]);
   for (const key of ["background", "content_scripts", "optional_permissions", "optional_host_permissions"]) {
     assert.equal(packaged[key], undefined);
   }

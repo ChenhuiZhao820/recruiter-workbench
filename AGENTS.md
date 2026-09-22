@@ -3,9 +3,12 @@
 A private workspace for a recruiter's pipeline. The main application never contacts
 LinkedIn: it only builds a profile or search URL and opens it on a user click.
 The optional Capture extension uses a toolbar click for one active-tab
-profile read via `activeTab` and `scripting`. No LinkedIn host permissions,
-registered content scripts, background page reading, bulk capture, polling,
-crawling or automated messaging. Fields remain editable, notes are written only
+profile read via `activeTab` and `scripting`. It may also live in Chrome's side
+panel (`sidePanel`), which changes where the same page sits, not what it may
+read. No LinkedIn host permissions, registered content scripts, background page
+reading, bulk capture, polling, crawling or automated messaging. Fields remain
+editable, notes are written only by the user, and saving requires a user click. This click-triggered exception
+reading, bulk capture, polling, crawling or automated messaging. Fields remain editable, notes are written only
 by the user, and saving requires a user click. This click-triggered exception
 supersedes the former blanket prohibition on extensions and page reading.
 
@@ -76,6 +79,67 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   are not displayed. `tests/01-walkthrough.spec.ts` covers toggling, keyboard/mobile
   use and legacy compatibility; the AI stub checks the questions-only prompt and
   deliberately returns extra answer fields to verify they are discarded.
+- Outbound message text passes through `normalizeMessage` in `lib/render.ts`:
+  one kind of line ending, no trailing spaces, at most one blank line between
+  paragraphs, nothing before the first word or after the last. Single newlines
+  and indentation survive, so lists stay lists. It runs on the rendered message,
+  on a template as it is saved, and on the body recorded by `markAsSent`, so the
+  preview, the count judged against the connection-note limit, the clipboard and
+  the outreach log cannot disagree. Route new outbound text through it rather
+  than tidying whitespace at the point of copying. `tests/03-render.spec.ts`
+  covers it as a pure function alongside the article rule.
+
+- A saved search may carry `SavedSearch.searchUrl`: an address the recruiter
+  copied out of LinkedIn or Recruiter after building and saving the search
+  there. Industries and Recruiter's filters cannot be expressed in an address
+  this app composes, so that one is reopened as given. `lib/linkedin.ts` only
+  validates it (HTTPS, a linkedin.com host including country subdomains, a
+  path under `/talent/` or `/search/`) and never parses, rewrites, keeps in
+  step with a filter table, or requests it. A refused address is reported, not
+  dropped. With a link present the filter chips stay visible but stop claiming
+  to be a re-tick checklist; without one, Run search still builds the keyword
+  people-search URL as before.
+
+- `/roles/[id]/outreach` is the guided outreach queue: one shortlist, one
+  template, one candidate on screen, with `?c=` ids and `?i=` index in the
+  address. It removes navigation only. It must never send, paste into another
+  site, open anything on its own, advance without a click, or offer an
+  "open all"/"send all"/auto-advance control: that is what makes a recruiter's
+  own LinkedIn account look automated, and the restriction lands on them.
+  `tests/10-outreach-queue.spec.ts` asserts the absence of those controls, so
+  adding one fails the suite rather than shipping quietly.
+- Queue ids are scoped server-side to the role and the owner before anything is
+  rendered; unknown or foreign ids are dropped rather than reported. Both the
+  single-candidate page and the queue record through one `recordSend` helper in
+  `app/actions/outreach.ts`, so "contacted", the nudge counters and the log
+  cannot differ by route. `markSentAndAdvance` only redirects to a path matching
+  this app's own queue route.
+- `components/OutreachStep.tsx` holds the one message on screen. It is editable,
+  so personalising someone's line does not mean a trip into LinkedIn and back,
+  and what is copied is what `markSentAndAdvance` records. The length count and
+  the gap check run against the edited text, not the rendered template.
+- One control does the two things that always happened together: the message
+  goes to the clipboard and LinkedIn opens. Where it opens is the only
+  difference. `Candidate.memberId` holds LinkedIn's own member id, read from the
+  profile's Message link by the extension on the click that saved the candidate;
+  with it, `messageComposeUrl` in `lib/linkedin.ts` opens LinkedIn's message box
+  itself, and without it the profile opens and the Message button is the
+  recruiter's to find. The address carries a recipient and nothing else -
+  LinkedIn has no parameter for a message body.
+- Pasting stays with the recruiter on purpose. Writing the draft into LinkedIn's
+  own box would need a user gesture per page under `activeTab`, so the cheapest
+  version of it costs the same one keystroke as Ctrl+V; the only way around that
+  is a standing LinkedIn host permission and a content script, which is exactly
+  what makes an extension look like an automation tool. Do not trade the
+  compliance line for a keystroke.
+- `Candidate.memberId` is additive and nullable, applied as
+  `20260922000000_candidate_member_id`. Candidates added by hand have none, and
+  every path must keep working without it.
+- `lib/pace.ts` counts what has been logged today and the invitations logged in
+  the last seven days, and says so on every screen of a run, with a stronger
+  line as the weekly invitation count climbs. It is advisory and never blocks a
+  send: the real limit is LinkedIn's, unpublished and per account. Keep the
+  counting honest and the thresholds conservative rather than precise.
 
 ## Accounts and authorization
 
@@ -154,6 +218,17 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   Never move ZIPs into public/ or trust a request-supplied workbench origin.
 - Installation still requires desktop Chrome Developer mode / Load unpacked. No
   silent installation or automatic unpacked-extension updates are promised.
+- The popup and the side panel are one file, `popup.html`, opened twice. The
+  panel is opened only from a click, at `popup.html#panel`, and recognises itself
+  by that fragment or by the absence of a popup context. Never give the panel a
+  capability the popup lacks, and never let it read a page without a click: its
+  only extra permission is `sidePanel`. Because the panel outlives the page it
+  read, it watches `tabs.onActivated`/`onUpdated` (no `tabs` permission, no URL
+  access) and, when the tab it read moves, refills from a permitted read or
+  clears the page-derived fields and asks for one. A stale profile must never
+  sit under a new page, and a typed note is never discarded by a refused read.
+- `lib/extension-package.mjs` pins the permission list exactly, so any change to
+  it is a deliberate, reviewed edit in the packager, its tests and this file.
 - Deploy the additive `20260910000000_extension_access` PostgreSQL migration before
   serving the new app. Do not edit the old initial migration or apply changes to
   real local/hosted databases without approval. Builds do not apply migrations.
@@ -234,6 +309,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Independently verify before opening the app with `--verify` instead of --apply.
   Existing passwords work on the hosted app; users must sign in again and create
   new capture keys. Pending accounts need fresh activation links from Admin.
+- Columns added after the first multi-account databases existed are listed in
+  `lateColumns` in `scripts/import-accounts.mjs` (account tiers, and a saved
+  search's `searchUrl`). A source from before a group has none of that group's
+  columns and imports with the stated defaults; a source with part of a group is
+  refused, not guessed at. Add any future column there, with a test for both the
+  old and the current shape, or the importer will reject current databases.
 - Extension grants and their ownership/activation timestamps are preserved by
   account migration. Pending extension code hashes and expiry dates are discarded
   at source projection; Admin must replace unused codes after cutover. Older
@@ -286,6 +367,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   and any change to the file fails verification. To retire the column, drop it and its `_prisma_migrations` row as its own approved,
   backed-up operation. The run's dump and reports are in `prisma/private-local/`.
 
+- On 2026-09-22, `20260922000000_candidate_member_id` was applied and registered
+  on the hosted database the same way: preflight identity/TLS check, a
+  custom-format dump restored into a disposable container, the migration
+  rehearsed there against unchanged table contents, then one transaction on the
+  hosted database with the same verification. All 19 existing candidates came
+  out with a null `memberId`, as an additive nullable column must. The local
+  account database received the equivalent column. The dump and the two reports
+  are in ignored `prisma/private-local/`, alongside the run script.
+
 ## Searches and LinkedIn industry filters
 
 - Of the three LinkedIn search surfaces, only two carry their filters in the
@@ -335,6 +425,6 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 Review LinkedIn references: allow clicked profile/search URLs, placeholders,
 documentation, fixtures, and the extension's single-profile extraction. Never
 fetch LinkedIn from the app or extension. Verify extension permissions remain
-`activeTab`, `scripting`, `storage`, no content scripts/background, and host access
-limited to loopback plus the packaged workbench host. Run unit and account-isolation
+`activeTab`, `scripting`, `sidePanel`, `storage`, no content scripts/background, and
+host access limited to loopback plus the packaged workbench host. Run unit and account-isolation
 regressions, including foreign IDs, read-only admin views and revoked capture keys.

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
 import { parseStringArray } from "@/lib/json";
+import { industryIds, parseIndustries } from "@/lib/linkedin-industries";
+import { CopyButton } from "@/components/CopyButton";
 import { formatWhen } from "@/lib/dates";
 import { deleteSearch, duplicateSearch, renameSearch } from "@/app/actions/searches";
 import { RunSearchButton } from "@/components/RunSearchButton";
@@ -41,8 +43,9 @@ export default async function SearchesPage() {
         </Link>}
       </header>
       <p className="mb-8 max-w-3xl border-l-2 border-accent pl-4 text-sm leading-relaxed text-ink-soft">
-        Run opens LinkedIn in a new tab with your keywords. Apply the saved filters there by
-        hand, using each record&apos;s checklist.
+        Run opens LinkedIn in a new tab with your keywords and industries already applied.
+        Recruiter keeps its filters to itself, so there the industry names are yours to paste
+        into its own filter - copy them straight from the search.
       </p>
 
       {searches.length === 0 ? (
@@ -63,7 +66,7 @@ export default async function SearchesPage() {
               </h2>
               <ul className="grid items-start gap-4 xl:grid-cols-2">
                 {groups.get(groupName)!.map((s) => {
-                  const industries = parseStringArray(s.industries);
+                  const industries = parseIndustries(s.industries);
                   const locations = parseStringArray(s.locations);
                   const keywords = [s.keywords, ...parseStringArray(s.titles)]
                     .filter(Boolean)
@@ -90,7 +93,7 @@ export default async function SearchesPage() {
                       {(industries.length > 0 || locations.length > 0 || s.filterNotes) && (
                         <div className="mt-2 text-sm">
                           <p className="font-mono text-xs uppercase tracking-wide text-ink/60">
-                            Apply these filters in LinkedIn after it opens:
+                            {s.searchUrl ? "Saved in LinkedIn with these filters:" : "Filters:"}
                           </p>
                           <ul className="mt-1 flex flex-wrap gap-2">
                             {locations.map((l, i) => (
@@ -100,15 +103,30 @@ export default async function SearchesPage() {
                             ))}
                             {industries.map((ind, i) => (
                               <li key={`i-${i}`} className="chip">
-                                Industry: {ind}
+                                Industry: {ind.label}
                               </li>
                             ))}
                             {s.filterNotes && <li className="chip">{s.filterNotes}</li>}
                           </ul>
+                          {industries.length > 0 && (
+                            <p className="mt-2">
+                              <CopyButton
+                                className="btn-quiet"
+                                label="Copy industries for Recruiter"
+                                text={industries.map((i) => i.label).join("\n")}
+                              />
+                            </p>
+                          )}
                         </div>
                       )}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} />}
+                        {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton
+                            searchId={s.id}
+                            keywords={keywords}
+                            industryIds={industryIds(industries)}
+                            searchUrl={s.searchUrl}
+                            hasRunBefore={Boolean(s.lastUsedAt)}
+                          />}
                         <Link href={`/searches/${s.id}/edit`} className="btn-quiet">
                           {readOnly ? "View details" : "Edit"}
                         </Link>

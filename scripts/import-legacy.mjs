@@ -7,7 +7,7 @@ import { SafeError, businessModels, lockTarget, normalizeEmail, parseArgs, requi
 export const legacyColumns = {
   Role: { id: "id", title: "text", client: "text?", jobDesc: "text?", status: "text", createdAt: "date", updatedAt: "date" },
   Briefing: { id: "id", roleId: "id", dayToDay: "text", keySkills: "text", searchTitles: "text", targetCompanies: "text", salaryRange: "text", firstCallQuestions: "text", createdAt: "date" },
-  SavedSearch: { id: "id", name: "text", roleId: "id?", groupLabel: "text?", titles: "text", keywords: "text", industries: "text", locations: "text", filterNotes: "text?", lastUsedAt: "date?", createdAt: "date", updatedAt: "date" },
+  SavedSearch: { id: "id", name: "text", roleId: "id?", groupLabel: "text?", titles: "text", keywords: "text", industries: "text", locations: "text", filterNotes: "text?", searchUrl: "text?", lastUsedAt: "date?", createdAt: "date", updatedAt: "date" },
   Candidate: { id: "id", roleId: "id", fullName: "text", profileUrl: "text?", headline: "text?", notes: "text?", stage: "text", lastActivityAt: "date", lastNudgeAt: "date?", nudgeCount: "int", createdAt: "date", updatedAt: "date" },
   MessageTemplate: { id: "id", name: "text", body: "text", kind: "kind", createdAt: "date", updatedAt: "date" },
   OutreachLog: { id: "id", candidateId: "id", templateId: "id?", renderedBody: "text", kind: "kind", sentAt: "date" },

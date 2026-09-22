@@ -32,8 +32,8 @@ export default async function NewSearchPage({
       </header>
       <div className="mb-6 border-l-2 border-accent bg-surface p-5">
         <h2 className="section-heading"><span aria-hidden="true" className="section-number">01</span> Search essentials</h2>
-        <p className="section-caption">Saved searches open LinkedIn with your keywords filled in. You apply the location and
-        industry filters inside LinkedIn, using the checklist saved here.</p>
+        <p className="section-caption">Saved searches open LinkedIn with your keywords and industries already applied.
+        Recruiter keeps its own filters, so there the industry names are yours to paste into it.</p>
       </div>
       <SearchForm
         roles={roles}

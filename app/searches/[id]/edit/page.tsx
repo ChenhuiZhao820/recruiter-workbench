@@ -35,7 +35,7 @@ export default async function EditSearchPage({ params }: { params: { id: string 
       </header>
       <div className="mb-6 border-l-2 border-accent bg-surface p-5">
         <h2 className="section-heading"><span aria-hidden="true" className="section-number">01</span> Search essentials</h2>
-        <p className="section-caption">Keywords open in LinkedIn. Your saved filters stay here as a checklist.</p>
+        <p className="section-caption">Keywords and industries open in LinkedIn together.</p>
       </div>
       <SearchForm
         roles={roles}
@@ -46,9 +46,10 @@ export default async function EditSearchPage({ params }: { params: { id: string 
           groupLabel: search.groupLabel ?? "",
           titles: parseStringArray(search.titles).join(", "),
           keywords: search.keywords,
-          industries: parseStringArray(search.industries).join(", "),
+          industries: search.industries,
           locations: parseStringArray(search.locations).join(", "),
           filterNotes: search.filterNotes ?? "",
+          searchUrl: search.searchUrl ?? "",
         }}
       />
     </fieldset>

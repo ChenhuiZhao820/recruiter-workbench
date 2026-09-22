@@ -12,6 +12,7 @@ import { addCandidate, deleteCandidate, setCandidateStage, updateCandidate } fro
 import { deleteRole } from "@/app/actions/roles";
 import { GenerateBriefingButton } from "@/components/GenerateBriefingButton";
 import { StageBadge } from "@/components/StageBadge";
+import { industryIds, parseIndustries } from "@/lib/linkedin-industries";
 import { RunSearchButton } from "@/components/RunSearchButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { ActionForm } from "@/components/ActionForm";
@@ -405,7 +406,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
         ) : (
           <ul className="space-y-3">
             {role.searches.map((s) => {
-              const industries = parseStringArray(s.industries);
+              const industries = parseIndustries(s.industries);
               const locations = parseStringArray(s.locations);
               const keywords = [s.keywords, ...parseStringArray(s.titles)].filter(Boolean).join(" ");
               return (
@@ -420,7 +421,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   {(industries.length > 0 || locations.length > 0 || s.filterNotes) && (
                     <div className="mt-2 text-sm">
                       <p className="font-mono text-xs uppercase tracking-wide text-ink/60">
-                        Apply these filters in LinkedIn after it opens:
+                        Filters:
                       </p>
                       <ul className="mt-1 flex flex-wrap gap-2">
                         {locations.map((l, i) => (
@@ -430,7 +431,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                         ))}
                         {industries.map((ind, i) => (
                           <li key={`i-${i}`} className="chip">
-                            Industry: {ind}
+                            Industry: {ind.label}
                           </li>
                         ))}
                         {s.filterNotes && <li className="chip">{s.filterNotes}</li>}
@@ -438,7 +439,13 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton searchId={s.id} keywords={keywords} />}
+                    {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton
+                        searchId={s.id}
+                        keywords={keywords}
+                        industryIds={industryIds(industries)}
+                        searchUrl={s.searchUrl}
+                        hasRunBefore={Boolean(s.lastUsedAt)}
+                      />}
                     <Link href={`/searches/${s.id}/edit`} className="btn-quiet">
                       {readOnly ? "View details" : "Edit"}
                     </Link>

@@ -1,5 +1,6 @@
 import { createSearch, updateSearch } from "@/app/actions/searches";
 import { ActionForm } from "@/components/ActionForm";
+import { IndustryPicker } from "@/components/IndustryPicker";
 
 type RoleOption = { id: string; title: string; client: string | null; status?: string };
 
@@ -18,6 +19,7 @@ export function SearchForm({
     industries?: string;
     locations?: string;
     filterNotes?: string;
+    searchUrl?: string;
   };
   searchId?: string;
 }) {
@@ -91,18 +93,7 @@ export function SearchForm({
         />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="s-industries" className="field-label">
-            Industries (comma separated, applied by hand in LinkedIn)
-          </label>
-          <input
-            id="s-industries"
-            name="industries"
-            defaultValue={initial.industries ?? ""}
-            className="field-input"
-            placeholder="Manufacturing, Logistics"
-          />
-        </div>
+        <IndustryPicker name="industries" initial={initial.industries ?? "[]"} />
         <div>
           <label htmlFor="s-locations" className="field-label">
             Locations (comma separated, applied by hand in LinkedIn)
@@ -116,6 +107,29 @@ export function SearchForm({
           />
         </div>
       </div>
+      {initial.searchUrl ? (
+        <div>
+          <label htmlFor="s-url" className="field-label">
+            Saved LinkedIn search link
+          </label>
+          <input
+            id="s-url"
+            name="searchUrl"
+            type="url"
+            defaultValue={initial.searchUrl}
+            className="field-input"
+            spellCheck={false}
+          />
+          <p className="mt-1 text-sm text-ink-soft">
+            Run opens this search in LinkedIn with its own filters. Clear the field to go back
+            to a keyword search built from the fields above.
+          </p>
+        </div>
+      ) : (
+        // Not asked for up front: Capture offers it on the second run, when it
+        // has been earned. Kept here so saving a search never drops it.
+        <input type="hidden" name="searchUrl" value="" />
+      )}
       <div>
         <label htmlFor="s-notes" className="field-label">
           Other filter notes (optional)

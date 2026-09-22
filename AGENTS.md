@@ -278,17 +278,49 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   the hosted data. Recheck live migration state before future operations.
 - On 2026-09-21, `20260921000000_saved_search_url` was applied and registered the
   same way, on the hosted database and on the local account database, each after
-  its own backup and restore rehearsal. The feature it was for was then reverted,
-  so `SavedSearch."searchUrl"` exists in both databases, with no rows using it,
-  while `prisma/schema.prisma` deliberately does not declare it. The databases
-  are one harmless nullable column ahead of the code; the reverted code never
-  selects it. Keep the migration directory: deleting it would leave an applied
+  its own backup and restore rehearsal. The feature it was for was reverted and has
+  since returned, so both schemas declare `searchUrl` again and no second
+  migration was written for it - the column was already applied everywhere. Keep the migration directory: deleting it would leave an applied
   migration with no local counterpart and `db:deploy:hosted` would refuse to run.
   Never edit its SQL either - its checksum is recorded in `_prisma_migrations`,
-  and any change to the file fails verification. If the feature returns, add the
-  field back to the schema without writing a second migration. To retire it
-  instead, drop the column and its `_prisma_migrations` row as its own approved,
+  and any change to the file fails verification. To retire the column, drop it and its `_prisma_migrations` row as its own approved,
   backed-up operation. The run's dump and reports are in `prisma/private-local/`.
+
+## Searches and LinkedIn industry filters
+
+- Of the three LinkedIn search surfaces, only two carry their filters in the
+  address. Classic `/search/results/people/` takes facet lists of LinkedIn's own
+  ids (`industry=["25"]`); Sales Navigator serialises its whole filter tree.
+  **Recruiter `/talent/search` carries only opaque ids** - `searchContextId`,
+  `searchHistoryId`, `searchRequestId` - and keeps the filters server side, so
+  industries cannot be written into a Recruiter address from out here. Do not
+  add code that pretends otherwise.
+- `lib/linkedin-industries.json` is LinkedIn's published industries-v2 taxonomy,
+  vendored: 434 active entries with the id its filters use, its exact label and
+  the hierarchy path. LinkedIn's deprecated ("Inactive Nodes") entries are
+  deliberately excluded. Nothing fetches this at runtime; it changes only when
+  someone regenerates the file from LinkedIn's reference table.
+- `lib/linkedin-industries.ts` matches a recruiter's own wording against that
+  table over label, hierarchy path and a small alias list (pharma, logistics,
+  fintech and the like). `components/IndustryPicker.tsx` stores only entries
+  LinkedIn recognises, as `{id,label}` in the existing `industries` JSON column.
+  Free text saved before the picker stays readable and is offered real matches
+  on edit; it has no id, so it cannot reach a URL. Keep `parseIndustries`
+  tolerant of both shapes rather than migrating the column.
+- `RunSearchButton` opens a saved LinkedIn link when there is one, otherwise a
+  classic search with the picked industry ids already applied. Industry labels
+  also get a copy control, because pasting them into Recruiter's own filter is
+  the only way industries reach Recruiter.
+- `SavedSearch.searchUrl` is never asked for up front. It is offered once a
+  search has been run before, saved through `attachSearchLink`, and can be
+  edited or cleared afterwards on the edit form. The address stays opaque: it is
+  validated as an HTTPS linkedin.com `/talent/` or `/search/` address and opened
+  on a click, never parsed, rewritten, kept in step with the industry table, or
+  requested.
+- Automating LinkedIn's own filter controls is out of bounds, from the app and
+  from the extension alike. It is the one part of this that would put the
+  recruiter's account at risk, and the saved link plus the copy control exist so
+  it is never needed.
 
 ## Layout
 

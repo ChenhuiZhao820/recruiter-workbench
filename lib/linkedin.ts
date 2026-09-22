@@ -60,3 +60,28 @@ export function searchLinkProblem(value: string): string | null {
   if (!value.trim() || searchLinkUrl(value)) return null;
   return "That is not a LinkedIn search address. Run the search in LinkedIn or Recruiter, copy the address from the browser bar, and paste it here. It must start with https:// and be a linkedin.com/talent/... or linkedin.com/search/... address.";
 }
+
+// --- opening the message box ------------------------------------------------
+//
+// A profile link opens the profile, where the recruiter still has to find the
+// Message button. LinkedIn's compose address opens the message box itself, but
+// it is keyed by LinkedIn's own member id rather than by the vanity name in the
+// profile link, so it is only available for candidates the extension saved.
+//
+// Still just an address opened on a click. It carries a recipient and nothing
+// else: LinkedIn has no parameter for the message body, and this app does not
+// type into anyone else's page.
+const MEMBER_ID = /^[A-Za-z0-9_-]{5,60}$/;
+
+// The id as LinkedIn writes it, or null. Used on the way in as well as out, so
+// a value that could never open a message box is never stored in the first place.
+export function memberIdOrNull(value: string | null | undefined): string | null {
+  const id = (value ?? "").trim();
+  return MEMBER_ID.test(id) ? id : null;
+}
+
+export function messageComposeUrl(memberId: string | null | undefined): string {
+  const id = (memberId ?? "").trim();
+  if (!MEMBER_ID.test(id)) return "";
+  return `https://www.linkedin.com/messaging/compose/?recipient=${encodeURIComponent(id)}`;
+}

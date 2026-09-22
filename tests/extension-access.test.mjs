@@ -299,6 +299,7 @@ test("capture GET and POST deny preexisting keys without entitlement and retain 
           "next/cache": { revalidatePath: () => {} },
           "@/lib/auth-crypto": crypto, "@/lib/extension-access": access,
           "@/lib/urls": { normalizeProfileUrl: (url) => url },
+          "@/lib/linkedin": { memberIdOrNull: (value) => value || null },
           "@/lib/capture": { corsHeaders: () => ({ "Access-Control-Allow-Origin": "chrome-extension://fixture" }) },
           "@/lib/db": { db: {
             settings: { findUnique: async ({ select }) => {

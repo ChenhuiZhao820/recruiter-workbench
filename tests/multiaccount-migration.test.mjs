@@ -47,7 +47,7 @@ async function seedSource(db) {
     await db.role.create({ data: { id: roleId, userId, title: `${label} role`, client: `${label} client`, jobDesc: `${label} private job description`, status: index ? "closed" : "open", createdAt, updatedAt } });
     await db.messageTemplate.create({ data: { id: templateId, userId, name: `${label} template`, body: `${label} private {{first_name}} template`, kind: index ? "connection_note" : "message", createdAt, updatedAt } });
     await db.briefing.create({ data: { id: `fixture-briefing-${label}`, roleId, dayToDay: `${label} day to day`, keySkills: '[{"skill":"fixture","real_vs_buzzword":"real"}]', searchTitles: '["Fixture title"]', targetCompanies: '["Fixture company"]', salaryRange: "Fixture salary", firstCallQuestions: '[{"question":"fixture","strong_answer":"yes","weak_answer":"no"}]', createdAt } });
-    await db.savedSearch.create({ data: { id: `fixture-search-${label}`, userId, roleId, name: `${label} search`, groupLabel: `${label} group`, titles: '["Fixture title"]', keywords: `${label} keywords`, industries: '["Fixture industry"]', locations: '["Fixture location"]', filterNotes: `${label} private filter notes`, lastUsedAt: updatedAt, createdAt, updatedAt } });
+    await db.savedSearch.create({ data: { id: `fixture-search-${label}`, userId, roleId, name: `${label} search`, groupLabel: `${label} group`, titles: '["Fixture title"]', keywords: `${label} keywords`, industries: '["Fixture industry"]', locations: '["Fixture location"]', filterNotes: `${label} private filter notes`, searchUrl: `https://www.linkedin.com/talent/search?searchContextId=${label}`, lastUsedAt: updatedAt, createdAt, updatedAt } });
     await db.candidate.create({ data: { id: candidateId, roleId, fullName: `${label} Fixture Candidate`, profileUrl: `https://profiles.fixture.invalid/${label}`, headline: `${label} headline`, notes: `${label} private candidate notes`, stage: index ? "booking_pending" : "contacted", lastActivityAt: updatedAt, lastNudgeAt: createdAt, nudgeCount: index + 2, createdAt, updatedAt } });
     await db.outreachLog.create({ data: { id: `fixture-outreach-${label}`, candidateId, templateId, renderedBody: `${label} private rendered outreach`, kind: index ? "connection_note" : "message", sentAt: updatedAt } });
     await db.settings.create({ data: { id: index + 7, userId, recruiterName: `${label} custom name`, calendarLink: `https://calendar.fixture.invalid/${label}`, bookingChaseDays: index + 3, quietNudgeDays: index + 8, captureTokenHash: captureHashes[index] } });
@@ -290,6 +290,40 @@ test("pre-tier SQLite snapshots project basic and null without source writes and
     }
   });
   assert.deepEqual(await readFile(path), before);
+});
+
+test("SQLite sources from before saved search links project null and import safely", async () => {
+  const path = join(directory, "pre-search-url-source.db");
+  await copyFile(sourcePath, path);
+  const sqlite = new DatabaseSync(path);
+  try {
+    const columns = sqlite.prepare('PRAGMA table_info("SavedSearch")').all().map((column) => column.name);
+    if (columns.includes("searchUrl")) sqlite.exec('ALTER TABLE "SavedSearch" DROP COLUMN "searchUrl"');
+  } finally { sqlite.close(); }
+  const before = await readFile(path);
+  const legacy = await readAccounts(path);
+  assert.ok(legacy.SavedSearch.length > 0);
+  for (const row of legacy.SavedSearch) assert.equal(row.searchUrl, null);
+  const backup = join(directory, "pre-search-url-snapshot.db");
+  await snapshotAccounts(path, backup);
+  assert.deepEqual(await readAccounts(backup), legacy);
+  await withTarget(async (db) => {
+    await importAccounts(db, legacy, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, legacy, adminEmail);
+    for (const row of await db.savedSearch.findMany()) assert.equal(row.searchUrl, null);
+  });
+  assert.deepEqual(await readFile(path), before);
+});
+
+test("a saved search link survives projection, snapshot and import unchanged", async () => {
+  const stored = source.SavedSearch.map((row) => row.searchUrl);
+  assert.ok(stored.every((value) => typeof value === "string" && value.startsWith("https://www.linkedin.com/talent/")));
+  await withTarget(async (db) => {
+    await importAccounts(db, source, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, source, adminEmail);
+    const imported = await db.savedSearch.findMany({ orderBy: { id: "asc" } });
+    assert.deepEqual(imported.map((row) => row.searchUrl).sort(), [...stored].sort());
+  });
 });
 
 test("tier SQLite projection, snapshots and imports preserve stored tiers and expired trial timestamps", async () => {

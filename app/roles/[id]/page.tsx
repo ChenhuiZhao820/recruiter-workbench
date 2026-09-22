@@ -197,9 +197,16 @@ export default async function RolePage({ params }: { params: { id: string } }) {
 
       {/* Candidates */}
       <section aria-labelledby="candidates-heading">
-        <h2 id="candidates-heading" className="mb-3 text-2xl">
-          Candidates
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 id="candidates-heading" className="text-2xl">
+            Candidates
+          </h2>
+          {!readOnly && role.candidates.length > 0 && (
+            <Link href={`/roles/${role.id}/outreach`} className="btn-secondary">
+              Send outreach
+            </Link>
+          )}
+        </div>
         {role.candidates.length === 0 && (
           <p className="mb-3 text-ink/70">
             No candidates yet. When you find someone on LinkedIn, paste their profile link and

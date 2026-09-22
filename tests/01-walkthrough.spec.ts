@@ -193,6 +193,8 @@ test("05 create a search from the briefing", async ({ page }) => {
 
   await page.getByLabel(/Locations/).fill("United Kingdom");
   await page.getByLabel(/Industries/).fill("Manufacturing");
+  // The picker only stores entries LinkedIn recognises, so one has to be chosen.
+  await page.getByRole("button", { name: /^Manufacturing/ }).first().click();
   await page.getByRole("button", { name: "Create search" }).click();
   await page.waitForURL(`**/roles/${roleId}`);
 
@@ -216,6 +218,8 @@ test("06 run search opens LinkedIn with keywords and records last-run", async ({
   expect(url.searchParams.get("keywords")).toBe(
     "Operations Director Head of Operations Plant Director"
   );
+  // The picked industry travels in the address, so nothing is re-ticked there.
+  expect(url.searchParams.get("industry")).toBe('["25"]');
   await popup.close();
 
   // The "last run today" label should appear without a manual reload.
@@ -231,10 +235,47 @@ test("06 run search opens LinkedIn with keywords and records last-run", async ({
   }
 });
 
+test("06b the second run offers to keep the search LinkedIn itself saved", async ({ page }) => {
+  await page.goto("/searches");
+  const card = page.locator("li.card", { hasText: "Operations Director search" }).first();
+
+  // The offer is earned, not asked for up front: it is not on the page until a
+  // search has been run once already.
+  await expect(card.getByLabel("LinkedIn search address")).toHaveCount(0);
+
+  const [popup] = await Promise.all([
+    page.waitForEvent("popup"),
+    card.getByRole("button", { name: "Run search" }).click(),
+  ]);
+  await popup.close();
+
+  const link = card.getByLabel("LinkedIn search address");
+  await expect(link).toBeVisible();
+
+  // Anything that is not a LinkedIn search address is refused, not stored.
+  await link.fill("https://example.com/search");
+  await card.getByRole("button", { name: "Save link" }).click();
+  await expect(page.locator("[data-form-message='error']")).toBeVisible();
+
+  await link.fill("https://www.linkedin.com/talent/search?searchContextId=abc123");
+  await card.getByRole("button", { name: "Save link" }).click();
+  await expect(card.getByRole("button", { name: "Open saved search" })).toBeVisible();
+
+  // And from then on Run reopens exactly what LinkedIn saved.
+  const [saved] = await Promise.all([
+    page.waitForEvent("popup"),
+    card.getByRole("button", { name: "Open saved search" }).click(),
+  ]);
+  await saved.waitForURL(/linkedin\.com/);
+  expect(saved.url()).toContain("/talent/search?searchContextId=abc123");
+  await saved.close();
+});
+
 test("07 searches list: copy, rename, delete", async ({ page }) => {
   await page.goto("/searches");
   const original = page.locator("li.card", { hasText: "Operations Director search" }).first();
-  await original.getByRole("button", { name: "Copy" }).click();
+  // Exact: the card also offers "Copy industries for Recruiter".
+  await original.getByRole("button", { name: "Copy", exact: true }).click();
   const copy = page.locator("li.card", { hasText: "Operations Director search (copy)" });
   await expect(copy).toBeVisible();
 

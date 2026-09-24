@@ -78,7 +78,8 @@ test("01 settings: name and calendar link save and persist", async ({ page }) =>
 
   // The name is not write-only: it is offered as a template gap.
   expect((await db.settings.findUnique({ where: { userId: TEST_ADMIN_ID } }))!.recruiterName).toBe("Alex Recruiter");
-  await page.goto("/templates");
+  // The gaps are advertised where a template is written, not in the library.
+  await page.goto("/templates/new");
   await expect(page.getByText("{{recruiter_name}}").first()).toBeVisible();
 });
 
@@ -334,7 +335,7 @@ test("09 stage dropdown moves a candidate and updates grouping", async ({ page }
 });
 
 test("10 create a message template", async ({ page }) => {
-  await page.goto("/templates");
+  await page.goto("/templates/new");
   await page.locator("#new-tname").fill("First outreach");
   await page
     .locator("#new-tbody")
@@ -342,8 +343,13 @@ test("10 create a message template", async ({ page }) => {
       "Hi {{first_name}}, I'm hiring for a {{role_title}} and your background stood out. Fancy a quick chat? Grab a time: {{calendar_link}}"
     );
   await page.getByRole("button", { name: "Create template" }).click();
-  await expect(page.getByRole("heading", { name: "First outreach" })).toBeVisible();
-  await expect(page.locator("mark", { hasText: "{{first_name}}" })).toBeVisible();
+  await expect(page.locator("[data-form-message='notice']")).toContainText("First outreach");
+  // In the library it is one line until it is opened.
+  await page.goto("/templates");
+  const saved = page.locator("details", { hasText: "First outreach" }).first();
+  await expect(saved.locator("mark", { hasText: "{{first_name}}" })).toBeHidden();
+  await saved.locator("summary").first().click();
+  await expect(saved.locator("mark", { hasText: "{{first_name}}" })).toBeVisible();
 });
 
 test("11 draft outreach: placeholders fill, copy works, mark as sent logs it", async ({ page }) => {
@@ -544,11 +550,10 @@ test("15 home screen counts match the buckets", async ({ page }) => {
 });
 
 test("16 an unsupported placeholder is flagged, not passed through", async ({ page }) => {
-  await page.goto("/templates");
+  await page.goto("/templates/new");
   await page.locator("#new-tname").fill("Broken template");
   await page.locator("#new-tbody").fill("Hi {{first_name}}, greetings from {{company}}.");
   await page.getByRole("button", { name: "Create template" }).click();
-  await expect(page.getByRole("heading", { name: "Broken template" })).toBeVisible();
   // The warning arrives while writing the template, not later in a message.
   await expect(page.locator("[data-form-message='notice']")).toContainText("{{company}}");
 

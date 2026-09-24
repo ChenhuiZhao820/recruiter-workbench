@@ -193,7 +193,9 @@ async function expectZip(page: Page, privateValues: string[]) {
   expect(manifest.side_panel).toEqual({ default_path: "popup.html" });
   expect(manifest.host_permissions).toEqual(["http://localhost/*", "http://127.0.0.1/*"]);
   expect(manifest.optional_permissions).toBeUndefined();
-  expect(manifest.optional_host_permissions).toBeUndefined();
+  // LinkedIn ships as an optional origin and nothing more: the download grants
+  // no page access, the recruiter grants it in the panel or not at all.
+  expect(manifest.optional_host_permissions).toEqual(["https://*.linkedin.com/*"]);
   expect(manifest.content_scripts).toBeUndefined();
   expect(manifest.background).toBeUndefined();
   const contents = Array.from(files.values()).join("\n");

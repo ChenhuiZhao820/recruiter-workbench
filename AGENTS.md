@@ -5,10 +5,15 @@ LinkedIn: it only builds a profile or search URL and opens it on a user click.
 The optional Capture extension uses a toolbar click for one active-tab
 profile read via `activeTab` and `scripting`. It may also live in Chrome's side
 panel (`sidePanel`), which changes where the same page sits, not what it may
-read. No LinkedIn host permissions, registered content scripts, background page
-reading, bulk capture, polling, crawling or automated messaging. Fields remain
-editable, notes are written only by the user, and saving requires a user click.
-This click-triggered exception supersedes the former blanket prohibition on extensions and page reading.
+read. LinkedIn is declared as an OPTIONAL origin only: it is not granted at
+install, the recruiter grants it from a button in the panel so the panel can
+fill itself in as they move from profile to profile, and Chrome lets them take
+it back. There are still no registered content scripts, no background page, no
+request of any kind to LinkedIn, no writing to its pages, no bulk capture,
+polling, crawling or automated messaging. The reader is injected on demand and
+only while the panel is open; fields remain editable, notes are written only by
+the user, and saving requires a user click. This click-triggered exception
+supersedes the former blanket prohibition on extensions and page reading.
 
 The hosted-account version extends the original capture specification: source
 extensions remain HTTP loopback-only; packaged extensions additionally allow one
@@ -246,6 +251,22 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   access) and, when the tab it read moves, refills from a permitted read or
   clears the page-derived fields and asks for one. A stale profile must never
   sit under a new page, and a typed note is never discarded by a refused read.
+- The panel follows the recruiter only if they let it. `activeTab` is taken back
+  when a tab navigates to another origin, which is why every profile used to
+  need a toolbar click; the optional LinkedIn origin removes that click. The
+  panel still tries the page first either way, because `activeTab` survives a
+  same-origin move. Without the permission the old behaviour is unchanged:
+  the fields clear and it asks for a click. A Pause control stops the reading
+  without closing the panel, stored as `autoRead`; refusing the permission is a
+  supported answer and must stay one.
+- A page that is not a profile - a search result list, an inbox - is a quiet
+  wait in the panel, not an error. While following, most pages are not profiles.
+- After a profile is read, the panel asks the workbench (never LinkedIn) whether
+  this account already has that person, with `GET /api/capture?profileUrl=`.
+  It is scoped to the account's own candidates and returns `existing: null` for
+  anyone else's. It reports rather than refuses: filing the same person against
+  a second role is the recruiter's decision, and the save keeps its own
+  same-role duplicate guard. A failed lookup is silent.
 - `lib/extension-package.mjs` pins the permission list exactly, so any change to
   it is a deliberate, reviewed edit in the packager, its tests and this file.
 - Deploy the additive `20260910000000_extension_access` PostgreSQL migration before
@@ -444,6 +465,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 Review LinkedIn references: allow clicked profile/search URLs, placeholders,
 documentation, fixtures, and the extension's single-profile extraction. Never
 fetch LinkedIn from the app or extension. Verify extension permissions remain
-`activeTab`, `scripting`, `sidePanel`, `storage`, no content scripts/background, and
-host access limited to loopback plus the packaged workbench host. Run unit and account-isolation
+`activeTab`, `scripting`, `sidePanel`, `storage`, no content scripts/background, granted
+host access limited to loopback plus the packaged workbench host, and
+`optional_host_permissions` exactly `["https://*.linkedin.com/*"]` - optional, never
+granted by the package. Run unit and account-isolation
 regressions, including foreign IDs, read-only admin views and revoked capture keys.

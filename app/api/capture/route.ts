@@ -52,7 +52,11 @@ export async function OPTIONS(request: Request) {
   });
 }
 
-// Lists the roles a captured profile can be filed against.
+// Lists the roles a captured profile can be filed against, and - when the
+// extension asks about one - whether this account already has that person.
+// Knowing beforehand is the difference between a considered second look and a
+// duplicate discovered weeks later. The lookup reads this account's own
+// records only; it never reaches LinkedIn.
 export async function GET(request: Request) {
   const cors = corsHeaders(request.headers.get("origin"));
   const account = await authorize(request);
@@ -63,7 +67,32 @@ export async function GET(request: Request) {
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, client: true },
   });
-  return NextResponse.json({ account: { id: account.id, email: account.email, name: account.name }, roles }, { headers: cors });
+
+  // Normalised the same way a save is, so "already saved" means the same thing
+  // here as the duplicate guard below means.
+  const asked = normalizeProfileUrl(new URL(request.url).searchParams.get("profileUrl"));
+  const existing = asked
+    ? await db.candidate.findFirst({
+        where: { profileUrl: asked, role: { userId: account.id } },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          fullName: true,
+          stage: true,
+          createdAt: true,
+          role: { select: { id: true, title: true, client: true, status: true } },
+        },
+      })
+    : null;
+
+  return NextResponse.json(
+    {
+      account: { id: account.id, email: account.email, name: account.name },
+      roles,
+      ...(asked ? { existing } : {}),
+    },
+    { headers: cors }
+  );
 }
 
 export async function POST(request: Request) {

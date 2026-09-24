@@ -261,3 +261,8 @@ textarea.field-input { resize: vertical; min-height: 68px; line-height: 1.55; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* The standing offer to follow along, and the switch that pauses it. */
+.follow { border-left: 2px solid var(--color-accent); padding: 6px 0 6px 10px; margin: 0 0 10px; }
+.follow .hint { margin: 0 0 6px; }
+.follow .row-actions { margin: 0; }

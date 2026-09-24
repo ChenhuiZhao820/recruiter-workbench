@@ -56,7 +56,18 @@
           <button id="settings" class="btn-quiet" type="button">Settings</button>
         </div>
 
+        <div id="follow" class="follow" hidden>
+          <p id="follow-text" class="hint"></p>
+          <div class="row-actions">
+            <button id="follow-allow" class="btn-quiet" type="button" hidden>Follow profiles automatically</button>
+            <button id="follow-toggle" class="btn-quiet" type="button" hidden>Pause</button>
+          </div>
+        </div>
+
         <button id="reread" class="btn-quiet" type="button" hidden>Read this profile</button>
+
+        <p id="existing" class="message" role="status" hidden></p>
+        <button id="open-existing" class="btn-quiet" type="button" hidden>Open the role they are on</button>
 
         <label class="field-label" for="role">Role</label>
         <select id="role" class="field-input" required></select>

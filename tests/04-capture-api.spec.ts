@@ -130,6 +130,42 @@ test("C5 the role list is scoped to open roles", async ({ request }) => {
   await db.role.delete({ where: { id: closed.id } });
 });
 
+test("C5b the lookup says whether this account already has that person", async ({ request }) => {
+  const ask = async (profileUrl: string, token = TOKEN) =>
+    request.get(`${BASE}/api/capture?profileUrl=${encodeURIComponent(profileUrl)}`, {
+      headers: { "X-Capture-Token": token },
+    });
+
+  // C2 saved this one, and the link is matched the way a save normalises it:
+  // asked for without a scheme, found all the same.
+  const known = await ask("www.linkedin.com/in/priya-kaur/");
+  expect(known.ok()).toBe(true);
+  const found = (await known.json()).existing;
+  expect(found.fullName).toBe("Priya Kaur");
+  expect(found.role.id).toBe(roleId);
+  expect(found.role.title).toBe("Capture Target Role");
+
+  // A stranger is a plain null, not an error, and never a hint about anyone.
+  const stranger = await ask("https://www.linkedin.com/in/nobody-here-at-all/");
+  expect((await stranger.json()).existing).toBeNull();
+
+  // Somebody else's candidate is a stranger too.
+  const other = await db.user.create({
+    data: { id: `capture-other-${Date.now()}`, email: `other-${Date.now()}@test.capture.invalid`, name: "Other", role: "recruiter" },
+  });
+  const otherRole = await db.role.create({ data: { userId: other.id, title: "Someone else's role" } });
+  await db.candidate.create({
+    data: { roleId: otherRole.id, fullName: "Not Yours", profileUrl: "https://www.linkedin.com/in/not-yours/" },
+  });
+  expect((await (await ask("https://www.linkedin.com/in/not-yours/")).json()).existing).toBeNull();
+
+  // And the lookup is behind the same key as everything else here.
+  expect((await ask("https://www.linkedin.com/in/priya-kaur/", "wrong-token-aaaaaaaaaaaaaaaaaaaaaa")).status()).toBe(401);
+
+  await db.role.delete({ where: { id: otherRole.id } });
+  await db.user.delete({ where: { id: other.id } });
+});
+
 test("C6 only an extension origin is allowed to read the response", async ({ request }) => {
   const fromExtension = await request.fetch(`${BASE}/api/capture`, {
     method: "OPTIONS",

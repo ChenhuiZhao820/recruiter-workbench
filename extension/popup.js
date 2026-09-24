@@ -11,7 +11,7 @@
 
 const el = (id) => document.getElementById(id);
 
-const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false };
+const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "" };
 const fields = ["role", "name", "headline", "profile", "notes"];
 const controls = ["settings", "open-role", "reread"];
 // Where Capture actually lives. A package built by scripts/package-extension.mjs
@@ -93,6 +93,53 @@ async function readActiveTab() {
     // Chrome refuses to inject into its own pages and the Web Store.
     return null;
   }
+}
+
+// --- following the recruiter from profile to profile ------------------------
+//
+// `activeTab` is granted by a toolbar click and taken back the moment the tab
+// navigates, so a panel that outlives the page cannot read the next one. That
+// is the click Paul was making on every profile.
+//
+// The way out is a permission he grants himself, once: LinkedIn is declared as
+// an OPTIONAL origin, so it is not part of what the extension asks for at
+// install, it is requested from a button here, and Chrome lets him take it
+// back at any time. Nothing else changes. There is still no registered content
+// script - the reader is injected on demand and only while the panel is open -
+// no request is ever made to LinkedIn, nothing on the page is written to, and
+// nothing leaves the browser until he presses Save.
+
+const LINKEDIN_ORIGIN = "https://*.linkedin.com/*";
+
+async function mayFollow() {
+  try {
+    return await chrome.permissions.contains({ origins: [LINKEDIN_ORIGIN] });
+  } catch {
+    return false;
+  }
+}
+
+// Off means the panel stays where it is and stops reading. It is a pause, not
+// a revocation: the permission is Chrome's to hold and his to remove.
+async function followingEnabled() {
+  if (!(await mayFollow())) return false;
+  const stored = await recall(["autoRead"]);
+  return stored.autoRead !== false;
+}
+
+async function showFollowState() {
+  const allowed = await mayFollow();
+  const on = await followingEnabled();
+  const inPanel = state.surface === "panel";
+  el("follow").hidden = !inPanel;
+  el("follow-allow").hidden = allowed;
+  el("follow-toggle").hidden = !allowed;
+  el("follow-toggle").textContent = on ? "Pause" : "Resume";
+  el("follow-text").textContent = !allowed
+    ? "Chrome only lets Capture read a page just after you click its icon, so every profile needs that click. Allow it to follow you on LinkedIn and this panel fills itself in as you go."
+    : on
+      ? "Following along on LinkedIn. Each profile you open fills this in; nothing is sent anywhere until you save."
+      : "Paused. The panel stays open, but it is not reading pages.";
 }
 
 // --- popup or side panel ----------------------------------------------------
@@ -209,7 +256,7 @@ function watchTabs() {
   }
 }
 
-function applyProfile(profile) {
+function applyProfile(profile, { quiet = false } = {}) {
   state.stale = false;
   state.saved = false;
   state.savedRoleId = "";
@@ -222,7 +269,11 @@ function applyProfile(profile) {
   el("profile").value = profile.profileUrl || "";
   el("save").disabled = false;
   if (!profile.isProfile) {
-    say(el("message"), "This does not look like a profile page. Check the details before saving.", "bad");
+    // While the panel follows along, most pages are not profiles: a search
+    // result list, an inbox, somebody's feed. That is not a fault to report.
+    say(el("message"), quiet
+      ? "Open someone's profile and their details appear here."
+      : "This does not look like a profile page. Check the details before saving.", quiet ? "" : "bad");
   } else if (!profile.name) {
     say(el("message"), "No name found on the page. Type one in.", "bad");
   } else {
@@ -252,14 +303,76 @@ function markStale(message, { clear = false } = {}) {
 
 async function refreshProfile() {
   if (el("capture").hidden || state.saving) return;
+  const following = await followingEnabled();
+  await showFollowState();
+  // Try the page first either way. `activeTab` survives a same-origin move, so
+  // walking from one LinkedIn profile to the next often still works without
+  // the permission; a profile opened in a new tab does not, and that is where
+  // the click used to come from.
   const profile = await readActiveTab();
   if (!profile) {
-    markStale("This is a different page now, and Chrome only lets Capture read a page just after you click its toolbar icon. Click the icon, then Read this profile.", { clear: true });
+    if (following) {
+      // Chrome refuses its own pages, and LinkedIn is the only other site this
+      // panel was given. Neither is a problem to report.
+      markIdle("Nothing to read on this page. Open a LinkedIn profile.");
+    } else {
+      markStale("This is a different page now, and Chrome only lets Capture read a page just after you click its toolbar icon. Click the icon, then Read this profile.", { clear: true });
+    }
     return;
   }
   if (profile.profileUrl && profile.profileUrl === state.profileUrl && !state.stale) return;
-  applyProfile(profile);
+  applyProfile(profile, { quiet: true });
   el("notes").value = "";
+  await checkExisting();
+}
+
+// A page with nothing on it for us. The fields go with it, because they
+// described somebody who is no longer on screen.
+function markIdle(message) {
+  state.stale = false;
+  state.saved = false;
+  state.savedRoleId = "";
+  state.profileUrl = "";
+  state.memberId = "";
+  el("open-role").hidden = true;
+  el("reread").hidden = true;
+  el("save").disabled = false;
+  for (const id of ["name", "headline", "profile"]) el(id).value = "";
+  clearExisting();
+  say(el("message"), message, "");
+}
+
+// --- have we met? -----------------------------------------------------------
+//
+// Asked of the workbench, never of LinkedIn: it is this account's own records
+// being searched for the link on screen. Knowing now is the difference between
+// a considered second look and a duplicate found weeks later.
+
+function clearExisting() {
+  state.existingRoleId = "";
+  el("existing").hidden = true;
+  el("existing").textContent = "";
+  el("open-existing").hidden = true;
+}
+
+async function checkExisting() {
+  clearExisting();
+  const link = state.profileUrl;
+  if (!link || !state.account) return;
+  const { ok, body } = await api(`/api/capture?profileUrl=${encodeURIComponent(link)}`);
+  // A lookup that fails is not worth a word: the save itself still refuses a
+  // duplicate on the same role.
+  if (!ok || !body.existing || state.profileUrl !== link) return;
+  const found = body.existing;
+  const role = found.role || {};
+  const where = role.client ? `${role.title} (${role.client})` : role.title;
+  el("existing").textContent = `Already saved as ${found.fullName} on ${where}${role.status === "closed" ? ", now closed" : ""}. Saving again files them against the role selected below.`;
+  el("existing").className = "message";
+  el("existing").hidden = false;
+  if (role.id) {
+    state.existingRoleId = role.id;
+    el("open-existing").hidden = false;
+  }
 }
 
 // --- talking to the workbench ----------------------------------------------
@@ -410,14 +523,21 @@ async function showCapture() {
   const preferredRole = [previousRoleId, stored[scope]].find((id) => state.roles.some((role) => role.id === id));
   if (preferredRole) roleSelect.value = preferredRole;
 
+  await showFollowState();
   if (!state.profileRead) {
     state.profileRead = true;
+    const following = await followingEnabled();
     const profile = await readActiveTab();
     if (!profile) {
-      say(el("message"), "Could not read this tab. Type the details in and save.", "bad");
-      el("reread").hidden = false;
+      if (following) {
+        markIdle("Nothing to read on this page. Open a LinkedIn profile.");
+      } else {
+        say(el("message"), "Could not read this tab. Type the details in and save.", "bad");
+        el("reread").hidden = false;
+      }
     } else {
-      applyProfile(profile);
+      applyProfile(profile, { quiet: following });
+      await checkExisting();
     }
   }
 
@@ -518,6 +638,37 @@ el("panel-close").addEventListener("click", async () => {
   }
 });
 
+// Asking is a click of its own, because Chrome only shows the permission
+// prompt in answer to a gesture. Refusing it costs nothing: the panel goes on
+// working exactly as it did, one toolbar click per profile.
+el("follow-allow").addEventListener("click", async () => {
+  let granted = false;
+  try {
+    granted = await chrome.permissions.request({ origins: [LINKEDIN_ORIGIN] });
+  } catch {
+    granted = false;
+  }
+  if (!granted) {
+    await showFollowState();
+    say(el("message"), "Not allowed, which is a fine answer. Click Capture's icon on each profile and press Read this profile.", "");
+    return;
+  }
+  await remember({ autoRead: true });
+  await showFollowState();
+  await refreshProfile();
+});
+
+el("follow-toggle").addEventListener("click", async () => {
+  const on = await followingEnabled();
+  await remember({ autoRead: !on });
+  await showFollowState();
+  if (!on) await refreshProfile();
+});
+
+el("open-existing").addEventListener("click", () => {
+  if (state.existingRoleId) openWorkbench(`/roles/${encodeURIComponent(state.existingRoleId)}`);
+});
+
 el("reread").addEventListener("click", async () => {
   if (state.saving) return;
   say(el("message"), "Reading this page...", "");
@@ -527,6 +678,7 @@ el("reread").addEventListener("click", async () => {
     return;
   }
   applyProfile(profile);
+  await checkExisting();
 });
 
 el("settings").addEventListener("click", () => showSetup(""));
@@ -602,6 +754,7 @@ el("save").addEventListener("click", async () => {
         warning = `${warning} Could not remember this role. Select it again next time.`.trim();
       }
       state.savedRoleId = roleId;
+      clearExisting();
       el("open-role").hidden = false;
       say(el("message"), `Saved ${body.fullName}.${warning ? ` ${warning}` : ""}`, warning ? "bad" : "good");
     } else if (status === 401) {

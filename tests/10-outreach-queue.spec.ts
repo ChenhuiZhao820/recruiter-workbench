@@ -171,12 +171,19 @@ test("Q4 marking as sent records it and moves on, and finishing says so", async 
 test("Q4b going back reaches the previous person, with their own message", async ({ page }) => {
   await page.goto(queueUrl(["Quinn Sourced", "Rae Sourced"], templateId, 1));
   await expect(page.getByRole("heading", { name: "Rae Sourced" })).toBeVisible();
+  // The arrow at the corner of the card; its label is what it does.
   await page.getByRole("link", { name: "Back to Quinn" }).click();
   await expect(page.getByText("1 of 2")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Quinn Sourced" })).toBeVisible();
   await expect(page.getByLabel("Message")).toHaveValue(/^Hi Quinn,/);
   // There is nobody before the first person, so nothing offers to go there.
   await expect(page.getByRole("link", { name: /^Back to/ })).toHaveCount(0);
+  // The name is the way to their own page, so no separate control is needed.
+  await expect(page.getByRole("link", { name: "Quinn Sourced" })).toHaveAttribute(
+    "href",
+    `/candidates/${ids["Quinn Sourced"]}/outreach`
+  );
+  await expect(page.getByRole("link", { name: "Open on their own page" })).toHaveCount(0);
 });
 
 test("Q5 skipping records nothing", async ({ page }) => {

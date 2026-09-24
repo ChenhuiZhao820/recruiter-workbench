@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 
 const paths = {
   arrow: "M5 12h14m-6-6 6 6-6 6",
+  back: "M19 12H5m6-6-6 6 6 6",
   external: "M7 17 17 7M7 7h10v10",
   down: "m6 9 6 6 6-6",
   plus: "M12 5v14M5 12h14",

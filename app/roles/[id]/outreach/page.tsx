@@ -12,6 +12,7 @@ import { paceAdvice, sevenDaysAgo, startOfToday } from "@/lib/pace";
 import { messageComposeUrl } from "@/lib/linkedin";
 import { OutreachStep } from "@/components/OutreachStep";
 import { StageBadge } from "@/components/StageBadge";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -301,7 +302,25 @@ export default async function RoleOutreachPage({
 
       <section aria-label="This candidate" className="card space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg">{candidate.fullName}</h2>
+          {previous && (
+            // Going back belongs with the person, not with the actions: it is
+            // where the card came from, so it sits at the corner it came from.
+            <Link
+              href={previous}
+              aria-label={`Back to ${firstName(queue[index - 1].fullName)}`}
+              title={`Back to ${firstName(queue[index - 1].fullName)}`}
+              className="-ml-1 inline-flex h-8 w-8 items-center justify-center rounded text-ink/60 hover:bg-sunken hover:text-ink"
+            >
+              <Icon name="back" size={18} />
+            </Link>
+          )}
+          <h2 className="text-lg">
+            {/* The name is the way to their own page: a card about one person
+                should not need a separate control to open that person. */}
+            <Link href={`/candidates/${candidate.id}/outreach`} className="underline decoration-line underline-offset-4 hover:decoration-ink">
+              {candidate.fullName}
+            </Link>
+          </h2>
           <StageBadge stage={candidate.stage} />
           {isStage(candidate.stage) && candidate.stage !== "sourced" && (
             <span className="text-sm text-rose-900">
@@ -337,19 +356,11 @@ export default async function RoleOutreachPage({
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          {previous && (
-            <Link href={previous} className="btn-quiet">
-              Back to {firstName(queue[index - 1].fullName)}
-            </Link>
-          )}
           <Link href={next} className="btn-quiet">
             {index + 1 === queue.length ? "Skip and finish" : "Skip for now"}
           </Link>
           <Link href={`/roles/${role.id}`} className="btn-quiet">
             Stop here
-          </Link>
-          <Link href={`/candidates/${candidate.id}/outreach`} className="btn-quiet">
-            Open on their own page
           </Link>
         </div>
       </section>

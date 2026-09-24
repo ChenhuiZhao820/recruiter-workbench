@@ -120,9 +120,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   template. Without the key React reuses the instance across a move and the last
   person's message sits under the next person's name - and is recorded as
   theirs. Keep the key if the component moves or is wrapped.
-- The queue moves both ways: `Back to <first name>` returns to the previous
-  person, and the address is the whole state, so it is also where a reload or a
-  shared link resumes.
+- The queue moves both ways. Going back is an arrow at the corner of the card,
+  labelled with the person it returns to, because that is where the card came
+  from; the candidate's own name is the link to their page, so neither needs a
+  button among the actions. The address is the whole state, so a reload or a
+  shared link resumes in the same place.
 - One control does the two things that always happened together: the message
   goes to the clipboard and LinkedIn opens. Where it opens is the only
   difference. `Candidate.memberId` holds LinkedIn's own member id, read from the

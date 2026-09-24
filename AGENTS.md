@@ -78,8 +78,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   use and legacy compatibility; the AI stub checks the questions-only prompt and
   deliberately returns extra answer fields to verify they are discarded.
 - A role page reads as three headings of equal weight - Briefing, Candidates,
-  Searches for this role - and Candidates opens and closes, as does each stage
-  group inside it, so a long pipeline does not bury what follows it. Adding a
+  Searches for this role. Candidates is a plain heading carrying its count;
+  the stage groups inside it are what open and close, so a long pipeline can be
+  folded down without the section itself becoming a thing to unfold. Adding a
   candidate is a button at the top of that section that opens the fields, the
   same shape as a new role or a new template. It stays rendered in a read-only
   view and is disabled by the page's fieldset, so what cannot be done reads as

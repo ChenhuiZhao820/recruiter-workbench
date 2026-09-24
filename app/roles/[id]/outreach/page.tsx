@@ -268,6 +268,7 @@ export default async function RoleOutreachPage({
   const profile = profileHref(candidate.profileUrl);
   const openUrl = compose || profile || "";
   const next = queueHref(role.id, templateId, ids, index + 1);
+  const previous = index > 0 ? queueHref(role.id, templateId, ids, index - 1) : "";
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 max-w-4xl space-y-8">
@@ -319,6 +320,11 @@ export default async function RoleOutreachPage({
         </p>
 
         <OutreachStep
+          // Keyed by the person and the template, so moving through the queue
+          // remounts the editable draft. Without it React keeps the same
+          // component instance, and the message typed for the last person
+          // would sit under the next person's name - and be recorded as theirs.
+          key={`${candidate.id}-${templateId}`}
           candidateId={candidate.id}
           templateId={templateId}
           initialBody={rendered}
@@ -331,6 +337,11 @@ export default async function RoleOutreachPage({
         />
 
         <div className="flex flex-wrap items-center gap-2">
+          {previous && (
+            <Link href={previous} className="btn-quiet">
+              Back to {firstName(queue[index - 1].fullName)}
+            </Link>
+          )}
           <Link href={next} className="btn-quiet">
             {index + 1 === queue.length ? "Skip and finish" : "Skip for now"}
           </Link>

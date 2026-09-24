@@ -7,10 +7,8 @@ profile read via `activeTab` and `scripting`. It may also live in Chrome's side
 panel (`sidePanel`), which changes where the same page sits, not what it may
 read. No LinkedIn host permissions, registered content scripts, background page
 reading, bulk capture, polling, crawling or automated messaging. Fields remain
-editable, notes are written only by the user, and saving requires a user click. This click-triggered exception
-reading, bulk capture, polling, crawling or automated messaging. Fields remain editable, notes are written only
-by the user, and saving requires a user click. This click-triggered exception
-supersedes the former blanket prohibition on extensions and page reading.
+editable, notes are written only by the user, and saving requires a user click.
+This click-triggered exception supersedes the former blanket prohibition on extensions and page reading.
 
 The hosted-account version extends the original capture specification: source
 extensions remain HTTP loopback-only; packaged extensions additionally allow one
@@ -118,6 +116,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   so personalising someone's line does not mean a trip into LinkedIn and back,
   and what is copied is what `markSentAndAdvance` records. The length count and
   the gap check run against the edited text, not the rendered template.
+- That draft is client state, so the queue keys `OutreachStep` by candidate and
+  template. Without the key React reuses the instance across a move and the last
+  person's message sits under the next person's name - and is recorded as
+  theirs. Keep the key if the component moves or is wrapped.
+- The queue moves both ways: `Back to <first name>` returns to the previous
+  person, and the address is the whole state, so it is also where a reload or a
+  shared link resumes.
 - One control does the two things that always happened together: the message
   goes to the clipboard and LinkedIn opens. Where it opens is the only
   difference. `Candidate.memberId` holds LinkedIn's own member id, read from the

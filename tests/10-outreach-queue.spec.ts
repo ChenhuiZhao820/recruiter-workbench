@@ -150,6 +150,10 @@ test("Q4 marking as sent records it and moves on, and finishing says so", async 
   await page.getByRole("button", { name: "Mark as sent and next" }).click();
   await expect(page.getByText("2 of 2")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Rae Sourced" })).toBeVisible();
+  // The draft belongs to the person on screen. It is editable, so it is client
+  // state, and moving on has to replace it rather than leave the last person's
+  // message sitting under this one's name.
+  await expect(page.getByLabel("Message")).toHaveValue(/^Hi Rae,/);
 
   const logged = await db.outreachLog.findFirst({ where: { candidateId: ids["Quinn Sourced"] } });
   expect(logged?.renderedBody).toBe(
@@ -162,6 +166,17 @@ test("Q4 marking as sent records it and moves on, and finishing says so", async 
   await page.getByRole("button", { name: "Mark as sent and finish" }).click();
   await expect(page.getByText("That is the whole shortlist.")).toBeVisible();
   expect(await sentCount("Rae Sourced")).toBe(1);
+});
+
+test("Q4b going back reaches the previous person, with their own message", async ({ page }) => {
+  await page.goto(queueUrl(["Quinn Sourced", "Rae Sourced"], templateId, 1));
+  await expect(page.getByRole("heading", { name: "Rae Sourced" })).toBeVisible();
+  await page.getByRole("link", { name: "Back to Quinn" }).click();
+  await expect(page.getByText("1 of 2")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quinn Sourced" })).toBeVisible();
+  await expect(page.getByLabel("Message")).toHaveValue(/^Hi Quinn,/);
+  // There is nobody before the first person, so nothing offers to go there.
+  await expect(page.getByRole("link", { name: /^Back to/ })).toHaveCount(0);
 });
 
 test("Q5 skipping records nothing", async ({ page }) => {

@@ -23,33 +23,6 @@ export const dynamic = "force-dynamic";
 type Skill = { skill: string; real_vs_buzzword: string };
 type Question = { question: string };
 
-// A whole section that can be put away. The heading is the control, so the
-// page can be read as a list of headings before anything is opened.
-function OpenableSection({
-  id,
-  title,
-  count,
-  children,
-}: {
-  id: string;
-  title: string;
-  count?: number;
-  children: ReactNode;
-}) {
-  return (
-    <details open className="group">
-      <summary className="mb-3 flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
-        <h2 id={id} className="text-2xl">
-          {title}
-          {typeof count === "number" && <span className="ml-2 text-ink/40">{count}</span>}
-        </h2>
-        <Icon name="down" size={18} className="text-ink/50 group-open:rotate-180 group-open:text-accent" />
-      </summary>
-      <div>{children}</div>
-    </details>
-  );
-}
-
 function BriefingSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <details className="group rounded border border-line">
@@ -224,7 +197,12 @@ export default async function RolePage({ params }: { params: { id: string } }) {
 
       {/* Candidates */}
       <section aria-labelledby="candidates-heading">
-        <OpenableSection id="candidates-heading" title="Candidates" count={role.candidates.length}>
+        <h2 id="candidates-heading" className="mb-3 text-2xl">
+          Candidates
+          {role.candidates.length > 0 && (
+            <span className="ml-2 text-ink/40">{role.candidates.length}</span>
+          )}
+        </h2>
         {/* Adding someone comes first, the way a new role or a new template
             does: a button until it is wanted, then the fields. */}
         <div className="mb-4 flex flex-wrap items-start gap-2">
@@ -437,7 +415,6 @@ export default async function RolePage({ params }: { params: { id: string } }) {
           })}
         </div>
 
-        </OpenableSection>
       </section>
 
       {/* Searches for this role */}

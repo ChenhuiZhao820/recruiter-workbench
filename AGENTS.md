@@ -7,10 +7,8 @@ profile read via `activeTab` and `scripting`. It may also live in Chrome's side
 panel (`sidePanel`), which changes where the same page sits, not what it may
 read. No LinkedIn host permissions, registered content scripts, background page
 reading, bulk capture, polling, crawling or automated messaging. Fields remain
-editable, notes are written only by the user, and saving requires a user click. This click-triggered exception
-reading, bulk capture, polling, crawling or automated messaging. Fields remain editable, notes are written only
-by the user, and saving requires a user click. This click-triggered exception
-supersedes the former blanket prohibition on extensions and page reading.
+editable, notes are written only by the user, and saving requires a user click.
+This click-triggered exception supersedes the former blanket prohibition on extensions and page reading.
 
 The hosted-account version extends the original capture specification: source
 extensions remain HTTP loopback-only; packaged extensions additionally allow one

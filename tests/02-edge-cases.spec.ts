@@ -333,6 +333,32 @@ test("E12 your name from Settings fills a sign-off placeholder", async ({ page }
   await expect(page.getByRole("button", { name: "Mark as sent" })).toBeDisabled();
 });
 
+test("E12b a pasted draft is cleaned where it lands, not quietly on the way out", async ({ page }) => {
+  await page.goto("/templates/new");
+  await page.locator("#new-tname").fill("Pasted draft");
+
+  // What a paste out of Word or LinkedIn actually carries: a non-breaking
+  // space on its own line, which reads as blank but is not, a zero-width space
+  // inside a word, and three line breaks nobody asked for.
+  const dirty = "\u00a0\nHi {{first_name}},\n\u00a0\n\u00a0\nI'm hiring for a {{role\u200b_title}}.   \n\n\n\nBest\u00a0\n";
+  await page.locator("#new-tbody").evaluate((field, text) => {
+    const data = new DataTransfer();
+    data.setData("text", text);
+    field.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, dirty);
+
+  // The box shows what will be sent, rather than what the clipboard held.
+  const clean = "Hi {{first_name}},\n\nI'm hiring for a {{role_title}}.\n\nBest";
+  await expect(page.locator("#new-tbody")).toHaveValue(clean);
+  await expect(page.getByText(`${clean.length} characters`)).toBeVisible();
+
+  await page.getByRole("button", { name: "Create template" }).click();
+  await expect(page.locator("[data-form-message='notice']")).toContainText("Pasted draft");
+  const saved = await db.messageTemplate.findFirst({ where: { name: "Pasted draft" } });
+  expect(saved!.body).toBe(clean);
+  await db.messageTemplate.deleteMany({ where: { id: saved!.id } });
+});
+
 test("E13 a connection note is length-checked and its channel is recorded", async ({ page }) => {
   await page.goto("/templates/new");
   await page.locator("#new-tname").fill("Invite note");

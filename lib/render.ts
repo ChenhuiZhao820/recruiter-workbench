@@ -104,8 +104,26 @@ function substitute(name: string, values: PlaceholderValues): string {
 // What is deliberate is kept. A single newline still breaks a line, so bullets
 // and short lines survive, and one blank line still separates paragraphs. Only
 // runs longer than that are shortened, because nobody means three blank lines.
+// Runs of spaces inside a line are left alone too: indentation and alignment
+// are things people mean, and this is not the place to second-guess them.
+
+// What a paste drags in. None of it is typed and none of it is visible, which
+// is exactly why it survives being looked at: a line holding one non-breaking
+// space reads as blank but is not blank, so it escapes the blank-line rule and
+// becomes the extra gap that had to be deleted by hand on the other side.
+const INVISIBLE = /[\u200b-\u200d\u2060\ufeff]/g;
+// Every space Unicode has that is not the space bar: the non-breaking one Word
+// and LinkedIn paste, and the narrow ones that come out of PDFs.
+const ODD_SPACES = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g;
+// Line and paragraph separators, which are newlines everywhere except to a
+// regular expression that has only been told about \n and \r.
+const ODD_BREAKS = /[\u2028\u2029]/g;
+
 export function normalizeMessage(text: string): string {
   return text
+    .replace(INVISIBLE, "")
+    .replace(ODD_SPACES, " ")
+    .replace(ODD_BREAKS, "\n")
     .replace(/\r\n?/g, "\n")
     .replace(/[ \t]+$/gm, "")
     .replace(/\n{3,}/g, "\n\n")

@@ -183,6 +183,37 @@ test.describe("whitespace a recruiter would otherwise delete by hand", () => {
     expect(normalizeMessage("Hi Sam,\r\r\rBest")).toBe("Hi Sam,\n\nBest");
   });
 
+  test("a blank-looking line that is not blank is still a blank line", () => {
+    // The gap a paste leaves behind: a line holding one non-breaking space.
+    // It reads as empty, so it escapes the blank-line rule and survives every
+    // hand-deletion of "the extra space that keeps coming back".
+    expect(normalizeMessage("Hi Sam,\u00a0\n\u00a0\nBest")).toBe("Hi Sam,\n\nBest");
+    expect(normalizeMessage("Hi Sam,\u00a0\u00a0\nBest")).toBe("Hi Sam,\nBest");
+  });
+
+  test("an odd space is a space, not a character of the message", () => {
+    // Narrow and ideographic spaces come out of PDFs and out of Word.
+    expect(normalizeMessage("Ops\u2009Director")).toBe("Ops Director");
+    expect(normalizeMessage("Ops\u3000Director")).toBe("Ops Director");
+  });
+
+  test("characters nobody can see are not carried into the message", () => {
+    // A zero-width space inside a word, and a byte-order mark in front of it.
+    expect(normalizeMessage("\ufeffOps\u200bDirector")).toBe("OpsDirector");
+    expect(normalizeMessage("Hi\u200d Sam").length).toBe("Hi Sam".length);
+  });
+
+  test("a line separator is a line break like any other", () => {
+    expect(normalizeMessage("One.\u2028Two.")).toBe("One.\nTwo.");
+    expect(normalizeMessage("One.\u2029\u2029\u2029Two.")).toBe("One.\n\nTwo.");
+  });
+
+  test("runs of spaces inside a line are left where they were put", () => {
+    // Alignment and indentation are meant; this is not the place to argue.
+    const body = "Name:    Sam\nRole:    Ops Director";
+    expect(normalizeMessage(body)).toBe(body);
+  });
+
   test("a message of nothing but whitespace is nothing", () => {
     // markAsSent refuses an empty body, so this cannot be recorded as sent.
     expect(normalizeMessage(" \n\t\r\n  ")).toBe("");

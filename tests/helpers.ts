@@ -37,3 +37,14 @@ export async function backdateCandidate(fullName: string, fields: { lastActivity
   if (!candidate) throw new Error(`No candidate named ${fullName}`);
   await db.candidate.update({ where: { id: candidate.id }, data: fields });
 }
+
+// Adding a candidate is a button until it is wanted, so a test that fills the
+// fields has to ask for them first. Safe to call when it is already open.
+export async function openAddCandidate(page: { locator: (selector: string) => any }) {
+  // The section around it is a details too, so take the innermost one.
+  const summary = page.locator('details:has(#new-fullName) > summary').last();
+  if (await summary.count()) {
+    const fields = page.locator("#new-fullName");
+    if (!(await fields.isVisible())) await summary.click();
+  }
+}

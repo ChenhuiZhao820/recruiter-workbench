@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
-import { db, note, TEST_ADMIN_ID } from "./helpers";
+import { db, note, TEST_ADMIN_ID, openAddCandidate } from "./helpers";
 import { CONNECTION_NOTE_LIMIT } from "../lib/templates";
 
 // Paths the happy-path walkthrough never visits: error states, bad input,
@@ -75,6 +75,7 @@ test("E3 whitespace-only required fields are reported, not silently dropped", as
 
 test("E4 a profile link pasted without https:// is normalised", async ({ page }) => {
   const id = await createRole(page, "Link Test Role", "A role for testing links.");
+  await openAddCandidate(page);
   await page.locator("#new-fullName").fill("Dana NoScheme");
   await page.locator("#new-profileUrl").fill("www.linkedin.com/in/dana-noscheme");
   await page.getByRole("button", { name: "Add candidate" }).click();
@@ -97,6 +98,7 @@ test("E4 a profile link pasted without https:// is normalised", async ({ page })
 test("E4b a profile field that is not a link is never rendered as one", async ({ page }) => {
   const roleId = (await db.role.findFirst({ where: { title: "Link Test Role" } }))!.id;
   await page.goto(`/roles/${roleId}`);
+  await openAddCandidate(page);
   await page.locator("#new-fullName").fill("Gail NotAUrl");
   await page.locator("#new-profileUrl").fill("ask Priya for her profile");
   await page.getByRole("button", { name: "Add candidate" }).click();
@@ -119,12 +121,14 @@ test("E4b a profile field that is not a link is never rendered as one", async ({
 test("E5 the same profile link twice on a role is refused", async ({ page }) => {
   const roleId = (await db.role.findFirst({ where: { title: "Link Test Role" } }))!.id;
   await page.goto(`/roles/${roleId}`);
+  await openAddCandidate(page);
   await page.locator("#new-fullName").fill("Evan Twice");
   await page.locator("#new-profileUrl").fill("https://www.linkedin.com/in/evan-twice");
   await page.getByRole("button", { name: "Add candidate" }).click();
   await expect(page.locator("li.card", { hasText: "Evan Twice" })).toHaveCount(1);
 
   // Second time, under a different name: same link, so same person.
+  await openAddCandidate(page);
   await page.locator("#new-fullName").fill("Evan T. Twice");
   await page.locator("#new-profileUrl").fill("https://www.linkedin.com/in/evan-twice");
   await page.getByRole("button", { name: "Add candidate" }).click();
@@ -137,6 +141,7 @@ test("E5 the same profile link twice on a role is refused", async ({ page }) => 
   ).toBe(1);
 
   // A repeated name with no link is allowed, but says so.
+  await openAddCandidate(page);
   await page.locator("#new-fullName").fill("Evan Twice");
   await page.locator("#new-profileUrl").fill("");
   await page.getByRole("button", { name: "Add candidate" }).click();
@@ -179,6 +184,7 @@ test("E6 deleting a role says what happens to its saved searches", async ({ page
 
 test("E7 a closed role stays reachable and explains itself", async ({ page }) => {
   const roleId = await createRole(page, "Closing Role", "A role about to be closed.");
+  await openAddCandidate(page);
   await page.locator("#new-fullName").fill("Fiona Waiting");
   await page.getByRole("button", { name: "Add candidate" }).click();
   const card = page.locator("li.card", { hasText: "Fiona Waiting" });

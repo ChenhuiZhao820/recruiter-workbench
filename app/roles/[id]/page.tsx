@@ -23,6 +23,33 @@ export const dynamic = "force-dynamic";
 type Skill = { skill: string; real_vs_buzzword: string };
 type Question = { question: string };
 
+// A whole section that can be put away. The heading is the control, so the
+// page can be read as a list of headings before anything is opened.
+function OpenableSection({
+  id,
+  title,
+  count,
+  children,
+}: {
+  id: string;
+  title: string;
+  count?: number;
+  children: ReactNode;
+}) {
+  return (
+    <details open className="group">
+      <summary className="mb-3 flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+        <h2 id={id} className="text-2xl">
+          {title}
+          {typeof count === "number" && <span className="ml-2 text-ink/40">{count}</span>}
+        </h2>
+        <Icon name="down" size={18} className="text-ink/50 group-open:rotate-180 group-open:text-accent" />
+      </summary>
+      <div>{children}</div>
+    </details>
+  );
+}
+
 function BriefingSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <details className="group rounded border border-line">
@@ -111,9 +138,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
 
       {/* Briefing */}
       <section aria-labelledby="briefing-heading" className="workspace-section">
-        <div className="mb-5">
-          <h2 id="briefing-heading" className="section-heading">
-            <span aria-hidden="true" className="section-number">01</span> Briefing
+        <div className="mb-3">
+          <h2 id="briefing-heading" className="text-2xl">
+            Briefing
           </h2>
           <p className="section-caption">The role, translated into what matters.</p>
         </div>
@@ -197,10 +224,60 @@ export default async function RolePage({ params }: { params: { id: string } }) {
 
       {/* Candidates */}
       <section aria-labelledby="candidates-heading">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 id="candidates-heading" className="text-2xl">
-            Candidates
-          </h2>
+        <OpenableSection id="candidates-heading" title="Candidates" count={role.candidates.length}>
+        {/* Adding someone comes first, the way a new role or a new template
+            does: a button until it is wanted, then the fields. */}
+        <div className="mb-4 flex flex-wrap items-start gap-2">
+          {/* Rendered for a read-only view too, disabled by the fieldset
+              around the page: what cannot be done is visible as refused,
+              rather than quietly absent. */}
+          {(
+            <details className="group/add min-w-0 flex-1">
+              <summary className="btn-primary inline-flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+                <Icon name="plus" size={16} />
+                Add a candidate
+              </summary>
+              <div className="card mt-3">
+                <ActionForm action={addCandidate} className="space-y-3">
+                  <input type="hidden" name="roleId" value={role.id} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="new-fullName" className="field-label">
+                        Full name
+                      </label>
+                      <input id="new-fullName" name="fullName" required className="field-input" placeholder="Jane Smith" />
+                    </div>
+                    <div>
+                      <label htmlFor="new-profileUrl" className="field-label">
+                        Profile link (paste it)
+                      </label>
+                      <input
+                        id="new-profileUrl"
+                        name="profileUrl"
+                        className="field-input"
+                        placeholder="https://www.linkedin.com/in/..."
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="new-headline" className="field-label">
+                      Headline (optional)
+                    </label>
+                    <input id="new-headline" name="headline" className="field-input" placeholder="Ops Director at Acme" />
+                  </div>
+                  <div>
+                    <label htmlFor="new-notes" className="field-label">
+                      Notes (optional)
+                    </label>
+                    <textarea id="new-notes" name="notes" rows={2} className="field-input" />
+                  </div>
+                  <button type="submit" className="btn-primary">
+                    Add candidate
+                  </button>
+                </ActionForm>
+              </div>
+            </details>
+          )}
           {!readOnly && role.candidates.length > 0 && (
             <Link href={`/roles/${role.id}/outreach`} className="btn-secondary">
               Send outreach
@@ -210,7 +287,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
         {role.candidates.length === 0 && (
           <p className="mb-3 text-ink/70">
             No candidates yet. When you find someone on LinkedIn, paste their profile link and
-            name below.
+            name above.
           </p>
         )}
         <div className="space-y-4">
@@ -218,10 +295,17 @@ export default async function RolePage({ params }: { params: { id: string } }) {
             const inStage = role.candidates.filter((c) => c.stage === stage);
             if (inStage.length === 0) return null;
             return (
-              <div key={stage}>
-                <h3 className="mb-2 font-mono text-sm uppercase tracking-wide text-ink/70">
-                  {STAGE_LABELS[stage]} ({inStage.length})
-                </h3>
+              <details key={stage} open className="group/stage">
+                <summary className="mb-2 flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+                  <h3 className="font-mono text-sm uppercase tracking-wide text-ink/70">
+                    {STAGE_LABELS[stage]} ({inStage.length})
+                  </h3>
+                  <Icon
+                    name="down"
+                    size={14}
+                    className="text-ink/40 group-open/stage:rotate-180 group-open/stage:text-accent"
+                  />
+                </summary>
                 <ul className="space-y-2">
                   {inStage.map((c) => (
                     <li key={c.id} className="card">
@@ -348,51 +432,12 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                     </li>
                   ))}
                 </ul>
-              </div>
+              </details>
             );
           })}
         </div>
 
-        <div className="card mt-4">
-          <h3 className="mb-3 text-lg">Add candidate</h3>
-          <ActionForm action={addCandidate} className="space-y-3">
-            <input type="hidden" name="roleId" value={role.id} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="new-fullName" className="field-label">
-                  Full name
-                </label>
-                <input id="new-fullName" name="fullName" required className="field-input" placeholder="Jane Smith" />
-              </div>
-              <div>
-                <label htmlFor="new-profileUrl" className="field-label">
-                  Profile link (paste it)
-                </label>
-                <input
-                  id="new-profileUrl"
-                  name="profileUrl"
-                  className="field-input"
-                  placeholder="https://www.linkedin.com/in/..."
-                />
-              </div>
-            </div>
-            <div>
-              <label htmlFor="new-headline" className="field-label">
-                Headline (optional)
-              </label>
-              <input id="new-headline" name="headline" className="field-input" placeholder="Ops Director at Acme" />
-            </div>
-            <div>
-              <label htmlFor="new-notes" className="field-label">
-                Notes (optional)
-              </label>
-              <textarea id="new-notes" name="notes" rows={2} className="field-input" />
-            </div>
-            <button type="submit" className="btn-primary">
-              Add candidate
-            </button>
-          </ActionForm>
-        </div>
+        </OpenableSection>
       </section>
 
       {/* Searches for this role */}

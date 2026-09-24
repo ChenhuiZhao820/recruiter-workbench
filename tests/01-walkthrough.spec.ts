@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
-import { db, note, backdateCandidate, daysAgo, TEST_ADMIN_ID } from "./helpers";
+import { db, note, backdateCandidate, daysAgo, TEST_ADMIN_ID, openAddCandidate } from "./helpers";
 
 // The whole recruiter-day walkthrough, in order, against a fresh DB.
 // Suboptimal-but-working behavior is recorded via note(); real breakage fails.
@@ -301,6 +301,7 @@ test("07 searches list: copy, rename, delete", async ({ page }) => {
 test("08 add candidates and open a profile", async ({ page }) => {
   await page.goto(`/roles/${roleId}`);
   const add = async (name: string, url: string, headline: string) => {
+    await openAddCandidate(page);
     await page.locator("#new-fullName").fill(name);
     await page.locator("#new-profileUrl").fill(url);
     await page.locator("#new-headline").fill(headline);

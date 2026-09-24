@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { assertSameOrigin, createSession, endSession, requireUser, takeAuthAttempt } from "@/lib/auth";
 import { hashPassword, hashToken, normalizeEmail, passwordError, validEmail, verifyPassword } from "@/lib/auth-crypto";
 import { isNewAccount } from "@/lib/onboarding";
+import { hasSeenCurrentRelease } from "@/lib/release";
 import type { FormState } from "@/lib/formState";
 
 export async function login(_state: FormState, form: FormData): Promise<FormState> {
@@ -25,9 +26,12 @@ export async function login(_state: FormState, form: FormData): Promise<FormStat
   // activation, so that visit starts on the setup guide instead of an empty
   // dashboard. Once anything has been configured, sign-in lands where it always did.
   const guided = await isNewAccount(user.id, user.role);
+  // A new account has used no earlier version, so the setup guide wins; an
+  // established one is shown what changed since they were last told, once.
+  const unread = !guided && !(await hasSeenCurrentRelease(user.id));
   await endSession();
   await createSession(user.id, user.authVersion);
-  redirect(guided ? "/getting-started" : "/");
+  redirect(guided ? "/getting-started" : unread ? "/whats-new" : "/");
 }
 
 export async function logout() {

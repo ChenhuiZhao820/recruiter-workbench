@@ -19,12 +19,16 @@ const navigation = [
 
 type Identity = { name: string; email: string; role: string };
 
-export function ApplicationShell({ user, viewing, setupPending = false, ownerId, children }: {
+export function ApplicationShell({ user, viewing, setupPending = false, releasePending = false, ownerId, children }: {
   user: Identity | null;
   viewing: { name: string; email: string } | null;
   // Setup is only advertised while it is unfinished; a finished workspace
   // keeps the page but loses the nav entry.
   setupPending?: boolean;
+  // An unread release, for an account already signed in when it shipped. It
+  // is one link in the top bar rather than an interruption, and it leaves as
+  // soon as the release is read.
+  releasePending?: boolean;
   ownerId?: string;
   children: React.ReactNode;
 }) {
@@ -34,7 +38,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, ownerId,
   const publicPage = !user || pathname === "/welcome";
   const active = (href: string) => href === "/" ? pathname === "/" || pathname.startsWith("/roles") : pathname.startsWith(href);
   const items = setupPending ? [setupNavigation, ...navigation] : navigation;
-  const pageName = items.find((item) => active(item.href))?.label ?? (pathname.startsWith("/getting-started") ? setupNavigation.label : pathname.startsWith("/admin") ? "Accounts" : pathname.startsWith("/account") ? "Your account" : "Outreach");
+  const pageName = items.find((item) => active(item.href))?.label ?? (pathname.startsWith("/getting-started") ? setupNavigation.label : pathname.startsWith("/admin") ? "Accounts" : pathname.startsWith("/account") ? "Your account" : pathname.startsWith("/whats-new") ? "What’s new" : "Outreach");
   const initials = user?.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "C";
 
   if (publicPage) return <div className="public-shell">
@@ -77,7 +81,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, ownerId,
       </div>
     </header>
     <div className="workspace-body">
-      <div className="workspace-topbar"><div className="breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>{pageName}</strong></div><span className="workspace-status"><span className="status-dot" />{viewing ? "Read-only" : "Private workspace"}</span></div>
+      <div className="workspace-topbar"><div className="breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>{pageName}</strong></div><span className="workspace-status">{releasePending && <Link href="/whats-new" className="topbar-news">What&rsquo;s new</Link>}<span className="status-dot" />{viewing ? "Read-only" : "Private workspace"}</span></div>
       {viewing && <div role="status" className="readonly-banner"><Icon name="eye" /><p>Read-only workspace: <strong>{viewing.name}</strong> ({viewing.email}). You are still signed in as {user.name}.</p><form action={stopViewing}><button type="submit" className="btn-secondary">Return to my workspace</button></form></div>}
       <main id="main-content" key={ownerId} className="workspace-main">{children}</main>
       <footer className="workspace-footer"><span>Capture — recruiting, in focus.</span><span>Prepared by software. Decided by you.</span></footer>

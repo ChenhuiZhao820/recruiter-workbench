@@ -174,6 +174,33 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   send: the real limit is LinkedIn's, unpublished and per account. Keep the
   counting honest and the thresholds conservative rather than precise.
 
+## Telling people what changed
+
+- There is one current release, not an archive: `CURRENT_RELEASE` in
+  `lib/release.ts` and the `/whats-new` page that describes it. Bumping the id
+  and rewriting the page is the whole of "tell everyone again". Keep it coarse -
+  a notice that fires for changes nobody has to act on gets dismissed unread,
+  and it is the only channel that reaches a recruiter who does not read this
+  repository.
+- `Settings.seenRelease` holds the last release an account was shown, applied as
+  the additive `20260924000000_settings_seen_release`. Sign-in sends an
+  established account with an unread release to `/whats-new`; an account still
+  setting up goes to the guide instead, because what changed since a version
+  they never used is not news. An account already signed in gets one "What's
+  new" link in the workspace top bar until they read it.
+- Reading is recorded when the recruiter presses Got it, never by the page
+  rendering, and through `requireWritableWorkspace`, so a read-only view cannot
+  mark somebody else's release as read. `tests/11-whats-new.spec.ts` covers who
+  is sent there, that rendering is not reading, and that it is news once.
+- The release page carries the extension instructions, because Chrome never
+  updates an extension loaded by hand and the app is the only surface that
+  reaches somebody running an old copy.
+- `GET /api/capture` reports `extension.version`, read from the same
+  `extension/manifest.json` the download endpoint packages. The panel compares
+  it with its own and says so when it is behind, with a link to the download.
+  It helps from the next extension change onward, never the one that ships it:
+  the copy already installed does not contain the check.
+
 ## Accounts and authorization
 
 - `lib/auth.ts`: opaque hashed database sessions, HttpOnly/SameSite cookies,

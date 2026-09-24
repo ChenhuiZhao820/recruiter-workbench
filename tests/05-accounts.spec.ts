@@ -1,6 +1,7 @@
 import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 import { randomBytes, randomUUID } from "node:crypto";
 import { db } from "./helpers";
+import { CURRENT_RELEASE } from "../lib/release";
 import { hashPassword, hashToken, verifyPassword } from "../lib/auth-crypto";
 
 const BASE = "http://localhost:3100";
@@ -32,7 +33,9 @@ const test = base.extend<{ accounts: Accounts }>({
         const suffix = randomUUID();
         const user = await db.user.create({ data: {
           email: `${role}-${suffix}@test.capture.invalid`, name: `${role} ${suffix}`, role, passwordHash,
-          settings: { create: { recruiterName: `Recruiter ${suffix}` } },
+          // Not about the release notice; an unread one would send a sign-in
+          // elsewhere. tests/11-whats-new.spec.ts covers that on its own accounts.
+          settings: { create: { recruiterName: `Recruiter ${suffix}`, seenRelease: CURRENT_RELEASE } },
           extensionAccess: { create: { activatedAt: new Date() } },
         } });
         const token = secret();
@@ -408,7 +411,13 @@ test("A8 independent settings and one-time hashed keys scope capture GET and POS
     const headers = { "X-Capture-Token": token };
     const list = await guest.request.get("/api/capture", { headers });
     expect(list.status()).toBe(200);
-    expect(await list.json()).toEqual({ account: { id: actor.id, email: actor.email, name: actor.name }, roles: [{ id: own.role.id, title: own.role.title, client: null }] });
+    // The packaged version travels with the role list so an extension loaded
+    // by hand can tell that it is out of date; nothing else is added here.
+    expect(await list.json()).toEqual({
+      account: { id: actor.id, email: actor.email, name: actor.name },
+      roles: [{ id: own.role.id, title: own.role.title, client: null }],
+      extension: { version: expect.any(String) },
+    });
     const denied = await guest.request.post("/api/capture", { headers, data: { roleId: other.role.id, fullName: "Foreign capture injection" } });
     expect(denied.status()).toBe(404);
     const accepted = await guest.request.post("/api/capture", { headers, data: { roleId: own.role.id, fullName: `Captured for ${actor.id}` } });

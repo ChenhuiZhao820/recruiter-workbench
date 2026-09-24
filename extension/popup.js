@@ -95,6 +95,46 @@ async function readActiveTab() {
   }
 }
 
+// --- being out of date ------------------------------------------------------
+//
+// Chrome updates extensions it installed; it does not update one loaded by
+// hand, which is how this one arrives. So an old copy can go on working
+// quietly for months while the workbench has a newer one to hand out. The
+// workbench reports what it would package now, and this says so once, here,
+// where the recruiter already is.
+
+function installedVersion() {
+  try {
+    const manifest = chrome.runtime.getManifest();
+    return typeof manifest.version === "string" ? manifest.version : "";
+  } catch {
+    return "";
+  }
+}
+
+// Numeric, part by part, so 1.10.0 is newer than 1.9.0. Anything unparseable
+// means no opinion, which is the right amount of opinion to have about it.
+function isOlder(installed, available) {
+  if (!/^[0-9]+(\.[0-9]+)*$/.test(installed) || !/^[0-9]+(\.[0-9]+)*$/.test(available)) return false;
+  const mine = installed.split(".").map(Number);
+  const theirs = available.split(".").map(Number);
+  for (let i = 0; i < Math.max(mine.length, theirs.length); i++) {
+    const a = mine[i] || 0;
+    const b = theirs[i] || 0;
+    if (a !== b) return a < b;
+  }
+  return false;
+}
+
+function showUpdate(available) {
+  const installed = installedVersion();
+  const behind = isOlder(installed, available);
+  el("update").hidden = !behind;
+  if (behind) {
+    el("update-text").textContent = `Capture ${available} is ready to download. You have ${installed}. Chrome does not update an extension you loaded yourself, so this one waits for you.`;
+  }
+}
+
 // --- following the recruiter from profile to profile ------------------------
 //
 // `activeTab` is granted by a toolbar click and taken back the moment the tab
@@ -569,6 +609,7 @@ async function loadRolesAndShow() {
   }
   state.account = account;
   state.roles = body.roles;
+  showUpdate(body.extension && typeof body.extension.version === "string" ? body.extension.version : "");
   el("account-name").textContent = account.name?.trim() || account.email;
   el("account-email").textContent = account.email;
   el("account-origin").textContent = workbenchOrigin(state.url);
@@ -664,6 +705,8 @@ el("follow-toggle").addEventListener("click", async () => {
   await showFollowState();
   if (!on) await refreshProfile();
 });
+
+el("update-open").addEventListener("click", () => openWorkbench("/account"));
 
 el("open-existing").addEventListener("click", () => {
   if (state.existingRoleId) openWorkbench(`/roles/${encodeURIComponent(state.existingRoleId)}`);

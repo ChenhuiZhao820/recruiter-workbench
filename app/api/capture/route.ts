@@ -6,6 +6,8 @@ import { corsHeaders } from "@/lib/capture";
 import { hashToken } from "@/lib/auth-crypto";
 import { canUseExtension } from "@/lib/extension-access";
 import { revalidatePath } from "next/cache";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 // The browser extension's one endpoint. It does exactly what the "Add
 // candidate" form does, including the same URL normalisation and the same
@@ -89,10 +91,26 @@ export async function GET(request: Request) {
     {
       account: { id: account.id, email: account.email, name: account.name },
       roles,
+      // What this deployment would hand out if the extension were downloaded
+      // now. Chrome never updates an extension loaded by hand, so the only way
+      // an old copy learns it is old is by asking.
+      extension: { version: await packagedVersion() },
       ...(asked ? { existing } : {}),
     },
     { headers: cors }
   );
+}
+
+// Read from the same folder the download endpoint packages, so the number the
+// extension is compared against is the number it would actually receive.
+async function packagedVersion(): Promise<string | null> {
+  try {
+    const manifest = JSON.parse(await readFile(path.join(process.cwd(), "extension", "manifest.json"), "utf8"));
+    return typeof manifest.version === "string" && /^[0-9.]{1,24}$/.test(manifest.version) ? manifest.version : null;
+  } catch {
+    // Not worth failing a capture over; the extension simply says nothing.
+    return null;
+  }
 }
 
 export async function POST(request: Request) {

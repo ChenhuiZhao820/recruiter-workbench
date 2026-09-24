@@ -2,6 +2,7 @@ import { test as base, expect, type APIResponse, type BrowserContext, type Page 
 import { randomBytes, randomUUID } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
 import { db } from "./helpers";
+import { CURRENT_RELEASE } from "../lib/release";
 import { hashPassword, hashToken } from "../lib/auth-crypto";
 
 const BASE = "http://localhost:3100";
@@ -44,7 +45,10 @@ const test = base.extend<{ extensions: Extensions }>({
           const suffix = randomUUID();
           const user = await db.user.create({ data: {
             email: `extension-${role}-${suffix}@test.capture.invalid`, name: `Extension ${role} ${suffix}`, role, passwordHash,
-            settings: { create: {} },
+            // These tests are not about the release notice; an unread one
+            // would send a sign-in somewhere else. `tests/11-whats-new.spec.ts`
+            // covers that on its own accounts.
+            settings: { create: { seenRelease: CURRENT_RELEASE } },
             ...(activated ? { extensionAccess: { create: { activatedAt: new Date() } } } : {}),
           } });
           const token = secret();
@@ -340,7 +344,11 @@ test("E3 activation persists across reload and sign-in, downloads remain reusabl
   const headers = { "X-Capture-Token": key };
   const listed = await guest.request.get("/api/capture", { headers });
   expect(listed.status()).toBe(200);
-  expect(await listed.json()).toEqual({ account: { id: actor.id, name: actor.name, email: actor.email }, roles: [{ id: role.id, title: role.title, client: null }] });
+  expect(await listed.json()).toEqual({
+    account: { id: actor.id, name: actor.name, email: actor.email },
+    roles: [{ id: role.id, title: role.title, client: null }],
+    extension: { version: expect.any(String) },
+  });
   expect((await guest.request.post("/api/capture", { headers, data: { roleId: otherRole.id, fullName: "Foreign injection", userId: foreign.id } })).status()).toBe(404);
   expect((await guest.request.post("/api/capture", { headers, data: { roleId: role.id, fullName: "Authorized capture", userId: foreign.id } })).status()).toBe(201);
   expect(await db.candidate.count({ where: { roleId: role.id, fullName: "Authorized capture" } })).toBe(1);

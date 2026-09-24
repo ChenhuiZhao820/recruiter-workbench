@@ -17,7 +17,7 @@ export const accountColumns = {
   SavedSearch: { ...legacyColumns.SavedSearch, userId: "id", searchUrl: "text?" },
   Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?" },
   OutreachLog: legacyColumns.OutreachLog,
-  Settings: { ...settingsColumns, userId: "id", captureTokenHash: "discard" },
+  Settings: { ...settingsColumns, userId: "id", captureTokenHash: "discard", seenRelease: "text?" },
   AuditEvent: { id: "id", actorId: "id", targetUserId: "id?", action: "text", createdAt: "date" },
 };
 const ephemeralColumns = {
@@ -40,6 +40,7 @@ const lateColumns = {
   User: { accountTier: { value: "basic", sql: "'basic'" }, trialExpiresAt: { value: null, sql: "NULL" } },
   SavedSearch: { searchUrl: { value: null, sql: "NULL" } },
   Candidate: { memberId: { value: null, sql: "NULL" } },
+  Settings: { seenRelease: { value: null, sql: "NULL" } },
 };
 const lateFor = (table) => lateColumns[table] ?? {};
 const invalid = (detail) => { throw new SafeError(`Invalid multi-account source: ${detail}. No data values are printed.`); };

@@ -156,6 +156,9 @@ function actionHarness() {
     "@/lib/db": { db },
     "@/lib/account-tiers": tiers,
     "@/lib/auth-crypto": {},
+    // A new account starts current on the release notice; nothing here is
+    // about which release it was shown.
+    "@/lib/release": { CURRENT_RELEASE: "test-release" },
     "@/lib/auth": { assertSameOrigin, requireAdmin: async () => {
       const actor = users.get(controls.actor);
       if (!actor?.active || actor.role !== "admin") throw new Error("Administrator access is required");

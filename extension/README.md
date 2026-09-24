@@ -5,14 +5,21 @@ retyping a name, a headline and a URL you are both looking at.
 
 ## What it does, and what it deliberately does not
 
-It reads **one page, when you click it**. There is no background script, no
-crawler, and no bulk save. The side panel below changes where the extension
-sits, not what it may read: a profile is still only read on a click. The
-extension asks for `activeTab` rather than permission over `linkedin.com`,
-which means Chrome itself only grants it access to the tab after you click the
-toolbar button. It cannot read anything while
-you browse, even if it wanted to: that is enforced by the browser, not by a
-promise in this file.
+It reads **the page you are looking at, and nothing else**. There is no
+background script, no crawler, no bulk save, and no request is ever made to
+LinkedIn: the page is already open in front of you, and only what is on it is
+read.
+
+Out of the box the extension asks for `activeTab`, which Chrome grants only
+after you click the toolbar button and takes back as soon as the tab moves on.
+That is why the panel used to need a click on every profile. LinkedIn is also
+declared as an **optional** origin: it is not granted when you install, and the
+panel offers a button that asks Chrome for it so it can fill itself in as you
+move between profiles. You can say no and keep clicking; you can grant it and
+later remove it in `chrome://extensions`; and **Pause** stops the reading
+without closing the panel. Even granted, nothing is registered to run on
+LinkedIn - the reader is injected only while the panel is open, and nothing
+leaves your browser until you press Save.
 
 Requests go only to the configured workbench. Source builds support HTTP
 loopback; hosted packages additionally permit one explicit HTTPS workbench origin.
@@ -95,17 +102,26 @@ across page loads and tab switches, so it is there on the next profile without
 being asked for again. **Close panel**, or Chrome's own X, puts it away; the
 toolbar button brings it back.
 
-The panel notices when the tab moves to another page. If Chrome still allows the
-read it fills in the new person and clears the note, which belonged to the last
-one. If it does not - Chrome only permits a read just after you click the
-toolbar button - the panel empties the name, headline and link rather than
-showing you somebody else's details, and offers **Read this profile** once you
-have clicked the toolbar button. Your note is kept either way: it is the one
-thing you typed. A stale name is never left sitting next to a new profile.
+The panel notices when the tab moves to another page and fills in the new
+person, clearing the note, which belonged to the last one. If it cannot read the
+page - you have not allowed LinkedIn, and Chrome has taken `activeTab` back -
+it empties the name, headline and link rather than showing you somebody else's
+details, and offers **Read this profile** once you have clicked the toolbar
+button. A stale name is never left sitting next to a new profile.
 
-The panel is the same page as the popup, with the same single permission behind
-it. It cannot read a page you have not asked it to read, and nothing is saved
-without your click.
+On a page that is not a profile, a search result list or your inbox, the panel
+simply waits. That is not an error and it does not say it is.
+
+## People you already have
+
+When the panel reads a profile it asks your workbench - not LinkedIn - whether
+that link is already on one of your roles. If it is, it says so, names the role
+and offers to open it. It does not stop you: filing the same person against a
+second role is a decision you are allowed to make, and the save still refuses
+an exact duplicate on the same role.
+
+The panel is the same page as the popup. It cannot read a page you have not
+allowed it to read, and nothing is saved without your click.
 
 **Settings** shows the connected account and the address it saves to. From
 there, **Open workbench settings** jumps to the page that generates capture

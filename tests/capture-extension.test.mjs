@@ -65,6 +65,7 @@ async function popup(options = {}) {
   const listeners = { activated: [], updated: [] };
   const panel = { opened: [], options: [], closed: 0 };
   const requests = [];
+  const permissionAsks = [];
   const responses = [...(options.responses || [])];
   const delays = [];
   let reads = 0;
@@ -110,6 +111,20 @@ async function popup(options = {}) {
         open: async (target) => { panel.opened.push(copy(target)); },
         setOptions: async (settings) => { panel.options.push(copy(settings)); },
       } } : {}),
+      // Optional permissions. Absent by default, so every other test also
+      // proves the page still works where LinkedIn was never allowed.
+      permissions: {
+        contains: async ({ origins }) => {
+          permissionAsks.push({ kind: "contains", origins: copy(origins) });
+          return Boolean(options.linkedInGranted);
+        },
+        request: async ({ origins }) => {
+          permissionAsks.push({ kind: "request", origins: copy(origins) });
+          if (options.grantRefused) return false;
+          options.linkedInGranted = true;
+          return true;
+        },
+      },
       runtime: { getContexts: async () => options.contexts ?? [{ contextType: "POPUP" }] },
     },
     location: { hash: options.hash ?? "" },
@@ -132,7 +147,7 @@ async function popup(options = {}) {
   if (options.configSource) vm.runInContext(options.configSource, context);
   await vm.runInContext(options.source || source, context);
   return {
-    elements, stored, requests, responses, delays, listeners, panel,
+    elements, stored, requests, permissionAsks, responses, delays, listeners, panel,
     // Walking to the next profile: the tab reports a finished load, and from
     // then on the page reads whatever `options.profile` now describes.
     navigate: async (profile) => {
@@ -179,15 +194,21 @@ test("manifest grants only click-triggered reading and loopback workbench access
   assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "sidePanel", "storage"]);
   assert.deepEqual(manifest.host_permissions, ["http://localhost/*", "http://127.0.0.1/*", `${deployment}/*`]);
   assert.doesNotMatch(JSON.stringify(manifest.host_permissions), /linkedin/i);
-  assert.doesNotMatch(JSON.stringify(manifest), /unsafe-eval|https:\/\/\*|<all_urls>/i);
+  // The one wildcard host allowed anywhere in here is the optional LinkedIn
+  // origin checked just above; nothing else may carry one.
+  assert.doesNotMatch(JSON.stringify({ ...manifest, optional_host_permissions: [] }),
+    /unsafe-eval|https:\/\/\*|<all_urls>/i);
   assert.equal(manifest.content_scripts, undefined);
   assert.equal(manifest.background, undefined);
   assert.equal(manifest.action.default_popup, "popup.html");
   // The side panel is the same page, so it cannot reach anything the popup
   // could not reach either.
   assert.deepEqual(manifest.side_panel, { default_path: "popup.html" });
-  assert.equal(manifest.optional_host_permissions, undefined);
+  // LinkedIn is optional, not granted at install, and asked for in the panel.
+  // It is the only optional anything: no optional API permissions at all.
+  assert.deepEqual(manifest.optional_host_permissions, ["https://*.linkedin.com/*"]);
   assert.equal(manifest.optional_permissions, undefined);
+  assert.doesNotMatch(JSON.stringify(manifest.host_permissions), /linkedin/i);
   assert.equal(manifest.content_security_policy.extension_pages,
     `script-src 'self'; object-src 'self'; connect-src http://localhost:* http://127.0.0.1:* ${deployment};`);
   assert.doesNotMatch(html, /workbench\.js|https?:\/\/[^<]+<\/script>/);
@@ -261,7 +282,12 @@ test("the panel follows the recruiter to the next profile", async () => {
   assert.equal(p.elements.notes.value, "");
   assert.equal(p.elements.message.textContent, "");
   assert.equal(p.elements.reread.hidden, true);
-  assert.equal(p.requests.length, 1, "navigating is not a reason to talk to the workbench");
+  // Roles once, then one "have we met?" lookup per profile read - and nothing
+  // else: navigating is not a reason to tell the workbench anything.
+  assert.equal(p.requests.length, 3);
+  assert.match(p.requests[1].url, /profileUrl=/);
+  assert.match(p.requests[2].url, /profileUrl=/);
+  assert.equal(p.requests.filter((r) => r.method === "POST").length, 0);
 });
 
 test("staying on the same profile does not disturb a note being typed", async () => {
@@ -322,12 +348,90 @@ test("a refused re-read keeps whatever was typed by hand", async () => {
   assert.match(p.elements.message.textContent, /toolbar icon/);
 });
 
+test("the panel offers to follow along, and asks Chrome for LinkedIn when told to", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel" });
+  // Not granted at install, so the panel says what the click buys.
+  assert.equal(p.elements.follow.hidden, false);
+  assert.equal(p.elements["follow-allow"].hidden, false);
+  assert.equal(p.elements["follow-toggle"].hidden, true);
+  assert.match(p.elements["follow-text"].textContent, /fills itself in/);
+
+  await p.click("follow-allow");
+  const asked = p.permissionAsks.filter((ask) => ask.kind === "request");
+  assert.equal(asked.length, 1);
+  assert.deepEqual(asked[0].origins, ["https://*.linkedin.com/*"]);
+  assert.equal(p.stored.autoRead, true);
+  assert.equal(p.elements["follow-allow"].hidden, true);
+  assert.equal(p.elements["follow-toggle"].hidden, false);
+  assert.equal(p.elements["follow-toggle"].textContent, "Pause");
+  assert.match(p.elements["follow-text"].textContent, /Following along/);
+});
+
+test("refusing the permission changes nothing and says so", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel", grantRefused: true });
+  await p.click("follow-allow");
+  assert.equal(p.stored.autoRead, undefined);
+  assert.equal(p.elements["follow-allow"].hidden, false);
+  assert.match(p.elements.message.textContent, /fine answer/);
+});
+
+test("pausing keeps the panel open and stops it reading", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel", linkedInGranted: true });
+  assert.equal(p.elements["follow-toggle"].textContent, "Pause");
+  await p.click("follow-toggle");
+  assert.equal(p.stored.autoRead, false);
+  assert.equal(p.elements["follow-toggle"].textContent, "Resume");
+  assert.match(p.elements["follow-text"].textContent, /Paused/);
+  // The panel is still the panel: nothing about it closed.
+  assert.equal(p.panel.closed, 0);
+  assert.equal(p.elements["panel-close"].hidden, false);
+});
+
+test("a page that is not a profile is a quiet wait, not a complaint", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel", linkedInGranted: true });
+  await p.navigate({ url: "https://www.linkedin.com/search/results/people/" });
+  assert.equal(p.elements.name.value, "");
+  assert.equal(p.elements.message.className, "message");
+  assert.match(p.elements.message.textContent, /Open someone's profile/);
+  assert.equal(p.elements.reread.hidden, true);
+});
+
+test("somebody already saved is said so before they are saved again", async () => {
+  const existing = {
+    status: 200,
+    body: { account, roles, existing: {
+      id: "cand-1", fullName: "Priya Kaur", stage: "contacted",
+      role: { id: "role-a", title: "Finance Analyst", client: "Example client", status: "open" },
+    } },
+  };
+  const p = await popup({ responses: [{ status: 200, body: { account, roles } }, existing] });
+  // The lookup asks the workbench about the link on screen, never LinkedIn.
+  const lookup = new URL(p.requests.at(-1).url);
+  assert.equal(lookup.pathname, "/api/capture");
+  assert.equal(lookup.searchParams.get("profileUrl"), "https://www.linkedin.com/in/priya-kaur/");
+  assert.equal(p.elements.existing.hidden, false);
+  assert.match(p.elements.existing.textContent, /Already saved as Priya Kaur on Finance Analyst \(Example client\)/);
+  assert.equal(p.elements["open-existing"].hidden, false);
+  // Saying so is not refusing: a second role is a decision the recruiter makes.
+  assert.equal(p.elements.save.disabled, false);
+});
+
+test("a lookup that fails is not worth a word", async () => {
+  const p = await popup({ responses: [
+    { status: 200, body: { account, roles } },
+    { status: 500, body: { error: "nope" } },
+  ] });
+  assert.equal(p.elements.existing.hidden, true);
+  assert.equal(p.elements.message.textContent, "");
+  assert.equal(p.elements.save.disabled, false);
+});
+
 test("the panel saves the profile it is showing, exactly as the popup does", async () => {
-  const p = await popup({ sidePanel: true, hash: "#panel", responses: [{ status: 200, body: { account, roles } }, saved] });
+  const p = await popup({ sidePanel: true, hash: "#panel", responses: [{ status: 200, body: { account, roles } }, { status: 200, body: { account, roles, existing: null } }, { status: 200, body: { account, roles, existing: null } }, saved] });
   await p.navigate(otherProfile);
   await p.edit("notes", "Runs the Leeds site.");
   await p.click("save");
-  const body = JSON.parse(p.requests[1].body);
+  const body = JSON.parse(p.requests.at(-1).body);
   assert.equal(body.fullName, "Sam Okafor");
   assert.equal(body.profileUrl, "https://www.linkedin.com/in/sam-okafor/");
   assert.equal(body.notes, "Runs the Leeds site.");
@@ -356,7 +460,8 @@ test("capture prefills the profile, recalls the role, focuses empty notes and ne
   assert.equal(p.elements.role.children[1].textContent, "Controller (Example client)");
   assert.equal(p.elements.notes.value, "");
   assert.equal(p.elements.notes.focused, true);
-  assert.equal(p.requests.length, 1);
+  assert.equal(p.requests.length, 2);
+  assert.match(p.requests[1].url, /profileUrl=/);
   assert.equal(p.reads, 1);
 });
 
@@ -513,7 +618,7 @@ test("POST 404 refreshes roles without rereading or changing edited profile fiel
     { status: 200, body: { account, roles: [roles[0]] } },
   );
   await p.click("save");
-  assert.equal(p.requests.length, 3);
+  assert.equal(p.requests.length, 4);
   assert.equal(p.elements.role.children.length, 1);
   assert.equal(p.elements.role.value, "role-a");
   assert.equal(p.elements.name.value, "Edited name");
@@ -618,7 +723,7 @@ test("an in-flight save prevents double submission and changes to its fields or 
   await p.click("save");
   await p.click("settings");
   assert.equal(p.elements.capture.hidden, false);
-  assert.equal(p.requests.length, 2);
+  assert.equal(p.requests.length, 3);
   finish(saved);
   await saving;
   for (const id of ["role", "name", "headline", "profile", "notes", "settings"]) {
@@ -637,7 +742,8 @@ test("double connect makes just one roles request and one extraction", async () 
   await p.click("connect");
   finish({ status: 200, body: { account, roles } });
   await connecting;
-  assert.equal(p.requests.length, 1);
+  // One roles request, one extraction - and the lookup the extraction leads to.
+  assert.equal(p.requests.length, 2);
   assert.equal(p.reads, 1);
   assert.equal(p.elements.connect.disabled, false);
 });
@@ -820,7 +926,9 @@ test("a configured HTTPS origin is the packaged default and uses the capture tok
   p.responses.push(saved);
   await p.click("save");
   for (const request of p.requests) {
-    assert.equal(request.url, `${hostedOrigin}/api/capture`);
+    // The lookup carries a query; everything else about it is the same call.
+    const asked = new URL(request.url);
+    assert.equal(`${asked.origin}${asked.pathname}`, `${hostedOrigin}/api/capture`);
     assert.equal(request.headers["X-Capture-Token"], config.token);
     assert.equal(request.redirect, "error");
     assert.equal(request.credentials, "omit");
@@ -893,13 +1001,18 @@ test("packager makes a standalone exact-host build and leaves source loopback-on
     ["http://localhost/*", "http://127.0.0.1/*", "https://workbench.example.test/*"]);
   assert.doesNotMatch(JSON.stringify(packaged.host_permissions), new RegExp(deployment));
   assert.deepEqual(packaged.permissions, ["activeTab", "scripting", "sidePanel", "storage"]);
-  for (const key of ["background", "content_scripts", "optional_permissions", "optional_host_permissions"]) {
+  for (const key of ["background", "content_scripts", "optional_permissions"]) {
     assert.equal(packaged[key], undefined);
   }
+  // The optional LinkedIn origin survives packaging unchanged: it is the whole
+  // point of the panel following along, and it is still granted by the
+  // recruiter rather than by the package.
+  assert.deepEqual(packaged.optional_host_permissions, ["https://*.linkedin.com/*"]);
   assert.equal(packaged.content_security_policy.extension_pages,
     `script-src 'self'; object-src 'self'; connect-src http://localhost:* http://127.0.0.1:* ${hostedOrigin};`);
   assert.doesNotMatch(JSON.stringify(packaged.host_permissions), /linkedin/i);
-  assert.doesNotMatch(JSON.stringify(packaged), /unsafe-eval|https:\/\/\*|<all_urls>/i);
+  assert.doesNotMatch(JSON.stringify({ ...packaged, optional_host_permissions: [] }),
+    /unsafe-eval|https:\/\/\*|<all_urls>/i);
   const packagedHtml = await readFile(join(output, "popup.html"), "utf8");
   const packagedSource = await readFile(join(output, "popup.js"), "utf8");
   const configSource = await readFile(join(output, "workbench.js"), "utf8");

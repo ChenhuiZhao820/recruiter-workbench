@@ -624,3 +624,7 @@ select.field-input { padding-right: 28px; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .role-card:hover { transform: none; }
 }
+
+/* An unread release: a link in the top bar, not an interruption. */
+.topbar-news { margin-right: 14px; color: var(--color-accent); font-weight: 550; text-decoration: none; }
+.topbar-news:hover { text-decoration: underline; }

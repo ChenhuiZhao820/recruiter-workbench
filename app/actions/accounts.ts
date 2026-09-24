@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { appOrigin, assertSameOrigin, getSession, requireAdmin } from "@/lib/auth";
 import { hashToken, newSecret, normalizeEmail, validEmail } from "@/lib/auth-crypto";
+import { CURRENT_RELEASE } from "@/lib/release";
 import type { FormState } from "@/lib/formState";
 import { parseAccountTier } from "@/lib/account-tiers";
 import { requireWritableWorkspace } from "@/lib/workspace";
@@ -45,7 +46,11 @@ export async function createAccount(_state: AccountActionState, form: FormData):
   try {
     userId = await db.$transaction(async (tx) => {
       const user = await tx.user.create({ data: { email, name, role: "recruiter", ...tier.data } });
-      await tx.settings.create({ data: { userId: user.id, recruiterName: name } });
+      // Current from the moment it exists: an account created now has missed
+      // nothing, and what changed before it existed is not news to it. Without
+      // this the recruiter name written here would make a brand new account
+      // look established enough to be caught up on its first sign-in.
+      await tx.settings.create({ data: { userId: user.id, recruiterName: name, seenRelease: CURRENT_RELEASE } });
       await tx.activationToken.create({ data: { userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 86400000) } });
       await tx.auditEvent.create({ data: { actorId: admin.id, targetUserId: user.id, action: "account_created" } });
       return user.id;

@@ -1,6 +1,7 @@
 import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 import { randomBytes, randomUUID } from "node:crypto";
 import { db } from "./helpers";
+import { CURRENT_RELEASE } from "../lib/release";
 import { hashPassword, hashToken } from "../lib/auth-crypto";
 
 const BASE = "http://localhost:3100";
@@ -39,7 +40,10 @@ const test = base.extend<{ accounts: Accounts }>({
             email: `tier-${role}-${suffix}@test.capture.invalid`, name: `Tier ${role} ${suffix}`, role, passwordHash,
             ...(accountTier === undefined ? {} : { accountTier }),
             ...(trialExpiresAt === undefined ? {} : { trialExpiresAt }),
-            settings: { create: {} },
+            // These tests are not about the release notice; an unread one
+            // would send a sign-in somewhere else. `tests/11-whats-new.spec.ts`
+            // covers that on its own accounts.
+            settings: { create: { seenRelease: CURRENT_RELEASE } },
             ...(activated ? { extensionAccess: { create: { activatedAt: new Date() } } } : {}),
           } });
           const token = randomBytes(32).toString("base64url");

@@ -66,6 +66,7 @@ async function popup(options = {}) {
   const panel = { opened: [], options: [], closed: 0 };
   const requests = [];
   const permissionAsks = [];
+  const opened = [];
   const responses = [...(options.responses || [])];
   const delays = [];
   let reads = 0;
@@ -91,6 +92,7 @@ async function popup(options = {}) {
         remove: async (keys) => { for (const key of (Array.isArray(keys) ? keys : [keys])) delete stored[key]; },
       } },
       tabs: {
+        create: async ({ url }) => { opened.push(url); },
         query: async () => {
           queries += 1;
           if (options.queryError) throw new Error("No tab access");
@@ -125,13 +127,18 @@ async function popup(options = {}) {
           return true;
         },
       },
-      runtime: { getContexts: async () => options.contexts ?? [{ contextType: "POPUP" }] },
+      runtime: {
+        getContexts: async () => options.contexts ?? [{ contextType: "POPUP" }],
+        // The version this copy actually is, which is the whole point of the
+        // comparison: the source manifest, same as a real install.
+        getManifest: () => copy(manifest),
+      },
     },
     location: { hash: options.hash ?? "" },
     close: () => { panel.closed += 1; },
     fetch: async (url, init) => {
       requests.push({ url, ...init });
-      const next = responses.shift() ?? { status: 200, body: { account, roles } };
+      const next = responses.shift() ?? { status: 200, body: { account, roles, extension: { version: options.packagedVersion ?? manifest.version } } };
       if (next instanceof Error) throw next;
       const result = typeof next === "function" ? await next(init) : next;
       return {
@@ -147,7 +154,7 @@ async function popup(options = {}) {
   if (options.configSource) vm.runInContext(options.configSource, context);
   await vm.runInContext(options.source || source, context);
   return {
-    elements, stored, requests, permissionAsks, responses, delays, listeners, panel,
+    elements, stored, requests, permissionAsks, opened, responses, delays, listeners, panel,
     // Walking to the next profile: the tab reports a finished load, and from
     // then on the page reads whatever `options.profile` now describes.
     navigate: async (profile) => {
@@ -346,6 +353,30 @@ test("a refused re-read keeps whatever was typed by hand", async () => {
   assert.equal(p.elements.name.value, "Sam Okafor");
   assert.equal(p.elements.notes.value, "Met at the plant tour.");
   assert.match(p.elements.message.textContent, /toolbar icon/);
+});
+
+test("an extension older than the workbench's says so, and says why it waits", async () => {
+  const p = await popup({ packagedVersion: "9.9.9" });
+  assert.equal(p.elements.update.hidden, false);
+  assert.match(p.elements["update-text"].textContent, /Capture 9\.9\.9 is ready to download/);
+  assert.match(p.elements["update-text"].textContent, new RegExp(`You have ${manifest.version.replace(/\./g, "\.")}`));
+  // Chrome will not do it for them, which is the part worth explaining.
+  assert.match(p.elements["update-text"].textContent, /does not update an extension you loaded yourself/);
+  p.click("update-open");
+  // Straight to where the download lives, on the workbench it is connected to.
+  assert.equal(p.opened.at(-1), `${config.url}/account`);
+});
+
+test("an extension level with the workbench, or ahead of it, says nothing", async () => {
+  const level = await popup();
+  assert.equal(level.elements.update.hidden, true);
+  const ahead = await popup({ packagedVersion: "0.0.1" });
+  assert.equal(ahead.elements.update.hidden, true);
+  // A version neither side can parse is no reason to nag.
+  const odd = await popup({ packagedVersion: "" });
+  assert.equal(odd.elements.update.hidden, true);
+  const nonsense = await popup({ packagedVersion: "next" });
+  assert.equal(nonsense.elements.update.hidden, true);
 });
 
 test("the panel offers to follow along, and asks Chrome for LinkedIn when told to", async () => {

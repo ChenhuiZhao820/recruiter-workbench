@@ -198,4 +198,8 @@ model Settings {
   // Hashed secret for the browser extension's capture endpoint. Null means
   // capture is switched off, so an unset token cannot be guessed as "".
   captureTokenHash String? @unique
+  // The release notes this account has already been shown, as the release's own
+  // id. Null means they have seen none, which is also what a brand new account
+  // should see: what changed since a version they never used is not news.
+  seenRelease      String?
 }

@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { db } from "./helpers";
 import { hashPassword, hashToken } from "../lib/auth-crypto";
 import { hashExtensionCode } from "../lib/extension-access";
+import { CURRENT_RELEASE } from "../lib/release";
 
 // The setup guide is the first thing a newly activated account sees, so these
 // tests care about two things: that it tells the truth about what is still
@@ -17,7 +18,7 @@ const DOWNLOAD_LINK = { name: "Download extension ZIP", exact: true } as const;
 const secret = () => randomBytes(32).toString("base64url");
 type Actor = { id: string; name: string; email: string; page: Page };
 type Setup = {
-  create: (options?: { role?: "admin" | "recruiter"; name?: string; recruiterName?: string; activated?: boolean }) => Promise<Actor>;
+  create: (options?: { role?: "admin" | "recruiter"; name?: string; recruiterName?: string; activated?: boolean; releaseSeen?: boolean }) => Promise<Actor>;
   guest: () => Promise<Page>;
   secrets: string[];
 };
@@ -43,13 +44,15 @@ const test = base.extend<{ setup: Setup }>({
       await use({
         guest,
         secrets,
-        create: async ({ role = "recruiter", name, recruiterName = "", activated = false } = {}) => {
+        create: async ({ role = "recruiter", name, recruiterName = "", activated = false, releaseSeen = true } = {}) => {
           const suffix = randomUUID();
           const user = await db.user.create({ data: {
             email: `onboarding-${role}-${suffix}@test.capture.invalid`,
             name: name ?? `Onboarding ${role} ${suffix}`,
             role, passwordHash,
-            settings: { create: { recruiterName } },
+            // Setup tests are about setup: an unread release would send them
+            // somewhere else on sign-in, which the release tests cover instead.
+            settings: { create: { recruiterName, ...(releaseSeen ? { seenRelease: CURRENT_RELEASE } : {}) } },
             ...(activated ? { extensionAccess: { create: { activatedAt: new Date() } } } : {}),
           } });
           const token = secret();

@@ -65,6 +65,18 @@ export function OutreachStep({
           id="outreach-body"
           value={body}
           onChange={(e) => setBody(e.target.value)}
+          onPaste={(e) => {
+            // Cleaned where it lands. A draft pasted in from somewhere else
+            // carries blank-looking lines that are not blank; tidying them at
+            // copy time would mean the box never showed what was sent.
+            const pasted = e.clipboardData.getData("text");
+            if (!pasted) return;
+            e.preventDefault();
+            const field = e.currentTarget;
+            const start = field.selectionStart ?? body.length;
+            const end = field.selectionEnd ?? start;
+            setBody(`${body.slice(0, start)}${normalizeMessage(pasted)}${body.slice(end)}`);
+          }}
           rows={10}
           className="field-input font-sans"
           spellCheck

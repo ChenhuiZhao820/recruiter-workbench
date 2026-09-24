@@ -97,13 +97,21 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   that form, next to the box being typed into, not above the library.
 - Outbound message text passes through `normalizeMessage` in `lib/render.ts`:
   one kind of line ending, no trailing spaces, at most one blank line between
-  paragraphs, nothing before the first word or after the last. Single newlines
-  and indentation survive, so lists stay lists. It runs on the rendered message,
-  on a template as it is saved, and on the body recorded by `markAsSent`, so the
-  preview, the count judged against the connection-note limit, the clipboard and
-  the outreach log cannot disagree. Route new outbound text through it rather
-  than tidying whitespace at the point of copying. `tests/03-render.spec.ts`
-  covers it as a pure function alongside the article rule.
+  paragraphs, nothing before the first word or after the last. Single newlines,
+  indentation and runs of spaces inside a line survive, so lists stay lists and
+  alignment stays aligned. It also removes what a paste drags in and nobody
+  typed - zero-width characters and byte-order marks, Unicode spaces including
+  the non-breaking one, and U+2028/2029 line separators - because a line
+  holding one non-breaking space reads as blank, is not blank, and so escapes
+  the blank-line rule. That is the gap that kept coming back.
+  It runs on the rendered message, on a template as it is saved, on the body
+  recorded by `markAsSent`, and on text as it is pasted into the template
+  editor and the outreach draft, so the box shows what will be sent rather than
+  what the clipboard held. `MessageBodyField` counts the normalised text, so
+  the counter, the connection-note limit and what is stored agree. Route new
+  outbound text through it rather than tidying whitespace at the point of
+  copying. `tests/03-render.spec.ts` covers it as a pure function alongside the
+  article rule; `E12b` covers a real paste end to end.
 
 - A saved search may carry `SavedSearch.searchUrl`: an address the recruiter
   copied out of LinkedIn or Recruiter after building and saving the search

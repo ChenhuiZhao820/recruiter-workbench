@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CONNECTION_NOTE_LIMIT, TEMPLATE_KINDS, templateKindLabel } from "@/lib/templates";
+import { normalizeMessage } from "@/lib/render";
 
 // The body field and the kind that governs it, together, because the length
 // that matters depends on which door the message goes through. The count is
@@ -28,7 +29,11 @@ export function MessageBodyField({
 
   const bodyFieldId = bodyId ?? `${idPrefix}-body`;
   const limit = kind === "connection_note" ? CONNECTION_NOTE_LIMIT : null;
-  const over = limit !== null && body.length > limit;
+  // Counted the way it will be saved. Whitespace is tidied on the way in, so a
+  // count of the raw box could report a template over the limit that saves
+  // under it, or the other way round.
+  const measured = normalizeMessage(body).length;
+  const over = limit !== null && measured > limit;
 
   return (
     <div className="space-y-3">
@@ -65,7 +70,7 @@ export function MessageBodyField({
             className={`font-mono text-xs tabular ${over ? "text-rose-900" : "text-ink-soft"}`}
             aria-live="polite"
           >
-            {limit === null ? `${body.length} characters` : `${body.length} / ${limit}`}
+            {limit === null ? `${measured} characters` : `${measured} / ${limit}`}
           </span>
         </div>
         <textarea
@@ -75,13 +80,24 @@ export function MessageBodyField({
           rows={bodyRows}
           value={body}
           onChange={(event) => setBody(event.target.value)}
+          onPaste={(event) => {
+            // Cleaned where it lands, so the box shows what will be sent
+            // rather than what the clipboard happened to be carrying.
+            const pasted = event.clipboardData.getData("text");
+            if (!pasted) return;
+            event.preventDefault();
+            const field = event.currentTarget;
+            const start = field.selectionStart ?? body.length;
+            const end = field.selectionEnd ?? start;
+            setBody(`${body.slice(0, start)}${normalizeMessage(pasted)}${body.slice(end)}`);
+          }}
           className="field-input"
           placeholder={placeholder}
           aria-describedby={over ? `${idPrefix}-over` : undefined}
         />
         {over && (
           <p id={`${idPrefix}-over`} role="alert" className="mt-1 text-sm text-rose-900">
-            {body.length - limit!} characters over the connection-note limit. Trim it, or
+            {measured - limit!} characters over the connection-note limit. Trim it, or
             change &ldquo;Sent as&rdquo; to Message.
           </p>
         )}

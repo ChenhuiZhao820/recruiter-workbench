@@ -481,6 +481,10 @@ test("A9 admin view is not impersonation and blocks disabled UI and crafted work
   ];
   for (const entry of cases) {
     await admin.page.goto(entry.url);
+    // Some of these forms live behind a disclosure; open it so the control
+    // being checked is the one the recruiter would reach for.
+    const disclosure = admin.page.locator(`details:has(${entry.selector}) > summary`);
+    if (await disclosure.count()) await disclosure.last().click();
     await expect(admin.page.getByRole("button", { name: entry.button, exact: true })).toBeDisabled();
     const form = await snapshotForm(admin.page, entry.url, entry.selector);
     const response = await postForm(admin.page, form, entry.changes);

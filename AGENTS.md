@@ -77,6 +77,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   are not displayed. `tests/01-walkthrough.spec.ts` covers toggling, keyboard/mobile
   use and legacy compatibility; the AI stub checks the questions-only prompt and
   deliberately returns extra answer fields to verify they are discarded.
+- A role page reads as three headings of equal weight - Briefing, Candidates,
+  Searches for this role - and Candidates opens and closes, as does each stage
+  group inside it, so a long pipeline does not bury what follows it. Adding a
+  candidate is a button at the top of that section that opens the fields, the
+  same shape as a new role or a new template. It stays rendered in a read-only
+  view and is disabled by the page's fieldset, so what cannot be done reads as
+  refused rather than missing.
 - `/templates` is a library, not a workbench: each saved template is a collapsed
   `details` showing only its name and kind, opened to read, edit or delete it,
   and writing a new one lives on `/templates/new` behind a New template button,

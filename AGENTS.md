@@ -77,6 +77,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   are not displayed. `tests/01-walkthrough.spec.ts` covers toggling, keyboard/mobile
   use and legacy compatibility; the AI stub checks the questions-only prompt and
   deliberately returns extra answer fields to verify they are discarded.
+- `/templates` is a library, not a workbench: each saved template is a collapsed
+  `details` showing only its name and kind, opened to read, edit or delete it,
+  and writing a new one lives on `/templates/new` behind a New template button,
+  the way a role or a search does. The list of gaps this app can fill belongs on
+  that form, next to the box being typed into, not above the library.
 - Outbound message text passes through `normalizeMessage` in `lib/render.ts`:
   one kind of line ending, no trailing spaces, at most one blank line between
   paragraphs, nothing before the first word or after the last. Single newlines

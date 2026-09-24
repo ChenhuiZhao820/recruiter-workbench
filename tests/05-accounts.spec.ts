@@ -474,7 +474,7 @@ test("A9 admin view is not impersonation and blocks disabled UI and crafted work
     { url: `/roles/${target.role.id}/edit`, button: "Save role", selector: 'form:has(input[name="title"])', changes: { title: "Read-only injection" } },
     { url: `/roles/${target.role.id}`, button: "Add candidate", selector: 'form:has(input[name="roleId"]):has(input[name="fullName"])', changes: { fullName: "Read-only injection" } },
     { url: `/searches/${target.search.id}/edit`, button: "Save search", selector: 'form:has(input[name="name"])', changes: { name: "Read-only injection" } },
-    { url: "/templates", button: "Create template", selector: 'form:has(input[id="new-tname"])', changes: { name: "Read-only injection", body: "Must not save", kind: "message" } },
+    { url: "/templates/new", button: "Create template", selector: 'form:has(input[id="new-tname"])', changes: { name: "Read-only injection", body: "Must not save", kind: "message" } },
     { url: `/candidates/${target.candidate.id}/outreach`, button: "Mark as sent", selector: 'form:has(input[name="candidateId"])', changes: { renderedBody: "Read-only injection" } },
     { url: "/settings", button: "Save settings", selector: 'form:has(input[name="recruiterName"])', changes: { recruiterName: "Read-only injection" } },
     { url: "/roles/new", button: "Create role", selector: 'form:has(input[name="title"])', changes: { title: "Read-only injection" } },

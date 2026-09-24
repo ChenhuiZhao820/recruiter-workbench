@@ -66,7 +66,7 @@ test("E3 whitespace-only required fields are reported, not silently dropped", as
 
   // The same guard on a template, whose body is a textarea and so has no
   // browser-side validation to fall back on.
-  await page.goto("/templates");
+  await page.goto("/templates/new");
   await page.locator("#new-tname").fill("  ");
   await page.locator("#new-tbody").fill("  ");
   await page.getByRole("button", { name: "Create template" }).click();
@@ -259,11 +259,10 @@ test("E10 an outreach log survives deleting the template it came from", async ({
   expect(before).toBeGreaterThan(0);
 
   await page.goto("/templates");
-  await page
-    .locator("li.card", { hasText: "Broken template" })
-    .getByRole("button", { name: "Delete" })
-    .click();
-  await expect(page.getByRole("heading", { name: "Broken template" })).toHaveCount(0);
+  const broken = page.locator("li", { hasText: "Broken template" }).first();
+  await broken.locator("summary").first().click();
+  await broken.getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByText("Broken template")).toHaveCount(0);
 
   await page.goto(`/candidates/${cara!.id}/outreach`);
   await expect(entries).toHaveCount(before);
@@ -295,16 +294,19 @@ test("E12 your name from Settings fills a sign-off placeholder", async ({ page }
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.locator("[data-form-message='notice']")).toContainText("Settings saved");
 
-  await page.goto("/templates");
-  // The page advertises the gap it can fill.
+  await page.goto("/templates/new");
+  // The form advertises the gap it can fill.
   await expect(page.getByText("{{recruiter_name}}").first()).toBeVisible();
   await page.locator("#new-tname").fill("Sign-off");
   await page.locator("#new-tbody").fill("Hi {{first_name}}, best regards, {{recruiter_name}}");
   await page.getByRole("button", { name: "Create template" }).click();
-  await expect(page.getByRole("heading", { name: "Sign-off" })).toBeVisible();
+  await expect(page.locator("[data-form-message='notice']")).toContainText("Sign-off");
   // It is a known gap, so it is highlighted rather than warned about.
-  await expect(page.locator("mark", { hasText: "{{recruiter_name}}" })).toBeVisible();
   await expect(page.locator("[data-form-message='notice']")).not.toContainText("UNKNOWN");
+  await page.goto("/templates");
+  const signOff = page.locator("details", { hasText: "Sign-off" }).first();
+  await signOff.locator("summary").first().click();
+  await expect(signOff.locator("mark", { hasText: "{{recruiter_name}}" })).toBeVisible();
 
   const cara = await db.candidate.findFirst({ where: { fullName: "Cara Test" } });
   await page.goto(`/candidates/${cara!.id}/outreach`);
@@ -326,7 +328,7 @@ test("E12 your name from Settings fills a sign-off placeholder", async ({ page }
 });
 
 test("E13 a connection note is length-checked and its channel is recorded", async ({ page }) => {
-  await page.goto("/templates");
+  await page.goto("/templates/new");
   await page.locator("#new-tname").fill("Invite note");
   await page.locator("#new-t-kind").selectOption("connection_note");
 
@@ -342,12 +344,14 @@ test("E13 a connection note is length-checked and its channel is recorded", asyn
   await page.locator("#new-t-kind").selectOption("connection_note");
   await page.locator("#new-tbody").fill("Hi {{first_name}}, quick intro about a {{role_title}} role - open to a chat?");
   await page.getByRole("button", { name: "Create template" }).click();
-  await expect(page.getByRole("heading", { name: "Invite note" })).toBeVisible();
+  await expect(page.locator("[data-form-message='notice']")).toContainText("Invite note");
   const saved = await db.messageTemplate.findFirst({ where: { name: "Invite note" } });
   expect(saved!.kind).toBe("connection_note");
 
-  const card = page.locator("li.card", { hasText: "Invite note" });
-  await expect(card.locator(".chip", { hasText: "Connection note" })).toBeVisible();
+  // The library says which door it uses without being opened.
+  await page.goto("/templates");
+  const row = page.locator("li", { hasText: "Invite note" }).first();
+  await expect(row.locator(".chip", { hasText: "Connection note" })).toBeVisible();
 });
 
 test("E14 the pipeline records which door each message went through", async ({ page }) => {

@@ -118,6 +118,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   so personalising someone's line does not mean a trip into LinkedIn and back,
   and what is copied is what `markSentAndAdvance` records. The length count and
   the gap check run against the edited text, not the rendered template.
+- That draft is client state, so the queue keys `OutreachStep` by candidate and
+  template. Without the key React reuses the instance across a move and the last
+  person's message sits under the next person's name - and is recorded as
+  theirs. Keep the key if the component moves or is wrapped.
+- The queue moves both ways: `Back to <first name>` returns to the previous
+  person, and the address is the whole state, so it is also where a reload or a
+  shared link resumes.
 - One control does the two things that always happened together: the message
   goes to the clipboard and LinkedIn opens. Where it opens is the only
   difference. `Candidate.memberId` holds LinkedIn's own member id, read from the

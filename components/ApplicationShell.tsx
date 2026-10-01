@@ -11,6 +11,7 @@ const setupNavigation = { href: "/getting-started", label: "Getting started", ic
 
 const navigation = [
   { href: "/", label: "Roles", icon: "roles" },
+  { href: "/people", label: "People", icon: "people" },
   { href: "/searches", label: "Searches", icon: "search" },
   { href: "/templates", label: "Templates", icon: "message" },
   { href: "/followups", label: "Follow-ups", icon: "clock" },

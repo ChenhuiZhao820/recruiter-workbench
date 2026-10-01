@@ -9,6 +9,17 @@ import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
+const exportTables = [
+  { id: "people", label: "People" },
+  { id: "candidates", label: "Candidates" },
+  { id: "roles", label: "Roles" },
+  { id: "screenings", label: "Screenings" },
+  { id: "bookings", label: "Bookings" },
+  { id: "outreach", label: "Messages" },
+  { id: "templates", label: "Templates" },
+  { id: "searches", label: "Searches" },
+] as const;
+
 export default async function SettingsPage() {
   const { owner, readOnly } = await getWorkspace();
   const settings = await getSettings();
@@ -85,6 +96,31 @@ export default async function SettingsPage() {
           Save settings
         </button>
       </ActionForm>
+      <div className="min-w-0 space-y-10">
+      <section className="min-w-0 space-y-5" aria-labelledby="data-heading">
+        <div>
+          <h2 id="data-heading" className="section-heading"><span aria-hidden="true" className="section-number">02</span> Your data</h2>
+          <p className="section-caption">Everything you have recorded in Capture, to keep or take elsewhere. It stays yours whichever plan you are on.</p>
+        </div>
+        {readOnly ? (
+          <p className="text-sm text-ink-soft">Exports are only available from your own workspace.</p>
+        ) : (
+          <div className="card space-y-4">
+            <div>
+              <a href="/api/export?format=json" className="btn-secondary" download>Download everything (JSON)</a>
+              <p className="section-caption">One file with people, roles, candidates, screenings, bookings, messages, templates and searches.</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium">Or one spreadsheet (CSV) per table</p>
+              <div className="data-export-links mt-2">
+                {exportTables.map((table) => (
+                  <a key={table.id} href={`/api/export?format=csv&table=${table.id}`} className="btn-quiet" download>{table.label}</a>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
       <section className="min-w-0 space-y-5" aria-label="Capture connection">
         <div>
           <h2 className="section-heading"><span aria-hidden="true" className="section-number">03</span> Browser connection</h2>
@@ -100,6 +136,7 @@ export default async function SettingsPage() {
           <Link href="/getting-started" className="block text-sm text-accent underline">Open the step-by-step setup guide</Link>
         </div>}
       </section>
+      </div>
       </div>
 
       <p className="mt-8 max-w-2xl border-t border-line pt-5 text-sm leading-relaxed text-ink-soft">

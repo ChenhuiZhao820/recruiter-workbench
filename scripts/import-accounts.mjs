@@ -11,14 +11,47 @@ const settingsColumns = Object.fromEntries(Object.entries(legacyColumns.Settings
 export const accountColumns = {
   User: { id: "id", email: "email", name: "text", role: "userRole", accountTier: "accountTier", trialExpiresAt: "date?", active: "bool", passwordHash: "password?", authVersion: "int", createdAt: "date", updatedAt: "date" },
   ExtensionAccess: { userId: "id", codeHash: "discard", expiresAt: "date?", activatedAt: "date?", createdAt: "date", updatedAt: "date" },
-  Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus" },
+  Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus", budgetMin: "int?", budgetMax: "int?", budgetCurrency: "text?" },
+  Person: {
+    id: "id", userId: "id", fullName: "text", profileUrl: "text?", memberId: "text?", headline: "text?",
+    email: "text?", emailSource: "text?", emailConsentAt: "date?", salaryMin: "int?", salaryMax: "int?",
+    salaryCurrency: "text?", salaryNote: "text?", noticeWeeks: "int?", availableFrom: "date?", location: "text?",
+    remotePreference: "text?", rightToWork: "text?", rightToWorkNote: "text?", skillsSummary: "text?",
+    motivation: "text?", factsConfirmedAt: "date?", revisitOn: "date?", revisitNote: "text?",
+    doNotContact: "bool", searchText: "text", lastContactAt: "date?", createdAt: "date", updatedAt: "date",
+  },
   MessageTemplate: { ...legacyColumns.MessageTemplate, userId: "id" },
   Briefing: legacyColumns.Briefing,
   SavedSearch: { ...legacyColumns.SavedSearch, userId: "id", searchUrl: "text?" },
-  Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?" },
+  Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?", personId: "id?" },
   OutreachLog: legacyColumns.OutreachLog,
-  Settings: { ...settingsColumns, userId: "id", captureTokenHash: "discard", seenRelease: "text?" },
+  Screening: {
+    id: "id", candidateId: "id", status: "text", transcript: "text?", transcriptSource: "text?",
+    transcriptDeleteAfter: "date?", summaryJson: "text?", summaryModel: "text?", generatedAt: "date?",
+    confirmedAt: "date?", representConsentAt: "date?", clientEmailSentAt: "date?", createdAt: "date", updatedAt: "date",
+  },
+  Booking: {
+    id: "id", candidateId: "id", userId: "id", startsAt: "date", endsAt: "date", mode: "text", meetingUrl: "text?",
+    phone: "text?", email: "text", consentAt: "date", noticeVersion: "text", status: "text", createdAt: "date",
+  },
+  Settings: {
+    ...settingsColumns, userId: "id", captureTokenHash: "discard", seenRelease: "text?",
+    bookingWindows: "text", bookingTimezone: "text", bookingDurationMins: "int", bookingMinNoticeHours: "int",
+    bookingHorizonDays: "int", meetingLink: "text", offerPhone: "bool", privacyNotice: "text", privacyContactEmail: "text",
+  },
   AuditEvent: { id: "id", actorId: "id", targetUserId: "id?", action: "text", createdAt: "date" },
+  UsageEvent: { id: "id", userId: "id", kind: "text", value: "int?", at: "date" },
+  Suppression: { userId: "id", keyHash: "text", createdAt: "date" },
+};
+// Tables a source may not have yet: it was written before they existed.
+const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot"]);
+// Accepted in a source but never copied. Calendar tokens are encrypted with
+// the source deployment's key and must be reconnected; monthly AI counters
+// start again; booked-slot locks are rebuilt from the bookings themselves.
+const notImportedColumns = {
+  CalendarConnection: { userId: "id", provider: "text", tokenCipher: "text", scope: "text", connectedAt: "date", lastErrorAt: "date?" },
+  AiUsage: { userId: "id", month: "text", generations: "int" },
+  BookedSlot: { userId: "id", startsAt: "date", bookingId: "id" },
 };
 const ephemeralColumns = {
   Session: { tokenHash: "text", userId: "id", viewUserId: "id?", authVersion: "int", expiresAt: "date", createdAt: "date" },
@@ -26,23 +59,43 @@ const ephemeralColumns = {
   LoginThrottle: { key: "text", attempts: "int", resetAt: "date" },
 };
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
-const allTables = [...Object.keys(accountColumns), ...Object.keys(ephemeralColumns)];
+const allTables = [...Object.keys(accountColumns), ...Object.keys(ephemeralColumns), ...Object.keys(notImportedColumns)];
 const allModels = allTables.map(modelFor);
-const primaryFor = (table) => table === "ExtensionAccess" ? "userId" : Object.hasOwn(accountColumns, table) ? "id" : table === "LoginThrottle" ? "key" : "tokenHash";
+const primaryKeys = {
+  ExtensionAccess: ["userId"], Suppression: ["userId", "keyHash"], CalendarConnection: ["userId"],
+  AiUsage: ["userId", "month"], BookedSlot: ["userId", "startsAt"], LoginThrottle: ["key"],
+  Session: ["tokenHash"], ActivationToken: ["tokenHash"],
+};
+const primaryFor = (table) => primaryKeys[table] ?? ["id"];
+const keyPart = (value) => value instanceof Date ? value.toISOString() : String(value);
+const keyOf = (table, row) => primaryFor(table).map((column) => keyPart(row[column])).join("|");
 const passwordPattern = /^scrypt\$32768\$8\$3\$[a-f0-9]{32}\$[a-f0-9]{128}$/;
-const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", "rejected", "placed"];
+const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", "screened", "submitted", "rejected", "placed"];
 // Columns added after the first multi-account databases were written. A source
 // made before one of these groups existed has none of that group's columns and
 // imports with the defaults below; a source with some of a group but not all of
 // it is refused rather than guessed at. The SQL literal is what the reader
 // selects in place of a column that is not there.
 const lateColumns = {
-  User: { accountTier: { value: "basic", sql: "'basic'" }, trialExpiresAt: { value: null, sql: "NULL" } },
-  SavedSearch: { searchUrl: { value: null, sql: "NULL" } },
-  Candidate: { memberId: { value: null, sql: "NULL" } },
-  Settings: { seenRelease: { value: null, sql: "NULL" } },
+  User: [{ accountTier: { value: "basic", sql: "'basic'" }, trialExpiresAt: { value: null, sql: "NULL" } }],
+  Role: [{ budgetMin: { value: null, sql: "NULL" }, budgetMax: { value: null, sql: "NULL" }, budgetCurrency: { value: null, sql: "NULL" } }],
+  SavedSearch: [{ searchUrl: { value: null, sql: "NULL" } }],
+  Candidate: [{ memberId: { value: null, sql: "NULL" } }, { personId: { value: null, sql: "NULL" } }],
+  Settings: [
+    { seenRelease: { value: null, sql: "NULL" } },
+    {
+      bookingWindows: { value: "[]", sql: "'[]'" }, bookingTimezone: { value: "Europe/London", sql: "'Europe/London'" },
+      bookingDurationMins: { value: 30, sql: "30" }, bookingMinNoticeHours: { value: 12, sql: "12" },
+      bookingHorizonDays: { value: 14, sql: "14" }, meetingLink: { value: "", sql: "''" }, offerPhone: { value: false, sql: "0" },
+      privacyNotice: { value: "", sql: "''" }, privacyContactEmail: { value: "", sql: "''" },
+    },
+  ],
 };
-const lateFor = (table) => lateColumns[table] ?? {};
+const lateFor = (table) => lateColumns[table] ?? [];
+const lateDefault = (table, column) => lateFor(table).find((group) => Object.hasOwn(group, column))[column];
+// Columns of every group that is wholly missing; a group that is only partly
+// present is refused by the column checks rather than guessed at.
+const absentLate = (table, hasColumn) => new Set(lateFor(table).filter((group) => Object.keys(group).every((column) => !hasColumn(column))).flatMap(Object.keys));
 const invalid = (detail) => { throw new SafeError(`Invalid multi-account source: ${detail}. No data values are printed.`); };
 const countsFor = (data) => Object.fromEntries(Object.entries(data).map(([model, rows]) => [model, rows.length]));
 
@@ -77,34 +130,32 @@ export function validateAccounts(source, adminEmail) {
   const data = {};
   const byId = {};
   for (const [table, columns] of Object.entries(accountColumns)) {
-    const rows = table === "ExtensionAccess" && !Object.hasOwn(source, table) ? [] : source[table];
+    const rows = optionalTables.has(table) && !Object.hasOwn(source, table) ? [] : source[table];
     if (!Array.isArray(rows)) invalid(`missing ${table} table`);
-    const late = lateFor(table);
-    const fromBefore = Object.keys(late).length > 0 &&
-      rows.every((row) => row && typeof row === "object" && Object.keys(late).every((column) => !Object.hasOwn(row, column)));
+    const absent = absentLate(table, (column) => rows.some((row) => row && typeof row === "object" && Object.hasOwn(row, column)));
     const model = modelFor(table);
-    const primary = primaryFor(table);
     byId[table] = new Map();
     data[model] = rows.map((row) => {
       if (!row || typeof row !== "object" || Object.keys(row).some((column) => !Object.hasOwn(columns, column))) invalid(`unexpected ${table} column`);
       const result = {};
       for (const [column, descriptor] of Object.entries(columns)) {
-        if (fromBefore && Object.hasOwn(late, column)) {
-          result[column] = late[column].value;
+        if (absent.has(column)) {
+          result[column] = lateDefault(table, column).value;
           continue;
         }
         if (!Object.hasOwn(row, column)) invalid(`missing ${table} column`);
         result[column] = convert(row[column], descriptor);
       }
-      if (byId[table].has(result[primary])) invalid(`duplicate ${table} identifier`);
+      if (byId[table].has(keyOf(table, result))) invalid(`duplicate ${table} identifier`);
       if (table === "ExtensionAccess") result.expiresAt = null;
       if (table === "User") {
         if (result.accountTier === "trial" && result.trialExpiresAt === null) invalid("trial account requires an expiry");
         if (result.authVersion >= 2147483647) invalid("account version overflow");
         result.authVersion++;
       }
-      if (table === "Settings" && (result.id < 1 || result.id >= 2147483647 || result.bookingChaseDays < 1 || result.quietNudgeDays < 1)) invalid("invalid settings values");
-      byId[table].set(result[primary], result);
+      if (table === "Settings" && (result.id < 1 || result.id >= 2147483647 || result.bookingChaseDays < 1 || result.quietNudgeDays < 1 ||
+        result.bookingDurationMins < 1 || result.bookingHorizonDays < 1)) invalid("invalid settings values");
+      byId[table].set(keyOf(table, result), result);
       return result;
     });
   }
@@ -116,7 +167,7 @@ export function validateAccounts(source, adminEmail) {
     if (!row) invalid(`missing ${table} relationship`);
     return row;
   };
-  for (const model of ["role", "messageTemplate", "savedSearch", "settings", "extensionAccess"]) {
+  for (const model of ["role", "messageTemplate", "savedSearch", "settings", "extensionAccess", "person", "usageEvent", "suppression"]) {
     for (const row of data[model]) get("User", row.userId);
   }
   if (new Set(data.settings.map((row) => row.userId)).size !== data.settings.length) invalid("multiple settings rows for one account");
@@ -124,6 +175,19 @@ export function validateAccounts(source, adminEmail) {
   for (const row of [...data.briefing, ...data.candidate]) get("Role", row.roleId);
   for (const search of data.savedSearch) {
     if (search.roleId !== null && get("Role", search.roleId).userId !== search.userId) invalid("search belongs to a different account than its role");
+  }
+  for (const candidate of data.candidate) {
+    if (candidate.personId !== null && get("Person", candidate.personId).userId !== get("Role", candidate.roleId).userId) invalid("candidate belongs to a different account than its person");
+  }
+  for (const screening of data.screening) get("Candidate", screening.candidateId);
+  const heldSlots = new Set();
+  for (const booking of data.booking) {
+    if (get("Role", get("Candidate", booking.candidateId).roleId).userId !== booking.userId) invalid("booking belongs to a different account than its candidate");
+    if (booking.status === "booked") {
+      const slot = `${booking.userId}|${booking.startsAt.toISOString()}`;
+      if (heldSlots.has(slot)) invalid("two bookings hold the same time");
+      heldSlots.add(slot);
+    }
   }
   for (const outreach of data.outreachLog) {
     const candidate = get("Candidate", outreach.candidateId);
@@ -140,29 +204,27 @@ export async function readAccounts(sourcePath) {
     db.exec("PRAGMA query_only = ON; BEGIN");
     const objects = db.prepare("SELECT name, type FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").all();
     const tables = objects.filter((entry) => entry.type === "table").map((entry) => entry.name);
-    const supported = { ...accountColumns, ...ephemeralColumns };
+    const supported = { ...accountColumns, ...ephemeralColumns, ...notImportedColumns };
     if (objects.some((entry) => ["trigger", "view"].includes(entry.type)) || tables.some((table) => table !== "_prisma_migrations" && !Object.hasOwn(supported, table))) invalid("unsupported tables, triggers or views");
     if (db.prepare("PRAGMA quick_check").all().some((row) => row.quick_check !== "ok") || db.prepare("PRAGMA foreign_key_check").all().length) invalid("SQLite integrity or foreign keys");
     const rows = {};
     for (const [table, columns] of Object.entries(supported)) {
       if (!tables.includes(table)) {
-        if (table !== "ExtensionAccess") invalid(`missing ${table} table`);
-        rows[table] = [];
+        if (!optionalTables.has(table)) invalid(`missing ${table} table`);
+        if (Object.hasOwn(accountColumns, table)) rows[table] = [];
         continue;
       }
       const actual = db.prepare(`PRAGMA table_info("${table}")`).all();
-      const late = lateFor(table);
-      const fromBefore = Object.keys(late).length > 0 && actual.every((column) => !Object.hasOwn(late, column.name));
-      if (actual.length !== Object.keys(columns).length - (fromBefore ? Object.keys(late).length : 0) || actual.some((column) => !Object.hasOwn(columns, column.name))) invalid(`unsupported ${table} columns`);
+      const absent = absentLate(table, (name) => actual.some((column) => column.name === name));
+      if (actual.length !== Object.keys(columns).length - absent.size || actual.some((column) => !Object.hasOwn(columns, column.name))) invalid(`unsupported ${table} columns`);
       for (const column of actual) {
-        const descriptor = columns[column.name];
-        const type = descriptor.startsWith("date") ? "DATETIME" : descriptor === "int" ? "INTEGER" : descriptor === "bool" ? "BOOLEAN" : "TEXT";
-        const primary = primaryFor(table);
-        if (column.type.toUpperCase() !== type || column.pk !== Number(column.name === primary)) invalid(`unsupported ${table} column type or primary key`);
+        const base = columns[column.name].replace("?", "");
+        const type = base === "date" ? "DATETIME" : base === "int" ? "INTEGER" : base === "bool" ? "BOOLEAN" : "TEXT";
+        if (column.type.toUpperCase() !== type || column.pk !== primaryFor(table).indexOf(column.name) + 1) invalid(`unsupported ${table} column type or primary key`);
       }
       if (!Object.hasOwn(accountColumns, table)) continue;
       const selected = Object.keys(columns).map((column) => {
-        if (fromBefore && Object.hasOwn(late, column)) return `${late[column].sql} AS "${column}"`;
+        if (absent.has(column)) return `${lateDefault(table, column).sql} AS "${column}"`;
         return columns[column] === "discard" || (table === "ExtensionAccess" && column === "expiresAt") ? `NULL AS "${column}"` : `"${column}"`;
       });
       rows[table] = db.prepare(`SELECT ${selected.join(", ")} FROM "${table}"`).all();
@@ -203,12 +265,12 @@ export async function inspectAccountsTarget(db, { provider = "postgresql" } = {}
   }, { isolationLevel: "Serializable", maxWait: 10000, timeout: 30000 });
 }
 
-const canonical = (rows, columns, primary) => JSON.stringify([...rows].sort((a, b) => String(a[primary]).localeCompare(String(b[primary]))).map((row) => columns.map((column) => row[column])));
+const canonical = (rows, columns, table) => JSON.stringify([...rows].sort((a, b) => keyOf(table, a).localeCompare(keyOf(table, b))).map((row) => columns.map((column) => row[column])));
 
 function assertSameSnapshot(expected, actual) {
   for (const [table, columns] of Object.entries(accountColumns)) {
     const model = modelFor(table);
-    if (canonical(expected.data[model], Object.keys(columns), primaryFor(table)) !== canonical(actual.data[model], Object.keys(columns), primaryFor(table))) {
+    if (canonical(expected.data[model], Object.keys(columns), table) !== canonical(actual.data[model], Object.keys(columns), table)) {
       throw new SafeError("Snapshot content changed after preflight; do not import it.");
     }
   }
@@ -225,11 +287,14 @@ async function verifyData(db, validated) {
       if (extra.length !== 1 || extra[0].action !== "accounts.import" || extra[0].actorId !== validated.adminId || extra[0].targetUserId !== validated.adminId) throw new SafeError("Import audit verification failed.");
       actual = actual.filter((row) => originalIds.has(row.id));
     }
-    if (canonical(actual, Object.keys(columns), primaryFor(table)) !== canonical(expected, Object.keys(columns), primaryFor(table))) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
+    if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of Object.keys(ephemeralColumns)) {
-    if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation or throttle state in target.");
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "AiUsage"]) {
+    if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar or usage-counter state in target.");
   }
+  const expectedSlots = validated.data.booking.filter((booking) => booking.status === "booked").map((booking) => `${booking.userId}|${booking.startsAt.toISOString()}|${booking.id}`).sort();
+  const actualSlots = (await db.bookedSlot.findMany()).map((slot) => `${slot.userId}|${slot.startsAt.toISOString()}|${slot.bookingId}`).sort();
+  if (JSON.stringify(expectedSlots) !== JSON.stringify(actualSlots)) throw new SafeError("Booked-slot verification failed.");
   return { verified: true, counts: validated.counts };
 }
 
@@ -242,6 +307,9 @@ export async function importAccounts(db, source, adminEmail, { provider = "postg
     await requireEmptyTarget(tx);
     for (const [model, rows] of Object.entries(validated.data)) {
       for (const row of rows) await tx[model].create({ data: row });
+    }
+    for (const booking of validated.data.booking) {
+      if (booking.status === "booked") await tx.bookedSlot.create({ data: { userId: booking.userId, startsAt: booking.startsAt, bookingId: booking.id } });
     }
     if (provider === "postgresql" && validated.data.settings.length) {
       const next = Math.max(...validated.data.settings.map((row) => row.id)) + 1;

@@ -12,6 +12,8 @@ import { redirect } from "next/navigation";
 const STAGES_SENDING_DOES_NOT_CHANGE = new Set([
   "booking_pending",
   "booked",
+  "screened",
+  "submitted",
   "rejected",
   "placed",
 ]);

@@ -451,6 +451,16 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   out with a null `memberId`, as an additive nullable column must. The local
   account database received the equivalent column. The dump and the two reports
   are in ignored `prisma/private-local/`, alongside the run script.
+- On 2026-10-01, `20261005000000_talent_database` (people, screenings,
+  bookings, usage, suppressions; role budget, candidate `personId`, booking
+  settings) was applied and registered on the hosted database the same way,
+  checked against the reviewed file's SHA-256. All 33 existing candidates came
+  out with a null `personId` and every new table empty; linking them to people
+  is the separate `scripts/backfill-people.mjs` step. The local account
+  database received the equivalent change as in-place `ADD COLUMN`s rather
+  than Prisma's SQLite table rebuild, rehearsed on a copy first; Prisma then
+  reports no difference from the schema. The SQL, the backup copy, the dump
+  and the reports are in ignored `prisma/private-local/`.
 
 ## Searches and LinkedIn industry filters
 

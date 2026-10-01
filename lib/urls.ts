@@ -7,19 +7,7 @@
 // an absolute http(s) URL, so a stored oddity can never become a dead link
 // pointing back into this app.
 
-const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-const LOOKS_LIKE_HOST = /^[\w-]+(\.[\w-]+)+([/?#]|$)/;
-
-export function normalizeProfileUrl(input: string | null | undefined): string | null {
-  const raw = (input ?? "").trim();
-  if (!raw) return null;
-  if (raw.startsWith("//")) return `https:${raw}`;
-  if (HAS_SCHEME.test(raw)) return raw;
-  if (LOOKS_LIKE_HOST.test(raw)) return `https://${raw}`;
-  // Not a link. Keep what the recruiter typed rather than discarding it;
-  // profileHref will decline to link it.
-  return raw;
-}
+export { normalizeProfileUrl } from "./person-keys.mjs";
 
 export function profileHref(value: string | null | undefined): string | null {
   const raw = (value ?? "").trim();

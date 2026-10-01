@@ -6,6 +6,8 @@ import { corsHeaders } from "@/lib/capture";
 import { hashToken } from "@/lib/auth-crypto";
 import { canUseExtension } from "@/lib/extension-access";
 import { revalidatePath } from "next/cache";
+import { findOrCreatePerson, isSuppressed } from "@/lib/people";
+import { canonicalProfileUrl } from "@/lib/person-keys.mjs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -87,6 +89,23 @@ export async function GET(request: Request) {
       })
     : null;
 
+  // The person behind this profile, if this account already has them, and
+  // whether the profile was deleted before. Both are this account's own
+  // records; the extension ignores fields it does not know.
+  const canonical = canonicalProfileUrl(asked);
+  const person = canonical
+    ? await db.person.findUnique({
+        where: { userId_profileUrl: { userId: account.id, profileUrl: canonical } },
+        select: {
+          id: true,
+          doNotContact: true,
+          factsConfirmedAt: true,
+          candidates: { select: { role: { select: { id: true, title: true } } } },
+        },
+      })
+    : null;
+  const suppressed = asked ? await isSuppressed(db, account.id, { profileUrl: asked }) : false;
+
   return NextResponse.json(
     {
       account: { id: account.id, email: account.email, name: account.name },
@@ -95,7 +114,20 @@ export async function GET(request: Request) {
       // now. Chrome never updates an extension loaded by hand, so the only way
       // an old copy learns it is old is by asking.
       extension: { version: await packagedVersion() },
-      ...(asked ? { existing } : {}),
+      ...(asked
+        ? {
+            existing,
+            person: person
+              ? {
+                  id: person.id,
+                  doNotContact: person.doNotContact,
+                  factsConfirmedAt: person.factsConfirmedAt,
+                  roles: person.candidates.map((candidate) => candidate.role),
+                }
+              : null,
+            suppressed,
+          }
+        : {}),
     },
     { headers: cors }
   );
@@ -163,19 +195,28 @@ export async function POST(request: Request) {
     }
   }
 
-  const candidate = await db.candidate.create({
-    data: {
-      role: { connect: { id: roleId, userId: account.id, status: "open" } },
-      fullName,
-      profileUrl,
-      headline: text(body.headline) || null,
-      // LinkedIn's own member id, read from the profile the extension was
-      // looking at. Only stored when it looks like one; it exists to open
-      // LinkedIn's message box later, never to identify anyone elsewhere.
-      memberId: memberIdOrNull(text(body.memberId)),
-      notes: text(body.notes) || null,
-    },
-    select: { id: true, fullName: true },
+  const headline = text(body.headline) || null;
+  // LinkedIn's own member id, read from the profile the extension was
+  // looking at. Only stored when it looks like one; it opens LinkedIn's
+  // message box later and recognises the same person across roles in this
+  // account, never anyone elsewhere.
+  const memberId = memberIdOrNull(text(body.memberId));
+  const suppressed = await isSuppressed(db, account.id, { profileUrl, memberId });
+  const { candidate, person } = await db.$transaction(async (tx) => {
+    const person = await findOrCreatePerson(tx, account.id, { fullName, profileUrl, memberId, headline });
+    const candidate = await tx.candidate.create({
+      data: {
+        role: { connect: { id: roleId, userId: account.id, status: "open" } },
+        person: { connect: { id: person.id } },
+        fullName,
+        profileUrl,
+        headline,
+        memberId,
+        notes: text(body.notes) || null,
+      },
+      select: { id: true, fullName: true },
+    });
+    return { candidate, person };
   });
 
   revalidatePath(`/roles/${roleId}`);
@@ -187,10 +228,13 @@ export async function POST(request: Request) {
       ok: true,
       candidateId: candidate.id,
       fullName: candidate.fullName,
-      warning:
-        sameName > 1
-          ? `This role already had someone called ${fullName}. Check you have not saved the same person twice.`
-          : null,
+      warning: person.doNotContact
+        ? `${fullName} is marked do not contact. Check before reaching out.`
+        : suppressed
+          ? "This profile was deleted from your workspace before. Check they have agreed to be contacted again."
+          : sameName > 1
+            ? `This role already had someone called ${fullName}. Check you have not saved the same person twice.`
+            : null,
     },
     { status: 201, headers: cors }
   );

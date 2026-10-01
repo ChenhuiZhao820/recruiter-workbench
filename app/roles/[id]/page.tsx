@@ -43,7 +43,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
       briefing: true,
       candidates: {
         orderBy: { lastActivityAt: "desc" },
-        include: { outreach: { orderBy: { sentAt: "desc" }, take: 1 } },
+        include: { outreach: { orderBy: { sentAt: "desc" }, take: 1 }, person: { select: { doNotContact: true } } },
       },
       searches: { where: { userId: owner.id }, orderBy: { updatedAt: "desc" } },
     },
@@ -289,11 +289,16 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                     <li key={c.id} className="card">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <span className="font-medium">{c.fullName}</span>
+                          {c.personId ? (
+                            <Link href={`/people/${c.personId}`} className="person-row-name">{c.fullName}</Link>
+                          ) : (
+                            <span className="font-medium">{c.fullName}</span>
+                          )}
                           {c.headline && <span className="text-ink/70"> · {c.headline}</span>}
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <StageBadge stage={c.stage} />
+                          {c.person?.doNotContact && <span className="chip person-flag">Do not contact</span>}
                           {c.outreach[0] && (
                             <span className="text-sm text-ink/60">
                               {isTemplateKind(c.outreach[0].kind)

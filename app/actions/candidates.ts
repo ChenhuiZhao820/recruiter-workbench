@@ -5,12 +5,23 @@ import { requireWritableWorkspace } from "@/lib/workspace";
 import type { FormState } from "@/lib/formState";
 import { isStage } from "@/lib/stages";
 import { normalizeProfileUrl } from "@/lib/urls";
+import { findOrCreatePerson, isSuppressed } from "@/lib/people";
 import { revalidatePath } from "next/cache";
 
 function revalidateCandidate(roleId: string) {
   revalidatePath(`/roles/${roleId}`);
   revalidatePath("/followups");
+  revalidatePath("/people");
   revalidatePath("/");
+}
+
+// A person left with no candidacies and nothing else recorded about them is
+// an artefact of an edit, not a record anyone kept, so it is removed.
+async function dropIfOrphan(personId: string | null) {
+  if (!personId) return;
+  await db.person.deleteMany({
+    where: { id: personId, candidates: { none: {} }, factsConfirmedAt: null, email: null, doNotContact: false },
+  });
 }
 
 export async function addCandidate(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -38,16 +49,34 @@ export async function addCandidate(_prev: FormState, formData: FormData): Promis
     }
   }
 
-  await db.candidate.create({
-    data: {
-      role: { connect: { id: roleId, userId: user.id } },
-      fullName,
-      profileUrl,
-      headline: String(formData.get("headline") ?? "").trim() || null,
-      notes: String(formData.get("notes") ?? "").trim() || null,
-    },
+  const headline = String(formData.get("headline") ?? "").trim() || null;
+  const suppressed = await isSuppressed(db, user.id, { profileUrl });
+  const person = await db.$transaction(async (tx) => {
+    const person = await findOrCreatePerson(tx, user.id, { fullName, profileUrl, headline });
+    await tx.candidate.create({
+      data: {
+        role: { connect: { id: roleId, userId: user.id } },
+        person: { connect: { id: person.id } },
+        fullName,
+        profileUrl,
+        headline,
+        notes: String(formData.get("notes") ?? "").trim() || null,
+      },
+    });
+    return person;
   });
   revalidateCandidate(roleId);
+
+  // Reported, not refused: whether someone may be contacted again is the
+  // recruiter's call, but it should not be made without knowing.
+  if (person.doNotContact) {
+    return { notice: `${fullName} added. They are marked do not contact - check before reaching out.` };
+  }
+  if (suppressed) {
+    return {
+      notice: `${fullName} added. This profile was deleted from your workspace before - check they have agreed to be contacted again.`,
+    };
+  }
 
   const sameName = await db.candidate.count({ where: { roleId, role: { userId: user.id }, fullName } });
   if (sameName > 1) {
@@ -66,7 +95,10 @@ export async function updateCandidate(_prev: FormState, formData: FormData): Pro
   if (!fullName) return { error: "A candidate needs a name. Nothing was saved." };
 
   const profileUrl = normalizeProfileUrl(String(formData.get("profileUrl") ?? ""));
-  const current = await db.candidate.findUnique({ where: { id, role: { userId: user.id } }, select: { roleId: true } });
+  const current = await db.candidate.findUnique({
+    where: { id, role: { userId: user.id } },
+    select: { roleId: true, personId: true, memberId: true },
+  });
   if (!current) return { error: "That candidate could not be found." };
 
   if (profileUrl) {
@@ -81,15 +113,22 @@ export async function updateCandidate(_prev: FormState, formData: FormData): Pro
     }
   }
 
-  const candidate = await db.candidate.update({
-    where: { id, role: { userId: user.id } },
-    data: {
-      fullName,
-      profileUrl,
-      headline: String(formData.get("headline") ?? "").trim() || null,
-      notes: String(formData.get("notes") ?? "").trim() || null,
-    },
+  const headline = String(formData.get("headline") ?? "").trim() || null;
+  const candidate = await db.$transaction(async (tx) => {
+    // The link may now point at a different person; the candidacy follows it.
+    const person = await findOrCreatePerson(tx, user.id, { fullName, profileUrl, memberId: current.memberId, headline });
+    return tx.candidate.update({
+      where: { id, role: { userId: user.id } },
+      data: {
+        fullName,
+        profileUrl,
+        headline,
+        notes: String(formData.get("notes") ?? "").trim() || null,
+        person: { connect: { id: person.id } },
+      },
+    });
   });
+  if (current.personId !== candidate.personId) await dropIfOrphan(current.personId);
   revalidateCandidate(candidate.roleId);
   return { notice: "Changes saved." };
 }
@@ -111,5 +150,6 @@ export async function deleteCandidate(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
   const candidate = await db.candidate.delete({ where: { id, role: { userId: user.id } } });
+  await dropIfOrphan(candidate.personId);
   revalidateCandidate(candidate.roleId);
 }

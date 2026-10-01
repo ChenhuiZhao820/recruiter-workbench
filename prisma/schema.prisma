@@ -26,6 +26,12 @@ model User {
   sessions         Session[]
   activationTokens ActivationToken[]
   extensionAccess  ExtensionAccess?
+  people           Person[]
+  bookings         Booking[]
+  calendar         CalendarConnection?
+  aiUsage          AiUsage[]
+  usageEvents      UsageEvent[]
+  suppressions     Suppression[]
 }
 
 model ExtensionAccess {
@@ -86,6 +92,12 @@ model Role {
   client      String?
   jobDesc     String?
   status      String      @default("open")   // "open" | "closed"
+  // Optional annual budget for the role. Matches leave out people whose
+  // confirmed minimum expectation is above budgetMax; nothing is filtered
+  // when it is empty.
+  budgetMin      Int?
+  budgetMax      Int?
+  budgetCurrency String?
   briefing    Briefing?
   candidates  Candidate[]
   searches    SavedSearch[]
@@ -148,13 +160,22 @@ model Candidate {
   headline       String?
   notes          String?
   stage          String   @default("sourced")
-  // stages: sourced | contacted | replied | booking_pending | booked | rejected | placed
+  // stages: sourced | contacted | replied | booking_pending | booked | screened | submitted | rejected | placed
   lastActivityAt DateTime @default(now())
   lastNudgeAt    DateTime?
   nudgeCount     Int      @default(0)
+  // The person this candidacy belongs to. One person can be a candidate on
+  // several roles; deleting the person removes every candidacy. Null only for
+  // rows written before people existed, which are linked when next touched.
+  personId       String?
+  person         Person?  @relation(fields: [personId], references: [id], onDelete: Cascade)
   outreach       OutreachLog[]
+  screenings     Screening[]
+  bookings       Booking[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([personId])
 }
 
 model MessageTemplate {
@@ -202,4 +223,153 @@ model Settings {
   // id. Null means they have seen none, which is also what a brand new account
   // should see: what changed since a version they never used is not news.
   seenRelease      String?
+  // Booking page. Windows are JSON [{day, startMin, endMin}] read in
+  // bookingTimezone; day 0 is Monday.
+  bookingWindows        String  @default("[]")
+  bookingTimezone       String  @default("Europe/London")
+  bookingDurationMins   Int     @default(30)
+  bookingMinNoticeHours Int     @default(12)
+  bookingHorizonDays    Int     @default(14)
+  meetingLink           String  @default("")
+  offerPhone            Boolean @default(false)
+  // Shown on the booking page and available to templates as {{privacy_notice}}.
+  privacyNotice         String  @default("")
+  privacyContactEmail   String  @default("")
+}
+
+// One person, however many roles they are considered for. Facts are the
+// candidate's own statements as confirmed by the recruiter, never verified.
+model Person {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  fullName         String
+  profileUrl       String?
+  memberId         String?
+  headline         String?
+  email            String?
+  emailSource      String?   // "booking" | "manual"
+  emailConsentAt   DateTime?
+  salaryMin        Int?
+  salaryMax        Int?
+  salaryCurrency   String?
+  salaryNote       String?
+  noticeWeeks      Int?
+  availableFrom    DateTime?
+  location         String?
+  remotePreference String?   // onsite | hybrid | remote | flexible
+  rightToWork      String?   // has_right | needs_sponsorship | unknown
+  rightToWorkNote  String?
+  skillsSummary    String?
+  motivation       String?
+  factsConfirmedAt DateTime?
+  revisitOn        DateTime?
+  revisitNote      String?
+  doNotContact     Boolean   @default(false)
+  // Lower-cased name, headline and facts, for plain substring search that
+  // behaves the same on SQLite and PostgreSQL.
+  searchText       String    @default("")
+  lastContactAt    DateTime?
+  candidates       Candidate[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([userId, profileUrl])
+  @@unique([userId, memberId])
+  @@index([userId, revisitOn])
+}
+
+model Screening {
+  id                    String    @id @default(cuid())
+  candidateId           String
+  candidate             Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  status                String    @default("draft")   // draft | summarized | confirmed
+  transcript            String?
+  transcriptSource      String?   // paste | upload | manual
+  transcriptDeleteAfter DateTime?
+  summaryJson           String?
+  summaryModel          String?
+  generatedAt           DateTime?
+  confirmedAt           DateTime?
+  representConsentAt    DateTime?
+  clientEmailSentAt     DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([candidateId])
+}
+
+model Booking {
+  id            String    @id @default(cuid())
+  candidateId   String
+  candidate     Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  startsAt      DateTime
+  endsAt        DateTime
+  mode          String    // video | phone
+  meetingUrl    String?
+  phone         String?
+  email         String
+  consentAt     DateTime
+  noticeVersion String
+  status        String    @default("booked")   // booked | cancelled
+  slot          BookedSlot?
+  createdAt     DateTime  @default(now())
+
+  @@index([candidateId])
+  @@index([userId, startsAt])
+}
+
+// The double-booking lock: one row per owner and start time while a booking
+// holds it. Cancelling deletes the row and frees the time.
+model BookedSlot {
+  userId    String
+  startsAt  DateTime
+  bookingId String   @unique
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, startsAt])
+}
+
+model CalendarConnection {
+  userId      String    @id
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    String    // google | microsoft
+  tokenCipher String
+  scope       String
+  connectedAt DateTime  @default(now())
+  lastErrorAt DateTime?
+}
+
+model AiUsage {
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month       String // "YYYY-MM", UTC
+  generations Int    @default(0)
+
+  @@id([userId, month])
+}
+
+// Counts and timings only, never content.
+model UsageEvent {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind   String
+  value  Int?
+  at     DateTime @default(now())
+
+  @@index([userId, kind, at])
+}
+
+// Kept after a person is deleted so the same profile is recognised if it is
+// captured again. Only hashes of normalised identifiers are stored.
+model Suppression {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyHash   String
+  createdAt DateTime @default(now())
+
+  @@id([userId, keyHash])
 }

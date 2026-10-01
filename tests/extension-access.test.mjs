@@ -300,6 +300,8 @@ test("capture GET and POST deny preexisting keys without entitlement and retain 
           "@/lib/auth-crypto": crypto, "@/lib/extension-access": access,
           "@/lib/urls": { normalizeProfileUrl: (url) => url },
           "@/lib/linkedin": { memberIdOrNull: (value) => value || null },
+          "@/lib/people": { findOrCreatePerson: async () => { throw new Error("no write expected"); }, isSuppressed: async () => false },
+          "@/lib/person-keys.mjs": { canonicalProfileUrl: (url) => url },
           "@/lib/capture": { corsHeaders: () => ({ "Access-Control-Allow-Origin": "chrome-extension://fixture" }) },
           "@/lib/db": { db: {
             settings: { findUnique: async ({ select }) => {

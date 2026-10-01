@@ -88,10 +88,50 @@ function guardHarness() {
       if (!controls.signedIn) throw new Error("Sign in required");
       return { user: controls.actor, owner: controls.owner ?? controls.actor, readOnly: controls.readOnly };
     } },
+    "@/lib/features": features,
     "next/navigation": { notFound: () => { throw new Error("Not found"); } },
   });
   return { controls, guards };
 }
+const features = load("lib/features.ts", { "./account-tiers": tiers });
+
+// Generated from FEATURE_TIERS, so moving a feature between tiers moves its
+// expected behaviour here too without editing the test.
+test("every feature in FEATURE_TIERS is guarded by exactly its tier", async () => {
+  assert.ok(features.FEATURES.length > 0);
+  for (const feature of features.FEATURES) {
+    const tier = features.FEATURE_TIERS[feature];
+    assert.ok(tier === "basic" || tier === "pro", feature);
+    for (const account of [user(), user("trial", now), user("pro"), user("trial", new Date(now.getTime() + 1)), user("basic", null, "admin")]) {
+      const h = guardHarness();
+      h.controls.actor = account;
+      const allowed = tier === "basic" || tiers.canUseProFeatures(account, now);
+      assert.equal(features.canUseFeature(account, feature, now), allowed, `${feature} ${account.accountTier} ${account.role}`);
+      if (allowed) {
+        assert.equal((await h.guards.requireFeature(feature)).owner, account);
+        assert.equal(await h.guards.requireWritableFeature(feature), account);
+      } else {
+        await assert.rejects(h.guards.requireFeature(feature), /Not found/);
+        await assert.rejects(h.guards.requireWritableFeature(feature), /Not found/);
+      }
+    }
+    // Inactive accounts can use nothing, whatever the tier.
+    assert.equal(features.canUseFeature(user("pro", null, "recruiter", false), feature, now), false);
+    // A read-only Admin view follows the owner's tier and never writes.
+    const h = guardHarness();
+    h.controls.actor = user("basic", null, "admin");
+    h.controls.owner = { ...user(), id: "other" };
+    h.controls.readOnly = true;
+    if (tier === "basic") {
+      assert.equal((await h.guards.requireFeature(feature)).owner.id, "other");
+      await assert.rejects(h.guards.requireWritableFeature(feature), /read-only/);
+    } else {
+      await assert.rejects(h.guards.requireFeature(feature), /Not found/);
+    }
+    const availability = await h.guards.featureAvailability();
+    assert.equal(availability[feature], tier === "basic");
+  }
+});
 
 test("feature guards hide Basic and expired Trial from direct reads and writes", async () => {
   for (const account of [user(), user("trial", now), user("pro", null, "recruiter", false)]) {

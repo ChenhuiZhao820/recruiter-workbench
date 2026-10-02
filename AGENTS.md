@@ -254,6 +254,29 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   limits, retention, Basic accounts, foreign ids and read-only views);
   `tests/screening.test.mjs` covers the rules and the scripts' guards.
 
+## Client email
+
+- A Pro feature (`clientEmail` in `FEATURE_TIERS`), shown under a confirmed
+  screening on the screening page, and only once the candidate has agreed to be
+  put forward to this client (`Screening.representConsentAt`, ticked when the
+  screening is saved or recorded afterwards with `recordRepresentConsent`).
+- `lib/client-email.ts` builds the subject and body from the confirmed facts,
+  the person's skills and motivation and the recruiter's name: no model call.
+  It says the facts are the candidate's own words and unverified, and passes
+  through `normalizeMessage` like every other outgoing message.
+  `components/ClientEmailComposer.tsx` keeps it editable and cleans pastes.
+- Capture never sends it. "Open in email" is a `mailto:` link built from the
+  recipient typed at that moment, the subject and the CRLF body; past
+  `MAILTO_LIMIT` it opens with the subject only and copies the body instead.
+  The recipient field has no form name, so it is never submitted or stored, and
+  the recipient is encoded so it cannot add headers such as `cc`.
+- "Mark as sent" (`markClientEmailSent`) records `clientEmailSentAt` once,
+  moves the candidate to Submitted from any earlier stage, and records a
+  `client_email_sent` usage event. Neither the recipient nor the text is kept.
+- `tests/15-client-email.spec.ts` covers the consent gate, the mailto address,
+  paste cleaning and copying, the long-email fallback, nothing stored, foreign
+  ids and the read-only view; `tests/client-email.test.mjs` covers the builder.
+
 ## Accounts and authorization
 
 - `lib/auth.ts`: opaque hashed database sessions, HttpOnly/SameSite cookies,

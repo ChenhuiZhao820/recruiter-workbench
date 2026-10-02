@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { requireFeature } from "@/lib/feature-access";
+import { featureAvailability, requireFeature } from "@/lib/feature-access";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { TranscriptForm } from "@/components/TranscriptForm";
@@ -10,29 +10,13 @@ import { StageBadge } from "@/components/StageBadge";
 import { confirmScreening, confirmScreeningField, deleteTranscript, discardScreening } from "@/app/actions/screening";
 import { FIELDS, parseSummary, type ConfirmedFact, type FactField, type FactValues, type ScreeningSummary } from "@/lib/screening";
 import { FIELD_LABELS, REMOTE_OPTIONS, RIGHT_TO_WORK_OPTIONS, STALE_CLAIM_MS, monthKey, screeningMonthlyCap } from "@/lib/screening-core.mjs";
-import { REMOTE_LABELS, RIGHT_TO_WORK_LABELS, factDate, locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
+import { REMOTE_LABELS, RIGHT_TO_WORK_LABELS, factDate, factSummary } from "@/lib/fact-labels";
 import { transcriptRetained } from "@/lib/retention";
+import { ClientEmailComposer } from "@/components/ClientEmailComposer";
+import { clientEmailBody, clientEmailSubject } from "@/lib/client-email";
+import { markClientEmailSent, recordRepresentConsent } from "@/app/actions/client-email";
 
 export const dynamic = "force-dynamic";
-
-function factSummary(field: FactField, fact: ConfirmedFact<FactField>): { value: string; note: string | null } {
-  if (fact.not_discussed) return { value: "Not discussed", note: null };
-  if (field === "salary") {
-    const v = fact.value as FactValues["salary"];
-    return { value: salaryText(v.min, v.max, v.currency) ?? "No annual figure", note: v.note };
-  }
-  if (field === "notice") {
-    const v = fact.value as FactValues["notice"];
-    const from = v.available_from ? `Available from ${factDate.format(new Date(`${v.available_from}T00:00:00Z`))}` : null;
-    return { value: noticeText(v.weeks) ?? from ?? "No period given", note: [v.weeks !== null ? from : null, v.note].filter(Boolean).join(". ") || null };
-  }
-  if (field === "location") {
-    const v = fact.value as FactValues["location"];
-    return { value: locationText(v.location, v.remote) ?? "Not stated", note: v.note };
-  }
-  const v = fact.value as FactValues["right_to_work"];
-  return { value: rightToWorkText(v.status) ?? "Not stated", note: v.note };
-}
 
 function FactInputs({ field, value, id }: { field: FactField; value: FactValues[FactField]; id: string }) {
   if (field === "salary") {
@@ -176,11 +160,13 @@ export default async function ScreeningPage({ params }: { params: { id: string }
     where: { id: params.id, role: { userId: owner.id } },
     include: {
       role: { select: { id: true, title: true, client: true } },
-      person: { select: { id: true, doNotContact: true } },
+      person: { select: { id: true, doNotContact: true, skillsSummary: true, motivation: true } },
       screenings: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!candidate) notFound();
+  const features = await featureAvailability();
+  const settings = await db.settings.findUnique({ where: { userId: owner.id }, select: { recruiterName: true } });
 
   const now = new Date();
   const usage = await db.aiUsage.findUnique({ where: { userId_month: { userId: owner.id, month: monthKey(now) } } });
@@ -330,6 +316,62 @@ export default async function ScreeningPage({ params }: { params: { id: string }
                   );
                 })}
               </dl>
+
+              {features.clientEmail && (
+                <section aria-labelledby="client-email-heading" className="space-y-4 pt-6">
+                  <div>
+                    <h2 id="client-email-heading" className="section-heading">Email the client</h2>
+                    <p className="section-caption">
+                      Built from the facts above. Edit it, then send it from your own email; Capture does not send it.
+                    </p>
+                  </div>
+                  {!current.representConsentAt ? (
+                    <ActionForm action={recordRepresentConsent} className="screening-save">
+                      <input type="hidden" name="screeningId" value={current.id} />
+                      <p className="text-sm text-ink">
+                        {firstName}&rsquo;s details go to {clientName} only once they have agreed. If they have said yes since the call, record it here.
+                      </p>
+                      <label className="screening-consent">
+                        <input type="checkbox" name="agreed" className="screening-check" />
+                        <span>{firstName} agreed to be put forward to {clientName}</span>
+                      </label>
+                      <div>
+                        <SubmitButton className="btn-secondary" pendingLabel="Saving...">Record their agreement</SubmitButton>
+                      </div>
+                    </ActionForm>
+                  ) : (
+                    <>
+                      <ClientEmailComposer
+                        disabled={readOnly}
+                        initialSubject={clientEmailSubject({ candidateName: candidate.fullName, roleTitle: candidate.role.title })}
+                        initialBody={clientEmailBody({
+                          candidateName: candidate.fullName,
+                          roleTitle: candidate.role.title,
+                          client: candidate.role.client,
+                          recruiterName: settings?.recruiterName || "",
+                          confirmedAt: current.confirmedAt!,
+                          summary,
+                          skillsSummary: candidate.person?.skillsSummary ?? null,
+                          motivation: candidate.person?.motivation ?? null,
+                        })}
+                      />
+                      {current.clientEmailSentAt ? (
+                        <p className="client-email-sent text-sm text-ink" role="status">
+                          <span className="chip screening-chip-done">Sent</span>
+                          Marked as sent to the client on {factDate.format(current.clientEmailSentAt)}.
+                        </p>
+                      ) : (
+                        <ActionForm action={markClientEmailSent} className="client-email-sent">
+                          <input type="hidden" name="screeningId" value={current.id} />
+                          <SubmitButton className="btn-secondary" pendingLabel="Saving...">Mark as sent</SubmitButton>
+                          <p className="text-xs text-ink-soft">Once you have sent it. Moves {firstName} to Submitted.</p>
+                        </ActionForm>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
+
               <details className="screening-again">
                 <summary className="btn-secondary">Add another screening</summary>
                 <div className="mt-5">

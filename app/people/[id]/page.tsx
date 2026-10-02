@@ -24,7 +24,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
         include: {
           role: { select: { id: true, title: true, client: true, status: true } },
           outreach: { orderBy: { sentAt: "desc" } },
-          screenings: { orderBy: { createdAt: "desc" }, select: { id: true, status: true, createdAt: true, confirmedAt: true, representConsentAt: true } },
+          screenings: { orderBy: { createdAt: "desc" }, select: { id: true, status: true, createdAt: true, confirmedAt: true, representConsentAt: true, clientEmailSentAt: true } },
         },
       },
     },
@@ -144,7 +144,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
                       <Link href={`/candidates/${screening.candidateId}/screening`} className="person-row-name">{screening.roleTitle}</Link>
                       <p className="person-row-headline">
                         {screening.status === "confirmed"
-                          ? `Confirmed ${dateFormat.format(screening.confirmedAt!)}${screening.representConsentAt ? `, agreed to be put forward${screening.client ? ` to ${screening.client}` : ""}` : ""}`
+                          ? `Confirmed ${dateFormat.format(screening.confirmedAt!)}${screening.representConsentAt ? `, agreed to be put forward${screening.client ? ` to ${screening.client}` : ""}` : ""}${screening.clientEmailSentAt ? `, sent to the client ${dateFormat.format(screening.clientEmailSentAt)}` : ""}`
                           : "Not confirmed yet"}
                       </p>
                     </div>

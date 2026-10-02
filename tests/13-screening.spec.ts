@@ -158,6 +158,7 @@ test("S1 a call becomes four facts to check, an invented quote is caught, and no
 
   // The person page shows the facts and the screening.
   await page.getByRole("link", { name: /Open Imogen.s record/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/people/${candidate.personId}$`));
   await expect(page.getByText("£88,000 to £95,000 a year")).toBeVisible();
   const screenings = page.getByRole("region", { name: /Screenings/ });
   await expect(screenings.getByText(/agreed to be put forward to Halden Systems/)).toBeVisible();

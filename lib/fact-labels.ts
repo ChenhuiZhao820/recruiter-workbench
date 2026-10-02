@@ -1,3 +1,5 @@
+import type { ConfirmedFact, FactField, FactValues } from "./screening";
+
 // How confirmed facts read on screen, shared by the person page and the
 // screening page so a fact looks the same wherever it appears.
 
@@ -40,4 +42,24 @@ export function locationText(location: string | null, remote: string | null) {
 
 export function rightToWorkText(status: string | null) {
   return status ? RIGHT_TO_WORK_LABELS[status] ?? status : null;
+}
+
+// One confirmed screening fact as a headline value and an optional note.
+export function factSummary(field: FactField, fact: ConfirmedFact<FactField>): { value: string; note: string | null } {
+  if (fact.not_discussed) return { value: "Not discussed", note: null };
+  if (field === "salary") {
+    const v = fact.value as FactValues["salary"];
+    return { value: salaryText(v.min, v.max, v.currency) ?? "No annual figure", note: v.note };
+  }
+  if (field === "notice") {
+    const v = fact.value as FactValues["notice"];
+    const from = v.available_from ? `Available from ${factDate.format(new Date(`${v.available_from}T00:00:00Z`))}` : null;
+    return { value: noticeText(v.weeks) ?? from ?? "No period given", note: [v.weeks !== null ? from : null, v.note].filter(Boolean).join(". ") || null };
+  }
+  if (field === "location") {
+    const v = fact.value as FactValues["location"];
+    return { value: locationText(v.location, v.remote) ?? "Not stated", note: v.note };
+  }
+  const v = fact.value as FactValues["right_to_work"];
+  return { value: rightToWorkText(v.status) ?? "Not stated", note: v.note };
 }

@@ -48,6 +48,7 @@ export default defineConfig({
         NEXT_DIST_DIR: ".next-test",
         ANTHROPIC_API_KEY: "test-key-not-real",
         ANTHROPIC_BASE_URL: "http://localhost:8766",
+        BOOKING_LINK_SECRET: "test-only-booking-link-secret-0000000000",
       },
     },
   ],

@@ -732,3 +732,46 @@ select.field-input { padding-right: 28px; }
 @media (max-width: 760px) {
   .client-email-fields { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Booking: the recruiter's weekly hours, and the candidate's page. */
+.booking-setup-note { display: flex; gap: 8px; padding: 11px; border: 1px solid rgb(180 83 9 / .28); background: rgb(255 251 235); border-radius: 5px; font-size: 12px; color: rgb(120 53 15); }
+.booking-week { border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.booking-day { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px 16px; }
+.booking-day + .booking-day { border-top: 1px solid var(--color-line); }
+.booking-day-name { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--color-ink); cursor: pointer; }
+.booking-day-times { display: flex; align-items: center; gap: 10px; max-width: 320px; }
+.booking-day:has(input[type="checkbox"]:not(:checked)) .booking-day-times { opacity: .45; }
+.booking-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.booking-on-card { display: grid; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: 6px; background: var(--color-sunken); }
+
+.public-shell:has(.booking-page) { min-height: 100dvh; }
+.booking-page { width: min(100%, 720px); margin: 0 auto; padding: 32px 16px 64px; }
+.booking-page h1 { margin-top: 6px; font-size: clamp(26px, 3vw, 34px); line-height: 1.2; font-weight: 550; letter-spacing: -.05em; }
+.booking-page .page-description { margin-top: 10px; margin-bottom: 28px; }
+.booking-form { display: grid; gap: 32px; }
+.booking-form fieldset { min-width: 0; }
+.booking-form legend { margin-bottom: 4px; }
+.booking-zone { max-width: 100%; padding: 4px 8px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); color: var(--color-ink); font: inherit; font-size: 13px; }
+.booking-days { display: grid; gap: 18px; }
+.booking-slot-day-name { margin-bottom: 8px; font-size: 13px; font-weight: 550; color: var(--color-ink); }
+.booking-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.booking-slot { display: flex; align-items: center; justify-content: center; min-height: 42px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); font-size: 14px; cursor: pointer; transition: border-color .15s, background-color .15s, color .15s; }
+.booking-slot:hover { border-color: rgb(var(--rgb-ink) / .3); }
+.booking-slot:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.booking-slot[data-chosen="true"] { border-color: var(--color-accent); background: var(--color-accent); color: white; }
+.booking-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.booking-mode { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); font-size: 14px; cursor: pointer; }
+.booking-mode[data-chosen="true"] { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.booking-notice { border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); }
+.booking-notice > summary { padding: 11px 14px; font-size: 13px; cursor: pointer; }
+.booking-notice > p { margin: 0 14px 14px; font-size: 13px; line-height: 1.65; color: var(--color-ink-soft); white-space: pre-line; }
+.booking-empty, .booking-confirmed { display: grid; gap: 16px; padding: 20px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.booking-confirmed { margin: 24px 0 16px; }
+.booking-confirmed dl { display: grid; gap: 12px; }
+.booking-confirmed dt { font-size: 12px; color: var(--color-ink-soft); }
+.booking-confirmed dd { margin-top: 2px; font-size: 15px; overflow-wrap: anywhere; }
+.booking-confirmed .btn-secondary { justify-self: start; }
+@media (max-width: 760px) {
+  .booking-day { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .booking-grid, .booking-modes { grid-template-columns: minmax(0, 1fr); }
+}

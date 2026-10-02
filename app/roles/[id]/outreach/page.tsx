@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
 import { getSettings } from "@/lib/settings";
 import { firstName, renderTemplate } from "@/lib/render";
+import { bookingLinkFor } from "@/lib/booking";
 import { formatWhen } from "@/lib/dates";
 import { profileHref } from "@/lib/urls";
 import { limitForKind, templateKindLabel } from "@/lib/templates";
@@ -53,7 +54,7 @@ export default async function RoleOutreachPage({
       include: {
         candidates: {
           orderBy: [{ stage: "asc" }, { lastActivityAt: "desc" }],
-          include: { outreach: { orderBy: { sentAt: "desc" }, take: 1 } },
+          include: { outreach: { orderBy: { sentAt: "desc" }, take: 1 }, person: { select: { doNotContact: true } } },
         },
       },
     }),
@@ -257,6 +258,7 @@ export default async function RoleOutreachPage({
         role_title: role.title,
         calendar_link: settings.calendarLink,
         recruiter_name: settings.recruiterName,
+        booking_link: bookingLinkFor({ ...candidate, role }, settings),
       })
     : "";
   const kind = selected?.kind ?? "message";

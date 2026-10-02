@@ -13,6 +13,16 @@ export async function getSettings() {
       bookingChaseDays: 2,
       quietNudgeDays: 5,
       captureTokenHash: null,
+      seenRelease: null,
+      bookingWindows: "[]",
+      bookingTimezone: "Europe/London",
+      bookingDurationMins: 30,
+      bookingMinNoticeHours: 12,
+      bookingHorizonDays: 14,
+      meetingLink: "",
+      offerPhone: false,
+      privacyNotice: "",
+      privacyContactEmail: "",
     };
   }
   return db.settings.upsert({

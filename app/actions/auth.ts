@@ -6,6 +6,7 @@ import { assertSameOrigin, createSession, endSession, requireUser, takeAuthAttem
 import { hashPassword, hashToken, normalizeEmail, passwordError, validEmail, verifyPassword } from "@/lib/auth-crypto";
 import { isNewAccount } from "@/lib/onboarding";
 import { hasSeenCurrentRelease } from "@/lib/release";
+import { purgeExpiredTranscripts } from "@/lib/retention";
 import type { FormState } from "@/lib/formState";
 
 export async function login(_state: FormState, form: FormData): Promise<FormState> {
@@ -31,6 +32,9 @@ export async function login(_state: FormState, form: FormData): Promise<FormStat
   const unread = !guided && !(await hasSeenCurrentRelease(user.id));
   await endSession();
   await createSession(user.id, user.authVersion);
+  // Retention runs where the recruiter already is; a failure here must not
+  // stop them signing in, and the screens hide an expired transcript anyway.
+  await purgeExpiredTranscripts(user.id).catch(() => undefined);
   redirect(guided ? "/getting-started" : unread ? "/whats-new" : "/");
 }
 

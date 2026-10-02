@@ -4,6 +4,7 @@ import { Icon } from "@/components/Icon";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
+import { featureAvailability } from "@/lib/feature-access";
 import { parseObjectArray, parseStringArray } from "@/lib/json";
 import { STAGES, STAGE_LABELS } from "@/lib/stages";
 import { formatWhen } from "@/lib/dates";
@@ -37,6 +38,7 @@ function BriefingSection({ title, children }: { title: string; children: ReactNo
 
 export default async function RolePage({ params }: { params: { id: string } }) {
   const { owner, readOnly } = await getWorkspace();
+  const features = await featureAvailability();
   const role = await db.role.findUnique({
     where: { id: params.id, userId: owner.id },
     include: {
@@ -328,6 +330,11 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                         <Link href={`/candidates/${c.id}/outreach`} className="btn-quiet">
                           Draft outreach
                         </Link>
+                        {features.screening && (
+                          <Link href={`/candidates/${c.id}/screening`} className="btn-quiet">
+                            Screening
+                          </Link>
+                        )}
                         <form action={setCandidateStage} className="flex items-center gap-1">
                           <input type="hidden" name="id" value={c.id} />
                           <label htmlFor={`stage-${c.id}`} className="sr-only">

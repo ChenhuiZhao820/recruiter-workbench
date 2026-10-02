@@ -4,6 +4,9 @@ const nextConfig = {
   // dev server over .next. Unset in normal use.
   distDir: process.env.NEXT_DIST_DIR || ".next",
   experimental: {
+    // A screening carries a transcript (up to 60,000 characters) and an
+    // optional CV of up to 4 MB in one submission.
+    serverActions: { bodySizeLimit: "6mb" },
     outputFileTracingIncludes: {
       "/api/extension/download": ["./extension/manifest.json", "./extension/popup.html", "./extension/popup.css", "./extension/popup.js"],
     },

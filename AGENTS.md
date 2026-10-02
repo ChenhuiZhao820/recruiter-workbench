@@ -201,6 +201,59 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   It helps from the next extension change onward, never the one that ships it:
   the copy already installed does not contain the check.
 
+## Screening assistant
+
+- A Pro feature (`screening` in `FEATURE_TIERS`), at `/candidates/[id]/screening`,
+  linked from the candidate row on the role page and from the person page. The
+  recruiter pastes a transcript, uploads the `.txt`/`.vtt` their call app saved,
+  or types notes, optionally attaches a CV, and presses Summarise. There is no
+  bot, no audio and no automatic call: the transcript is what the recruiter
+  chose to give it, and generation happens only on that click.
+- The rules live in `lib/screening-core.mjs` and the request in
+  `lib/screening-model.mjs`, both plain modules shared with the unit tests and
+  `scripts/eval-screening.mjs`, so the evaluation measures exactly what
+  recruiters get. One request with a structured-output schema, one retry if the
+  reply is not that shape, extra fields dropped. The transcript is delimited and
+  the prompt says it is data, not instructions.
+- The guard against invented facts is the quote check: each fact must come with
+  a passage found in the transcript (case, curly quotes and spacing ignored,
+  eight characters at least). Without one the value is still shown, marked "No
+  quote found", for the recruiter to check. Nothing reaches the person until all
+  four facts (salary, notice, location and remote, right to work) are confirmed
+  card by card or marked not discussed; a fact not discussed leaves what was
+  confirmed before. Saving moves the candidate to Screened from any earlier
+  stage and records whether they agreed to be put forward to this client.
+- The model is `CAPTURE_SCREENING_MODEL` (default the current Opus until the
+  evaluation picks one), effort `CAPTURE_SCREENING_EFFORT` (never sent to Haiku).
+  Models that take it get the server-side refusal fallback. The CV is a PDF of up
+  to 5 pages and 4 MB, sent with that one request and never stored; transcripts
+  are capped at 60,000 characters, so server actions accept 6 MB bodies.
+- `AiUsage` caps summaries per account per UTC month
+  (`CAPTURE_SCREENING_MONTHLY_CAP`, default 100). The claim is a conditional
+  increment taken before the call and refunded if the call fails; the screening
+  itself is claimed by status, so a double click pays once. A failed or capped
+  summary keeps the transcript as a draft to try again.
+- Transcripts are deleted 30 days after they were added (`lib/retention.ts`):
+  at sign-in, on every screening action, and by `scripts/purge-transcripts.mjs`
+  (dry run by default, `--apply` needs `PURGE TRANSCRIPTS` typed). Screens treat
+  an expired transcript as gone even before it is purged, and the recruiter can
+  delete one early. Summaries and confirmed facts stay.
+- `UsageEvent` (`lib/usage.ts`) records counts and timings only, in our own
+  database: `quote_missing` per field at summary time, `ai_field_edited` per
+  field the recruiter changed, `screening_confirmed` with the seconds from
+  adding the call to confirming it. Never a name, a transcript or a message.
+- Paid model runs are scripts, never tests: `scripts/make-synthetic-screenings.mjs`
+  writes the 15 fictional calls and their answer key to
+  `tests/fixtures/screening/` once; `scripts/eval-screening.mjs` scores one or
+  more models against it. Both share `scripts/paid-run.mjs`: they print an
+  estimate and stop unless given `--approve-cost` and `--reason`, run at most
+  once a day each, never in CI, and append every run to
+  `prisma/private-local/paid-model-runs.jsonl`. Each run needs explicit approval.
+- `tests/13-screening.spec.ts` covers the flow against the local stub (an
+  invented quote, a malformed reply, a refusal, an outage, the cap, the CV
+  limits, retention, Basic accounts, foreign ids and read-only views);
+  `tests/screening.test.mjs` covers the rules and the scripts' guards.
+
 ## Accounts and authorization
 
 - `lib/auth.ts`: opaque hashed database sessions, HttpOnly/SameSite cookies,

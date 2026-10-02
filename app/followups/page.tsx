@@ -6,6 +6,7 @@ import { formatWhen } from "@/lib/dates";
 import { templateKindLabel } from "@/lib/templates";
 import { profileHref } from "@/lib/urls";
 import { setCandidateStage } from "@/app/actions/candidates";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -93,8 +94,19 @@ function Bucket({
 }
 
 export default async function FollowUpsPage() {
-  const { readOnly } = await getWorkspace();
-  const [buckets, settings] = await Promise.all([getFollowUpBuckets(), getSettings()]);
+  const { owner, readOnly } = await getWorkspace();
+  const now = new Date();
+  const [buckets, settings, calls] = await Promise.all([
+    getFollowUpBuckets(),
+    getSettings(),
+    // Calls candidates booked through the booking page, for the coming week.
+    db.booking.findMany({
+      where: { userId: owner.id, status: "booked", endsAt: { gt: now }, startsAt: { lt: new Date(now.getTime() + 7 * 86_400_000) }, candidate: { role: { userId: owner.id } } },
+      orderBy: { startsAt: "asc" },
+      select: { id: true, startsAt: true, mode: true, phone: true, candidate: { select: { id: true, fullName: true, role: { select: { id: true, title: true } } } } },
+    }),
+  ]);
+  const callTime = new Intl.DateTimeFormat("en-GB", { timeZone: settings.bookingTimezone, weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 space-y-8">
@@ -106,6 +118,25 @@ export default async function FollowUpsPage() {
         </div>
         <p className="chip">Work top to bottom</p>
       </header>
+
+      {calls.length > 0 && (
+        <section aria-labelledby="calls-heading" className="workspace-section">
+          <h2 id="calls-heading" className="section-heading">Calls this week</h2>
+          <p className="section-caption mb-4">Booked by candidates through your booking page.</p>
+          <ul className="space-y-2">
+            {calls.map((call) => (
+              <li key={call.id} className="card flex flex-wrap items-baseline justify-between gap-2">
+                <span>
+                  <span className="font-medium tabular">{callTime.format(call.startsAt)}</span>{" "}
+                  <span>{call.candidate.fullName}</span>
+                  <span className="text-ink-soft">{call.mode === "phone" ? `, phone ${call.phone}` : ", video"}</span>
+                </span>
+                <Link href={`/roles/${call.candidate.role.id}`} className="text-sm text-ink/60 underline">{call.candidate.role.title}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <Bucket
         readOnly={readOnly}

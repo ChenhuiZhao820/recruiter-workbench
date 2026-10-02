@@ -8,6 +8,7 @@ export const KNOWN_PLACEHOLDERS = [
   "role_title",
   "calendar_link",
   "recruiter_name",
+  "booking_link",
 ] as const;
 
 export type PlaceholderValues = {
@@ -15,6 +16,8 @@ export type PlaceholderValues = {
   role_title?: string;
   calendar_link?: string;
   recruiter_name?: string;
+  // Each candidate's own signed link to the booking page (lib/booking.ts).
+  booking_link?: string;
 };
 
 // Any {{ token }}, known or not. Kept global so it can be reused with exec.

@@ -6,6 +6,7 @@ import { getWorkspace } from "@/lib/workspace";
 import { updateSettings } from "@/app/actions/settings";
 import { CaptureKeyPanel } from "@/components/CaptureKeyPanel";
 import { ActionForm } from "@/components/ActionForm";
+import { bookingReadiness } from "@/lib/booking";
 
 export const dynamic = "force-dynamic";
 
@@ -121,9 +122,23 @@ export default async function SettingsPage() {
           </div>
         )}
       </section>
+      <section className="min-w-0 space-y-5" aria-labelledby="booking-heading">
+        <div>
+          <h2 id="booking-heading" className="section-heading"><span aria-hidden="true" className="section-number">03</span> Booking page</h2>
+          <p className="section-caption">Let candidates pick a time for a call from a link in your message.</p>
+        </div>
+        <div className="card space-y-3">
+          <p className="text-sm text-ink-soft">
+            {bookingReadiness(settings).ready
+              ? "Working. {{booking_link}} in a template becomes each candidate's own link."
+              : "Not set up yet. Choose your hours and how the call happens."}
+          </p>
+          <Link href="/settings/booking" className="btn-secondary">{readOnly ? "View booking page settings" : "Set up booking page"}</Link>
+        </div>
+      </section>
       <section className="min-w-0 space-y-5" aria-label="Capture connection">
         <div>
-          <h2 className="section-heading"><span aria-hidden="true" className="section-number">03</span> Browser connection</h2>
+          <h2 className="section-heading"><span aria-hidden="true" className="section-number">04</span> Browser connection</h2>
           <p className="section-caption">Connect the Capture extension to your workspace.</p>
         </div>
         {readOnly || extensionEnabled ? <>

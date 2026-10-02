@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
 import { getSettings } from "@/lib/settings";
 import { firstName, hasGaps as messageHasGaps, renderTemplate } from "@/lib/render";
+import { bookingLinkFor } from "@/lib/booking";
 import { formatWhen } from "@/lib/dates";
 import { profileHref } from "@/lib/urls";
 import { markAsSent } from "@/app/actions/outreach";
@@ -25,7 +26,8 @@ export default async function OutreachPage({
     db.candidate.findUnique({
       where: { id: params.id, role: { userId: owner.id } },
       include: {
-        role: { select: { id: true, title: true } },
+        role: { select: { id: true, title: true, status: true } },
+        person: { select: { doNotContact: true } },
         outreach: { orderBy: { sentAt: "desc" } },
       },
     }),
@@ -43,6 +45,7 @@ export default async function OutreachPage({
         role_title: candidate.role.title,
         calendar_link: settings.calendarLink,
         recruiter_name: settings.recruiterName,
+        booking_link: bookingLinkFor(candidate, settings),
       })
     : "";
   const hasGaps = messageHasGaps(rendered);

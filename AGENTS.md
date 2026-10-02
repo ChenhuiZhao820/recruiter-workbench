@@ -67,7 +67,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   SVG/CSS, not hotlinked template assets; no new third-party runtime requests.
 - Anonymous `/` is a public marketing homepage. Authenticated `/` remains the
   owner-scoped Roles dashboard. `/welcome` shows the marketing page for either
-  state. All other business routes still require authentication.
+  state. `/book/[token]` and its `.ics` are the one public business route: a
+  candidate's booking page, opened by a signed link and nothing else (see
+  Booking page). All other business routes still require authentication.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
   `MarketingHome`/`ProductPreview` use explicitly illustrative, static data only.
   Never feed real recruiting data into a public preview or invent customer claims.
@@ -276,6 +278,50 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `tests/15-client-email.spec.ts` covers the consent gate, the mailto address,
   paste cleaning and copying, the long-email fallback, nothing stored, foreign
   ids and the read-only view; `tests/client-email.test.mjs` covers the builder.
+
+## Booking page
+
+- Available on every plan (`booking` in `FEATURE_TIERS`). The recruiter sets
+  weekly hours, time zone, call length, minimum notice, how far ahead, a
+  meeting link and/or a phone option, and a privacy notice at
+  `/settings/booking` (`updateBookingSettings`). An empty notice uses
+  `defaultPrivacyNotice`, with the account email as the contact unless another
+  is given.
+- `{{booking_link}}` in a template becomes each candidate's own link,
+  `/book/<candidateId>.<issuedDay>.<hmac>`, signed with `BOOKING_LINK_SECRET`
+  (32+ characters, server only) over the candidate and the UTC issue day
+  (`lib/booking-core.mjs`). Making a link writes nothing, so rendering the
+  outreach queue stays pure. A link lasts 30 days, and gives way to a gap rather
+  than a dead link when booking is not set up, the role is closed, the candidate
+  is rejected or placed, or the person is do not contact. Changing the secret
+  stops every link already sent. The role page also offers Copy booking link.
+- `/book/[token]` needs no session and `ApplicationShell` gives it a bare
+  header. It shows the recruiter's name and the role title, never the client,
+  free times in the candidate's own time zone (read from the browser,
+  changeable), a required consent box, an optional "keep my details for future
+  roles" box and the full notice; it is `noindex` and sends no referrer.
+- `bookSlot` trusts nothing from the page: it re-reads the link, re-checks the
+  candidate, throttles per candidate and per owner with the login throttle
+  table, and books only a start time that `freeSlots` still offers. One
+  transaction checks for an overlapping booking and inserts `Booking` plus
+  `BookedSlot`, whose (owner, start) key refuses a double booking even under a
+  race; it saves the email (and consent, if ticked) on the person, moves the
+  candidate to Booked from an earlier stage, and writes a `booking.created`
+  audit event and a `booking_link_used` usage event. Capture sends no email.
+- Slots are the weekly hours stepped by the call length, from the notice to the
+  horizon, less booked calls, computed in the recruiter's zone with `Intl`:
+  a wall-clock time skipped when the clocks go forward has no slot, and one
+  repeated when they go back counts once (`tests/booking.test.mjs`).
+- The candidate gets an `.ics` behind the same link; the recruiter gets the call
+  on the role page and under Calls this week in Follow-ups, an Add to Google
+  Calendar link, an authenticated `.ics` from `/api/bookings/[id]/ics` (own
+  workspace only), and Cancel call, which frees the time and puts the candidate
+  back to booking pending. Rescheduling, buffers, calendar writes and reading the
+  recruiter's own calendar are not here; free/busy is planned separately.
+- `tests/14-booking.spec.ts` plays the candidate in a second browser context
+  with no session: booking, two people taking one time at once, forged, altered
+  and expired links, closed roles, do not contact, cancelling, a Basic account,
+  foreign ids, the read-only view and a phone-width page.
 
 ## Accounts and authorization
 

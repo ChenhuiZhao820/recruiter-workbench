@@ -42,6 +42,16 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
   const pageName = items.find((item) => active(item.href))?.label ?? (pathname.startsWith("/getting-started") ? setupNavigation.label : pathname.startsWith("/admin") ? "Accounts" : pathname.startsWith("/account") ? "Your account" : pathname.startsWith("/whats-new") ? "What’s new" : pathname.startsWith("/candidates/") && pathname.endsWith("/screening") ? "Screening" : "Outreach");
   const initials = user?.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "C";
 
+  // A candidate's booking page: the product's mark and nothing to navigate to,
+  // whoever is signed in on this browser.
+  if (pathname.startsWith("/book/")) return <div className="public-shell">
+    <a href="#main-content" className="skip-link">Skip to content</a>
+    <header className="site-header">
+      <div className="site-nav"><span className="brand"><CaptureMark /><span>Capture</span></span></div>
+    </header>
+    <main id="main-content" className="public-main">{children}</main>
+  </div>;
+
   if (publicPage) return <div className="public-shell">
     <a href="#main-content" className="skip-link">Skip to content</a>
     <header className="site-header">

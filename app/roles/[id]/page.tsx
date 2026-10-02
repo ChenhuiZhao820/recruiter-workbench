@@ -5,6 +5,11 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
 import { featureAvailability } from "@/lib/feature-access";
+import { getSettings } from "@/lib/settings";
+import { bookingLinkFor } from "@/lib/booking";
+import { googleCalendarUrl } from "@/lib/booking-core.mjs";
+import { CopyButton } from "@/components/CopyButton";
+import { cancelBooking } from "@/app/actions/booking";
 import { parseObjectArray, parseStringArray } from "@/lib/json";
 import { STAGES, STAGE_LABELS } from "@/lib/stages";
 import { formatWhen } from "@/lib/dates";
@@ -39,13 +44,19 @@ function BriefingSection({ title, children }: { title: string; children: ReactNo
 export default async function RolePage({ params }: { params: { id: string } }) {
   const { owner, readOnly } = await getWorkspace();
   const features = await featureAvailability();
+  const settings = await getSettings();
+  const now = new Date();
   const role = await db.role.findUnique({
     where: { id: params.id, userId: owner.id },
     include: {
       briefing: true,
       candidates: {
         orderBy: { lastActivityAt: "desc" },
-        include: { outreach: { orderBy: { sentAt: "desc" }, take: 1 }, person: { select: { doNotContact: true } } },
+        include: {
+          outreach: { orderBy: { sentAt: "desc" }, take: 1 },
+          person: { select: { doNotContact: true } },
+          bookings: { where: { status: "booked", endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 1 },
+        },
       },
       searches: { where: { userId: owner.id }, orderBy: { updatedAt: "desc" } },
     },
@@ -59,6 +70,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
   const searchTitles = briefing ? parseStringArray(briefing.searchTitles) : [];
   const targetCompanies = briefing ? parseStringArray(briefing.targetCompanies) : [];
 
+  const callTime = new Intl.DateTimeFormat("en-GB", { timeZone: settings.bookingTimezone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   const candidateCount = role.candidates.length;
   const searchCount = role.searches.length;
   const deleteWarning = [
@@ -315,6 +327,45 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                         </div>
                       </div>
                       {c.notes && <p className="mt-2 text-sm text-ink/80">{c.notes}</p>}
+                      {c.bookings[0] ? (
+                        <div className="booking-on-card">
+                          <p className="text-sm">
+                            <span className="chip screening-chip-done">Call booked</span>{" "}
+                            <span className="tabular">{callTime.format(c.bookings[0].startsAt)}</span>
+                            <span className="text-ink-soft">{c.bookings[0].mode === "phone" ? `, phone ${c.bookings[0].phone}` : ", video"}</span>
+                          </p>
+                          {!readOnly && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <a
+                                href={googleCalendarUrl({
+                                  start: c.bookings[0].startsAt.getTime(),
+                                  end: c.bookings[0].endsAt.getTime(),
+                                  title: `Screening call: ${c.fullName} (${role.title})`,
+                                  details: c.bookings[0].mode === "phone" ? `Call ${c.fullName} on ${c.bookings[0].phone}` : c.bookings[0].meetingUrl ?? "",
+                                  location: c.bookings[0].meetingUrl ?? undefined,
+                                })}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-quiet"
+                              >
+                                Add to Google Calendar
+                              </a>
+                              <a href={`/api/bookings/${c.bookings[0].id}/ics`} className="btn-quiet" download>Calendar file</a>
+                              <form action={cancelBooking}>
+                                <input type="hidden" name="bookingId" value={c.bookings[0].id} />
+                                <ConfirmSubmitButton label="Cancel call" confirmText={`Cancel the call with ${c.fullName}? The time becomes free again. Capture does not tell them, so let them know yourself.`} />
+                              </form>
+                            </div>
+                          )}
+                        </div>
+                      ) : (() => {
+                        const link = readOnly ? "" : bookingLinkFor({ ...c, role }, settings, now);
+                        return link ? (
+                          <div className="mt-2">
+                            <CopyButton text={link} label="Copy booking link" className="btn-quiet" />
+                          </div>
+                        ) : null;
+                      })()}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         {profileHref(c.profileUrl) && (
                           <a

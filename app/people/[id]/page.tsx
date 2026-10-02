@@ -8,36 +8,9 @@ import { templateKindLabel } from "@/lib/templates";
 import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { deletePerson, setDoNotContact } from "@/app/actions/people";
+import { factDate as dateFormat, locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
 
 export const dynamic = "force-dynamic";
-
-const REMOTE_LABELS: Record<string, string> = {
-  onsite: "On site",
-  hybrid: "Hybrid",
-  remote: "Remote",
-  flexible: "Flexible",
-};
-const RIGHT_TO_WORK_LABELS: Record<string, string> = {
-  has_right: "Has the right to work",
-  needs_sponsorship: "Needs sponsorship",
-  unknown: "Not known",
-};
-
-function money(value: number, currency: string | null) {
-  try {
-    return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency || "GBP", maximumFractionDigits: 0 }).format(value);
-  } catch {
-    return `${value.toLocaleString("en-GB")} ${currency ?? ""}`.trim();
-  }
-}
-
-function salaryText(min: number | null, max: number | null, currency: string | null) {
-  if (min === null && max === null) return null;
-  if (min !== null && max !== null && min !== max) return `${money(min, currency)} to ${money(max, currency)} a year`;
-  return `${money((min ?? max)!, currency)} a year`;
-}
-
-const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
 export default async function PersonPage({ params }: { params: { id: string } }) {
   const { owner, readOnly } = await requireFeature("people");
@@ -51,6 +24,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
         include: {
           role: { select: { id: true, title: true, client: true, status: true } },
           outreach: { orderBy: { sentAt: "desc" } },
+          screenings: { orderBy: { createdAt: "desc" }, select: { id: true, status: true, createdAt: true, confirmedAt: true, representConsentAt: true } },
         },
       },
     },
@@ -62,15 +36,16 @@ export default async function PersonPage({ params }: { params: { id: string } })
     .flatMap((candidate) => candidate.outreach.map((log) => ({ ...log, roleTitle: candidate.role.title })))
     .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime());
 
+  const screenings = person.candidates
+    .flatMap((candidate) => candidate.screenings.map((screening) => ({ ...screening, candidateId: candidate.id, roleTitle: candidate.role.title, client: candidate.role.client })))
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
   const salary = salaryText(person.salaryMin, person.salaryMax, person.salaryCurrency);
-  const location = [person.location, person.remotePreference ? REMOTE_LABELS[person.remotePreference] ?? person.remotePreference : null]
-    .filter(Boolean)
-    .join(", ");
   const facts = [
     { label: "Salary expectation", value: salary, note: person.salaryNote },
-    { label: "Notice period", value: person.noticeWeeks !== null ? `${person.noticeWeeks} ${person.noticeWeeks === 1 ? "week" : "weeks"}` : null, note: person.availableFrom ? `Available from ${dateFormat.format(person.availableFrom)}` : null },
-    { label: "Location and remote", value: location || null, note: null },
-    { label: "Right to work", value: person.rightToWork ? RIGHT_TO_WORK_LABELS[person.rightToWork] ?? person.rightToWork : null, note: person.rightToWorkNote },
+    { label: "Notice period", value: noticeText(person.noticeWeeks), note: person.availableFrom ? `Available from ${dateFormat.format(person.availableFrom)}` : null },
+    { label: "Location and remote", value: locationText(person.location, person.remotePreference), note: null },
+    { label: "Right to work", value: rightToWorkText(person.rightToWork), note: person.rightToWorkNote },
   ];
   const hasFacts = facts.some((fact) => fact.value);
 
@@ -142,14 +117,44 @@ export default async function PersonPage({ params }: { params: { id: string } })
                     </div>
                     <StageBadge stage={candidate.stage} />
                     <p className="person-row-when tabular">Last activity {formatWhen(candidate.lastActivityAt)}</p>
-                    {candidate.role.status === "open" && !person.doNotContact && (
-                      <Link href={`/candidates/${candidate.id}/outreach`} className="btn-quiet">Write a message</Link>
-                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {features.screening && (
+                        <Link href={`/candidates/${candidate.id}/screening`} className="btn-quiet">Screening</Link>
+                      )}
+                      {candidate.role.status === "open" && !person.doNotContact && (
+                        <Link href={`/candidates/${candidate.id}/outreach`} className="btn-quiet">Write a message</Link>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
           </section>
+
+          {features.screening && screenings.length > 0 && (
+            <section aria-labelledby="screenings-heading" className="space-y-4">
+              <div>
+                <h2 id="screenings-heading" className="section-heading">Screenings <span className="person-count tabular">{screenings.length}</span></h2>
+                <p className="section-caption">Calls you summarised, most recent first.</p>
+              </div>
+              <ul className="people-list">
+                {screenings.map((screening) => (
+                  <li key={screening.id} className="person-role-row">
+                    <div className="min-w-0">
+                      <Link href={`/candidates/${screening.candidateId}/screening`} className="person-row-name">{screening.roleTitle}</Link>
+                      <p className="person-row-headline">
+                        {screening.status === "confirmed"
+                          ? `Confirmed ${dateFormat.format(screening.confirmedAt!)}${screening.representConsentAt ? `, agreed to be put forward${screening.client ? ` to ${screening.client}` : ""}` : ""}`
+                          : "Not confirmed yet"}
+                      </p>
+                    </div>
+                    <span className={`chip${screening.status === "confirmed" ? " screening-chip-done" : ""}`}>{screening.status === "confirmed" ? "Confirmed" : "Open"}</span>
+                    <p className="person-row-when tabular">Added {formatWhen(screening.createdAt)}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section aria-labelledby="messages-heading" className="space-y-4">
             <div>

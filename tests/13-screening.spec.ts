@@ -78,7 +78,7 @@ test.beforeAll(async () => {
 test("S1 a call becomes four facts to check, an invented quote is caught, and nothing is saved until all four are confirmed", async ({ page }) => {
   const candidate = await makeCandidate("Imogen Achterberg");
   await page.goto(`/roles/${roleId}`);
-  await page.locator("li.card", { hasText: "Imogen Achterberg" }).getByRole("link", { name: "Screening", exact: true }).click();
+  await page.locator("li.card", { hasText: "Imogen Achterberg" }).getByRole("link", { name: "Screening call", exact: true }).click();
   // The first visit compiles the page on the test server, which can be slow.
   await expect(page).toHaveURL(/\/screening$/, { timeout: 60_000 });
   await expect(page.getByRole("heading", { level: 1, name: "Screening call with Imogen Achterberg" })).toBeVisible();
@@ -281,11 +281,11 @@ test("S7 a Basic account sees no screening anywhere and its routes are not found
     const candidate = await makeCandidate("Basic Candidate", { userId: basic.user.id, role: role.id });
     await basic.page.goto(`/roles/${role.id}`);
     await expect(basic.page.getByRole("link", { name: "Draft outreach" })).toBeVisible();
-    await expect(basic.page.getByRole("link", { name: "Screening", exact: true })).toHaveCount(0);
+    await expect(basic.page.getByRole("link", { name: "Screening call", exact: true })).toHaveCount(0);
     await basic.page.goto(`/people/${candidate.personId}`);
     await expect(basic.page.getByRole("heading", { level: 1, name: "Basic Candidate" })).toBeVisible();
-    await expect(basic.page.getByRole("link", { name: "Screening", exact: true })).toHaveCount(0);
-    await expect(basic.page.getByRole("heading", { name: "What they told you" })).toHaveCount(0);
+    await expect(basic.page.getByRole("link", { name: "Screening call", exact: true })).toHaveCount(0);
+    await expect(basic.page.getByRole("heading", { name: "Confirmed details" })).toHaveCount(0);
     const response = await basic.page.goto(`/candidates/${candidate.id}/screening`);
     expect(response?.status()).toBe(404);
   } finally {

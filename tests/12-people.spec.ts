@@ -111,7 +111,7 @@ test("P3 with people search the words reach recorded facts; on Basic the search 
   try {
     await basicPage.goto("/people?q=kubernetes");
     await expect(basicPage.getByRole("heading", { name: "No one matches that search" })).toBeVisible();
-    await expect(basicPage.getByText("Filter by what they told you")).toHaveCount(0);
+    await expect(basicPage.getByText("Filter by confirmed details")).toHaveCount(0);
     await basicPage.goto("/people?q=platform");
     await expect(basicPage.locator(".person-row")).toHaveCount(1);
   } finally {

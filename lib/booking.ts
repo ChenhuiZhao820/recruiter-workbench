@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { appOrigin } from "./auth";
+import { calendarBusy } from "./calendar";
 import {
   availableSlots,
   bookingSecret,
@@ -105,6 +106,10 @@ export async function freeSlots(ownerId: string, settings: BookingSettings, now 
     where: { userId: ownerId, status: "booked", endsAt: { gt: now }, startsAt: { lt: horizonEnd } },
     select: { startsAt: true, endsAt: true },
   });
+  // Busy time in the recruiter's own calendar, when one is connected. If it
+  // cannot be read in time, the weekly hours stand alone and the recruiter is
+  // told on their booking settings.
+  const calendar = await calendarBusy(ownerId, now, horizonEnd);
   return availableSlots({
     windows: parseWindows(settings.bookingWindows),
     timeZone: settings.bookingTimezone,
@@ -112,6 +117,6 @@ export async function freeSlots(ownerId: string, settings: BookingSettings, now 
     minNoticeHours: settings.bookingMinNoticeHours,
     horizonDays: settings.bookingHorizonDays,
     now,
-    busy: booked.map((b) => ({ start: b.startsAt.getTime(), end: b.endsAt.getTime() })),
+    busy: [...booked.map((b) => ({ start: b.startsAt.getTime(), end: b.endsAt.getTime() })), ...calendar.busy],
   });
 }

@@ -318,8 +318,31 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   on the role page and under Calls this week in Follow-ups, an Add to Google
   Calendar link, an authenticated `.ics` from `/api/bookings/[id]/ics` (own
   workspace only), and Cancel call, which frees the time and puts the candidate
-  back to booking pending. Rescheduling, buffers, calendar writes and reading the
-  recruiter's own calendar are not here; free/busy is planned separately.
+  back to booking pending. Rescheduling, buffers and calendar writes are not here.
+- `{{privacy_notice}}` in a template is one short line (`privacyNoticeLine`):
+  a record is kept, and how to see it or have it deleted, by the privacy contact
+  or the account email. It fits a LinkedIn message; the booking page carries the
+  full notice.
+- Calendar free/busy (`calendarFreeBusy`, every plan): on `/settings/booking`
+  a recruiter may connect Google or Microsoft, offered only when the server has
+  that provider's `*_CLIENT_ID`/`*_CLIENT_SECRET` and a `CALENDAR_TOKEN_KEY`.
+  The scopes are the narrowest each provider documents for this - Google's
+  `calendar.events.freebusy`, Microsoft's `Calendars.ReadBasic` with
+  `offline_access` - and only busy start/end times are read, never what the
+  events are. `/api/calendar/connect/[provider]` sends the signed-in account
+  (never a read-only view) to the provider with a signed, ten-minute state;
+  `/api/calendar/callback/[provider]` keeps the connection only when that state
+  names the same account and provider, and stores the refresh token encrypted
+  with AES-256-GCM (`lib/calendar-core.mjs`). Access tokens live in memory.
+- `freeSlots` subtracts the calendar's busy periods from the weekly hours.
+  Every provider request is server side with a three-second limit; a failure
+  is recorded as `lastErrorAt`, the page carries on with the weekly hours, and
+  the recruiter is warned on the booking settings until a read succeeds.
+  Disconnecting revokes Google's grant and deletes the token either way.
+  `CalendarConnection` is never exported or imported. `tests/18-calendar.spec.ts`
+  plays both providers through the local stub (`CAPTURE_TEST_CALENDAR_BASE_URL`,
+  honoured outside production only); `tests/calendar.test.mjs` covers the
+  encryption, the state, the requested scopes and reading busy replies.
 - `tests/14-booking.spec.ts` plays the candidate in a second browser context
   with no session: booking, two people taking one time at once, forged, altered
   and expired links, closed roles, do not contact, cancelling, a Basic account,

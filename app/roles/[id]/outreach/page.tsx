@@ -5,6 +5,7 @@ import { getWorkspace } from "@/lib/workspace";
 import { getSettings } from "@/lib/settings";
 import { firstName, renderTemplate } from "@/lib/render";
 import { bookingLinkFor } from "@/lib/booking";
+import { privacyNoticeLine } from "@/lib/booking-core.mjs";
 import { formatWhen } from "@/lib/dates";
 import { profileHref } from "@/lib/urls";
 import { limitForKind, templateKindLabel } from "@/lib/templates";
@@ -259,6 +260,7 @@ export default async function RoleOutreachPage({
         calendar_link: settings.calendarLink,
         recruiter_name: settings.recruiterName,
         booking_link: bookingLinkFor({ ...candidate, role }, settings),
+        privacy_notice: privacyNoticeLine(settings.privacyContactEmail || owner.email),
       })
     : "";
   const kind = selected?.kind ?? "message";

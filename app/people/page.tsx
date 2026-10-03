@@ -117,14 +117,14 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
               name="q"
               type="search"
               defaultValue={filters.q}
-              placeholder={features.peopleSearch ? "Name, skill, place or anything they told you" : "Search by name or headline"}
+              placeholder={features.peopleSearch ? "Name, skill, place or a confirmed detail" : "Search by name or headline"}
             />
           </div>
           <button type="submit" className="btn-secondary">Search</button>
         </div>
         {features.peopleSearch && (
           <details className="people-filters" open={filtersOpen}>
-            <summary>Filter by what they told you</summary>
+            <summary>Filter by confirmed details</summary>
             <div className="people-filter-grid">
               <div>
                 <label htmlFor="filter-salary" className="field-label">Salary up to (a year)</label>

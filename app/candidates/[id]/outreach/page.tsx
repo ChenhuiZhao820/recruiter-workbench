@@ -5,6 +5,7 @@ import { getWorkspace } from "@/lib/workspace";
 import { getSettings } from "@/lib/settings";
 import { firstName, hasGaps as messageHasGaps, renderTemplate } from "@/lib/render";
 import { bookingLinkFor } from "@/lib/booking";
+import { privacyNoticeLine } from "@/lib/booking-core.mjs";
 import { formatWhen } from "@/lib/dates";
 import { profileHref } from "@/lib/urls";
 import { markAsSent } from "@/app/actions/outreach";
@@ -46,6 +47,7 @@ export default async function OutreachPage({
         calendar_link: settings.calendarLink,
         recruiter_name: settings.recruiterName,
         booking_link: bookingLinkFor(candidate, settings),
+        privacy_notice: privacyNoticeLine(settings.privacyContactEmail || owner.email),
       })
     : "";
   const hasGaps = messageHasGaps(rendered);

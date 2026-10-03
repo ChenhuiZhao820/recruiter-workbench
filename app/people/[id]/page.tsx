@@ -13,6 +13,7 @@ import { factsAreStale } from "@/lib/talent.mjs";
 import { setRevisit } from "@/app/actions/talent";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
+import { SCREENING_HINT } from "@/lib/screening";
 
 export const dynamic = "force-dynamic";
 
@@ -94,11 +95,11 @@ export default async function PersonPage({ params }: { params: { id: string } })
               nothing recorded, the section is omitted rather than shown empty. */}
           {(hasFacts || features.screening) && <section aria-labelledby="facts-heading" className="space-y-4">
             <div>
-              <h2 id="facts-heading" className="section-heading">What they told you</h2>
+              <h2 id="facts-heading" className="section-heading">Confirmed details</h2>
               <p className="section-caption">
                 {hasFacts && person.factsConfirmedAt
-                  ? `Their own statements, confirmed by you on ${dateFormat.format(person.factsConfirmedAt)}. Not verified.`
-                  : "Filled in when you confirm a screening call. Their own statements, not verified."}
+                  ? `Salary, notice, location and right to work as they gave them on a screening call, confirmed by you on ${dateFormat.format(person.factsConfirmedAt)}. Their own words, not checked.`
+                  : "Salary, notice, location and right to work, filled in when you confirm a screening call. Their own words, not checked."}
                 {hasFacts && factsAreStale(person.factsConfirmedAt) && <span className="chip person-stale ml-2">May be out of date</span>}
               </p>
             </div>
@@ -135,7 +136,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
                     <p className="person-row-when tabular">Last activity {formatWhen(candidate.lastActivityAt)}</p>
                     <div className="flex flex-wrap gap-2">
                       {features.screening && (
-                        <Link href={`/candidates/${candidate.id}/screening`} className="btn-quiet">Screening</Link>
+                        <Link href={`/candidates/${candidate.id}/screening`} className="btn-quiet" title={SCREENING_HINT}>Screening call</Link>
                       )}
                       {candidate.role.status === "open" && !person.doNotContact && (
                         <Link href={`/candidates/${candidate.id}/outreach`} className="btn-quiet">Write a message</Link>

@@ -66,9 +66,10 @@ test("B1 the recruiter sets up the booking page, and a template's {{booking_link
   expect(JSON.parse(settings.bookingWindows)).toHaveLength(7);
 
   const candidate = await candidateOn(roleId, "Imogen Achterberg");
-  await db.messageTemplate.create({ data: { userId: TEST_ADMIN_ID, name: "Booking invite", kind: "message", body: "Hi {{first_name}}, grab a time here: {{booking_link}}" } });
+  await db.messageTemplate.create({ data: { userId: TEST_ADMIN_ID, name: "Booking invite", kind: "message", body: "Hi {{first_name}}, grab a time here: {{booking_link}}\n\n{{privacy_notice}}" } });
   await page.goto(`/candidates/${candidate.id}/outreach`);
   await expect(page.getByText(new RegExp(`grab a time here: http://localhost:3100/book/${candidate.id}\\.\\d+\\.[A-Za-z0-9_-]{43}`))).toBeVisible();
+  await expect(page.getByText("I keep a short record of the people I talk to about roles. To see it or have it deleted, email admin@test.capture.invalid.")).toBeVisible();
   await page.goto(`/roles/${roleId}`);
   await expect(page.locator("li.card", { hasText: "Imogen Achterberg" }).getByRole("button", { name: "Copy booking link" })).toBeVisible();
 });

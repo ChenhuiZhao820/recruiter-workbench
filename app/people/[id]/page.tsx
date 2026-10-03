@@ -29,6 +29,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
           role: { select: { id: true, title: true, client: true, status: true } },
           outreach: { orderBy: { sentAt: "desc" } },
           screenings: { orderBy: { createdAt: "desc" }, select: { id: true, status: true, createdAt: true, confirmedAt: true, representConsentAt: true, clientEmailSentAt: true } },
+          bookings: { orderBy: { startsAt: "desc" }, select: { id: true, startsAt: true, mode: true, phone: true, status: true } },
         },
       },
     },
@@ -39,6 +40,15 @@ export default async function PersonPage({ params }: { params: { id: string } })
   const messages = person.candidates
     .flatMap((candidate) => candidate.outreach.map((log) => ({ ...log, roleTitle: candidate.role.title })))
     .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime());
+
+  // Calls they booked through the booking page, newest first, in the
+  // recruiter's own time zone. A cancelled call stays listed, marked as such.
+  const now = new Date();
+  const settings = await db.settings.findUnique({ where: { userId: owner.id }, select: { bookingTimezone: true } });
+  const callTime = new Intl.DateTimeFormat("en-GB", { timeZone: settings?.bookingTimezone || "Europe/London", weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const calls = person.candidates
+    .flatMap((candidate) => candidate.bookings.map((booking) => ({ ...booking, roleId: candidate.role.id, roleTitle: candidate.role.title })))
+    .sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime());
 
   const screenings = person.candidates
     .flatMap((candidate) => candidate.screenings.map((screening) => ({ ...screening, candidateId: candidate.id, roleTitle: candidate.role.title, client: candidate.role.client })))
@@ -158,6 +168,35 @@ export default async function PersonPage({ params }: { params: { id: string } })
                     <p className="person-row-when tabular">Added {formatWhen(screening.createdAt)}</p>
                   </li>
                 ))}
+              </ul>
+            </section>
+          )}
+
+          {features.booking && calls.length > 0 && (
+            <section aria-labelledby="calls-heading" className="space-y-4">
+              <div>
+                <h2 id="calls-heading" className="section-heading">Calls <span className="person-count tabular">{calls.length}</span></h2>
+                <p className="section-caption">Booked through your booking page, most recent first.</p>
+              </div>
+              <ul className="people-list">
+                {calls.map((call) => {
+                  const state = call.status === "cancelled" ? "Cancelled" : call.startsAt > now ? "Upcoming" : "Done";
+                  return (
+                    <li key={call.id} className="person-role-row">
+                      <div className="min-w-0">
+                        <p className="person-row-name tabular">{callTime.format(call.startsAt)}</p>
+                        <p className="person-row-headline">
+                          <Link href={`/roles/${call.roleId}`} className="person-row-role">{call.roleTitle}</Link>
+                          {call.mode === "phone" ? `, phone ${call.phone}` : ", video"}
+                        </p>
+                      </div>
+                      <span className={`chip${state === "Upcoming" ? " screening-chip-done" : ""}`}>{state}</span>
+                      {state === "Upcoming" && !readOnly ? (
+                        <a href={`/api/bookings/${call.id}/ics`} className="btn-quiet" download>Calendar file</a>
+                      ) : <span />}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}

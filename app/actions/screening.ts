@@ -135,8 +135,14 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
     return { error: "This candidate already has a summary waiting to be confirmed. Confirm it, or discard it to start again." };
   }
   // A new transcript starts its own 30 days; an old draft's date may already
-  // have passed, and would delete this one at once.
-  const fresh = { transcript, transcriptSource: source, transcriptDeleteAfter: new Date(now.getTime() + TRANSCRIPT_RETENTION_DAYS * DAY_MS) };
+  // have passed, and would delete this one at once. A recruiter who asked for
+  // it not to be kept has it held in this request only: it is never written,
+  // and a failed summary leaves nothing behind to try again with.
+  const discard = formData.get("discardTranscript") === "on";
+  const fresh = discard
+    ? { transcript: null, transcriptSource: source, transcriptDeleteAfter: null }
+    : { transcript, transcriptSource: source, transcriptDeleteAfter: new Date(now.getTime() + TRANSCRIPT_RETENTION_DAYS * DAY_MS) };
+  const kept = discard ? "Nothing was kept; paste it again to try again" : "Your transcript is saved; try again";
   let screeningId: string;
   if (open) {
     // Claiming and saving the transcript are one conditional write, so a
@@ -156,9 +162,18 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
   }
   const screening = { id: screeningId };
 
+  // Back to a draft to try again, or gone when there is no transcript to keep.
+  const release = () =>
+    discard
+      ? db.screening.delete({ where: { id: screening.id } })
+      : db.screening.update({ where: { id: screening.id }, data: { status: "draft" } });
+
   if (!(await claimGeneration(user.id, now))) {
-    await db.screening.update({ where: { id: screening.id }, data: { status: "draft" } });
-    return { error: `You have used this month's ${screeningMonthlyCap()} screening summaries. Your transcript is saved; it can be summarised next month, or the limit raised by your administrator.` };
+    await release();
+    revalidateScreening(candidate.id, candidate.roleId, candidate.personId);
+    return { error: discard
+      ? `You have used this month's ${screeningMonthlyCap()} screening summaries. Nothing was kept. The limit resets next month, or your administrator can raise it.`
+      : `You have used this month's ${screeningMonthlyCap()} screening summaries. Your transcript is saved; it can be summarised next month, or the limit raised by your administrator.` };
   }
 
   const keySkills = parseObjectArray<{ skill: string }>(candidate.role.briefing?.keySkills ?? "[]").map((item) => item.skill);
@@ -183,11 +198,11 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
     });
   } catch (error) {
     await refundGeneration(user.id, now);
-    await db.screening.update({ where: { id: screening.id }, data: { status: "draft" } });
+    await release();
     revalidateScreening(candidate.id, candidate.roleId, candidate.personId);
     if (error instanceof ScreeningRefusedError) return { error: "The summary service declined this transcript. Check it is the right file, or fill the four facts in by hand." };
-    if (error instanceof ScreeningShapeError) return { error: "The summary came back in a shape that could not be read. Your transcript is saved; try again." };
-    if (error instanceof Anthropic.APIError) return { error: "The summary service could not be reached. Your transcript is saved; try again in a moment." };
+    if (error instanceof ScreeningShapeError) return { error: `The summary came back in a shape that could not be read. ${kept}.` };
+    if (error instanceof Anthropic.APIError) return { error: `The summary service could not be reached. ${kept} in a moment.` };
     throw error;
   }
   revalidateScreening(candidate.id, candidate.roleId, candidate.personId);

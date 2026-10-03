@@ -115,6 +115,10 @@ function handleScreening(req, res, request) {
     malformedOnce.add(text);
     return reply(res, "{ not json");
   }
+  if (text.includes("STUB_SLOW")) {
+    setTimeout(() => reply(res, JSON.stringify(screening())), 2500);
+    return;
+  }
   if (text.includes("STUB_DOWN")) {
     res.writeHead(500, { "content-type": "application/json" });
     res.end(JSON.stringify({ type: "error", error: { type: "api_error", message: "stub outage" } }));

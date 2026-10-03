@@ -1,12 +1,14 @@
 import Link from "next/link";
-import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireFeature, featureAvailability } from "@/lib/feature-access";
 import { formatWhen } from "@/lib/dates";
 import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { locationText, noticeText, rightToWorkText, salaryText, REMOTE_LABELS, RIGHT_TO_WORK_LABELS } from "@/lib/fact-labels";
-import { FRESH_MONTHS, REMOTE_FILTERS, RTW_FILTERS, factsAreStale, hasFactFilters, parsePeopleFilters, reviewCutoff, searchWords } from "@/lib/talent.mjs";
+import { FRESH_MONTHS, REMOTE_FILTERS, RTW_FILTERS, factsAreStale, hasFactFilters, parsePeopleFilters, reviewCutoff } from "@/lib/talent.mjs";
+import { peopleWhere } from "@/lib/people-search";
+import { PeopleSearchBox } from "@/components/PeopleSearchBox";
+import { FilterSummary } from "@/components/FilterSummary";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +17,6 @@ export const dynamic = "force-dynamic";
 // people search it reaches everything recorded about a person and can filter
 // on the four facts they confirmed.
 const PAGE_SIZE = 200;
-const DAY_MS = 86_400_000;
 
 type Params = { q?: string; deleted?: string; salary?: string; notice?: string; remote?: string; rtw?: string; fresh?: string };
 
@@ -35,20 +36,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
   const searching = Boolean(filters.q) || (features.peopleSearch && hasFactFilters(filters));
   const now = new Date();
 
-  const and: Prisma.PersonWhereInput[] = [];
-  if (features.peopleSearch) {
-    for (const word of searchWords(filters.q)) and.push({ searchText: { contains: word } });
-    if (filters.maxSalary !== null) {
-      and.push({ OR: [{ salaryMin: { lte: filters.maxSalary } }, { salaryMin: null, salaryMax: { lte: filters.maxSalary } }] });
-    }
-    if (filters.maxNotice !== null) and.push({ noticeWeeks: { lte: filters.maxNotice } });
-    if (filters.remote) and.push({ remotePreference: filters.remote });
-    if (filters.rightToWork) and.push({ rightToWork: filters.rightToWork });
-    if (filters.freshMonths) and.push({ factsConfirmedAt: { gte: new Date(now.getTime() - filters.freshMonths * 30 * DAY_MS) } });
-  } else if (filters.q) {
-    and.push({ searchText: { contains: filters.q.toLowerCase() } });
-  }
-  const where: Prisma.PersonWhereInput = { userId: owner.id, AND: and };
+  const where = peopleWhere(owner.id, filters, features.peopleSearch, now);
 
   const cutoff = reviewCutoff(now);
   const [found, total, toReview] = await Promise.all([
@@ -109,22 +97,26 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
 
       <form method="get" className="people-search" role="search">
         <div className="directory-toolbar">
-          <div className="search-field">
-            <Icon name="search" size={18} />
-            <label htmlFor="people-search" className="sr-only">{features.peopleSearch ? "Search people" : "Search people by name"}</label>
-            <input
-              id="people-search"
-              name="q"
-              type="search"
-              defaultValue={filters.q}
-              placeholder={features.peopleSearch ? "Name, skill, place or a confirmed detail" : "Search by name or headline"}
-            />
-          </div>
+          <PeopleSearchBox
+            defaultValue={filters.q}
+            label={features.peopleSearch ? "Search people" : "Search people by name"}
+            placeholder={features.peopleSearch ? "Name, skill, place or a confirmed detail" : "Search by name or headline"}
+          />
           <button type="submit" className="btn-secondary">Search</button>
         </div>
         {features.peopleSearch && (
           <details className="people-filters" open={filtersOpen}>
-            <summary>Filter by confirmed details</summary>
+            <summary>
+              <FilterSummary
+                initial={[
+                  filters.maxSalary !== null && "salary",
+                  filters.maxNotice !== null && "notice",
+                  filters.remote && "remote",
+                  filters.rightToWork && "rtw",
+                  filters.freshMonths && "fresh",
+                ].filter((field): field is string => Boolean(field))}
+              />
+            </summary>
             <div className="people-filter-grid">
               <div>
                 <label htmlFor="filter-salary" className="field-label">Salary up to (a year)</label>

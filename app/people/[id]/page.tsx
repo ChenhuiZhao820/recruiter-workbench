@@ -8,6 +8,7 @@ import { templateKindLabel } from "@/lib/templates";
 import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { deletePerson, setDoNotContact } from "@/app/actions/people";
+import { oncePerDay } from "@/lib/outreach-log";
 import { factDate as dateFormat, locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
 import { factsAreStale } from "@/lib/talent.mjs";
 import { setRevisit } from "@/app/actions/talent";
@@ -38,9 +39,12 @@ export default async function PersonPage({ params }: { params: { id: string } })
   if (!person) notFound();
 
   const profile = profileHref(person.profileUrl);
-  const messages = person.candidates
-    .flatMap((candidate) => candidate.outreach.map((log) => ({ ...log, roleTitle: candidate.role.title })))
-    .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime());
+  // The same text on the same day counts once, whichever role it was logged on.
+  const messages = oncePerDay(
+    person.candidates
+      .flatMap((candidate) => candidate.outreach.map((log) => ({ ...log, roleTitle: candidate.role.title })))
+      .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())
+  );
 
   // Calls they booked through the booking page, newest first, in the
   // recruiter's own time zone. A cancelled call stays listed, marked as such.

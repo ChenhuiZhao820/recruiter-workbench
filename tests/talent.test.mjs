@@ -11,6 +11,7 @@ import {
   parseMoney,
   parsePeopleFilters,
   rankMatches,
+  rankSuggestions,
   readBudget,
   readDate,
   reviewCutoff,
@@ -179,4 +180,24 @@ test("the demo workspace has fifteen fictional candidates, one or two in every s
   // Everyone is fictional: invented names and links that are never opened.
   for (const person of plan.people) assert.match(person.key, /^[a-z]+$/);
   assert.match(plan.templates[0].body, /\{\{booking_link\}\}/);
+});
+
+test("suggestions put a name before a headline before anything else, need every word, and keep Basic to name and headline", () => {
+  const day = (n) => new Date(Date.UTC(2026, 9, n));
+  const people = [
+    { id: "skills", fullName: "Gideon Ashworth", headline: "Analyst", searchText: "gideon ashworth analyst marrowby tooling", updatedAt: day(9) },
+    { id: "headline", fullName: "Priya Okonkwo", headline: "Led the Marrowby migration", searchText: "priya okonkwo led the marrowby migration", updatedAt: day(8) },
+    { id: "middle", fullName: "Ana Skymarrow", headline: "", searchText: "ana skymarrow", updatedAt: day(7) },
+    { id: "name", fullName: "Thaddeus Marrowby", headline: "Data engineer", searchText: "thaddeus marrowby data engineer", updatedAt: day(1) },
+    { id: "older-name", fullName: "Marrowby Quince", headline: "", searchText: "marrowby quince", updatedAt: day(2) },
+  ];
+  const ids = (rows) => rows.map((row) => row.person.id);
+  // The whole query at the start of a name first, then a word starting in a
+  // name, inside a name, a headline, and finally anywhere else.
+  assert.deepEqual(ids(rankSuggestions(people, "marrow")), ["older-name", "name", "middle", "headline", "skills"]);
+  assert.equal(rankSuggestions(people, "marrow").find((row) => row.person.id === "skills").where, "elsewhere");
+  assert.deepEqual(ids(rankSuggestions(people, "marrow data")), ["name"]);
+  assert.deepEqual(ids(rankSuggestions(people, "marrow", { deep: false })), ["older-name", "name", "middle", "headline"]);
+  assert.deepEqual(rankSuggestions(people, "m"), []);
+  assert.equal(rankSuggestions(people, "marrow", { limit: 2 }).length, 2);
 });

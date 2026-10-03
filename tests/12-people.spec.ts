@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { db, TEST_ADMIN_ID, TEST_DATABASE_URL, openAddCandidate } from "./helpers";
 import { hashToken } from "../lib/auth-crypto";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { CURRENT_RELEASE } from "../lib/release";
 
 // People: one record per person across roles, matched by member id or the
@@ -111,9 +111,12 @@ test("P3 with people search the words reach recorded facts; on Basic the search 
   try {
     await basicPage.goto("/people?q=kubernetes");
     await expect(basicPage.getByRole("heading", { name: "No one matches that search" })).toBeVisible();
-    await expect(basicPage.getByText("Filter by confirmed details")).toHaveCount(0);
+    await expect(basicPage.locator(".people-filters")).toHaveCount(0);
     await basicPage.goto("/people?q=platform");
     await expect(basicPage.locator(".person-row")).toHaveCount(1);
+    // The live suggestions keep to the same line.
+    expect((await (await basicPage.request.get("/api/people/suggest?q=kubernetes")).json()).results).toEqual([]);
+    expect((await (await basicPage.request.get("/api/people/suggest?q=platf")).json()).results.map((row: { name: string }) => row.name)).toEqual(["Odile Brannagh"]);
   } finally {
     await context.close();
   }
@@ -190,4 +193,51 @@ test("P7 the backfill dry run counts candidates without a person and writes noth
   expect(preview.peopleToCreate).toBeGreaterThanOrEqual(2);
   expect(output).not.toContain("Odhran");
   expect(await db.person.count()).toBe(before);
+});
+
+test("P8 typing suggests people ranked by where the words were found, opens one by keyboard, and keeps to this workspace", async ({ page, browser }) => {
+  const byName = await db.person.create({ data: { userId: TEST_ADMIN_ID, fullName: "Thaddeus Marrowby", headline: "Data engineer", searchText: "thaddeus marrowby data engineer" } });
+  const byHeadline = await db.person.create({ data: { userId: TEST_ADMIN_ID, fullName: "Priya Okonkwo-Hale", headline: "Led the Marrowby migration", searchText: "priya okonkwo-hale led the marrowby migration" } });
+  await db.person.create({ data: { userId: TEST_ADMIN_ID, fullName: "Gideon Ashworth-Pell", headline: "Analyst", skillsSummary: "marrowby tooling", searchText: "gideon ashworth-pell analyst marrowby tooling" } });
+  const other = await db.user.create({ data: { email: `suggest-other-${randomUUID()}@test.capture.invalid`, name: "Other", role: "recruiter", accountTier: "pro", settings: { create: {} } } });
+  await db.person.create({ data: { userId: other.id, fullName: "Marrowby Stranger", searchText: "marrowby stranger" } });
+
+  await page.goto("/people");
+  const box = page.getByRole("combobox", { name: "Search people" });
+  await box.fill("marrow");
+  const list = page.getByRole("listbox", { name: "Suggested people" });
+  await expect(list).toBeVisible();
+  const options = list.getByRole("option");
+  await expect(options).toHaveText([/Thaddeus Marrowby/, /Priya Okonkwo-Hale/, /Gideon Ashworth-Pell/, /See every result for .marrow./]);
+  await expect(options.nth(2)).toContainText("Matched in their skills, notes or confirmed details");
+  await expect(list).not.toContainText("Marrowby Stranger");
+
+  await box.press("ArrowDown");
+  await box.press("ArrowDown");
+  await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
+  await box.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`/people/${byHeadline.id}$`));
+
+  // Escape closes the list; Enter with nothing chosen runs the full search.
+  await page.goto("/people");
+  await box.fill("marrowby");
+  await expect(options.first()).toHaveText(/Thaddeus Marrowby/);
+  await box.press("Escape");
+  await expect(list).toBeHidden();
+  await box.press("Enter");
+  await expect(page).toHaveURL(/\/people\?q=marrowby/);
+  await expect(page.locator(".person-row")).toHaveCount(3);
+
+  // A click on a suggestion opens that person.
+  await box.fill("thadd");
+  await options.first().click();
+  await expect(page).toHaveURL(new RegExp(`/people/${byName.id}$`));
+
+  // Signed out, there is nothing to suggest.
+  const anonymous = await browser.newContext({ baseURL: "http://localhost:3100", storageState: { cookies: [], origins: [] } });
+  try {
+    expect((await anonymous.request.get("/api/people/suggest?q=marrowby", { maxRedirects: 0 })).status()).toBe(401);
+  } finally {
+    await anonymous.close();
+  }
 });

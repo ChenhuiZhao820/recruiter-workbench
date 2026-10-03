@@ -153,3 +153,30 @@ test("talent actions are behind their own features and scoped to the owner", () 
   assert.match(bodies.keepPerson, /^\w+\([^)]*\)[^{]*\{\n  const user = await requireWritableFeature\("privacy"\);/);
   for (const body of Object.values(bodies)) assert.match(body, /userId: user\.id/);
 });
+
+test("the demo workspace has fifteen fictional candidates, one or two in every state, dated from today", async () => {
+  const { demoPlan } = await import("../scripts/seed-demo.mjs");
+  const now = new Date("2026-10-05T09:00:00Z");
+  const plan = demoPlan(now);
+  const candidacies = plan.people.flatMap((person) => person.roles.map(([, stage]) => ({ person, stage })));
+  assert.equal(plan.roles.length, 3);
+  assert.equal(plan.people.length, 14);
+  assert.equal(candidacies.length, 15);
+  const count = (stage) => candidacies.filter((c) => c.stage === stage).length;
+  assert.ok(count("sourced") >= 2 && count("contacted") >= 2 && count("replied") >= 1);
+  assert.equal(count("booked"), 2);
+  assert.equal(count("screened"), 2);
+  assert.equal(count("submitted"), 2);
+  const bookings = plan.people.filter((person) => person.bookingAt).map((person) => person.bookingAt.getTime());
+  assert.equal(bookings.length, 2);
+  assert.ok(bookings.some((ms) => ms > now.getTime() && ms - now.getTime() < DAY));
+  assert.ok(bookings.some((ms) => ms - now.getTime() > 6 * DAY));
+  assert.equal(plan.people.filter((person) => person.quoteMissing?.length).length, 1);
+  assert.equal(plan.people.filter((person) => person.revisitOn && person.revisitOn.getTime() - now.getTime() < 7 * DAY).length, 1);
+  assert.ok(plan.people.some((person) => person.factsConfirmedAt && now.getTime() - person.factsConfirmedAt.getTime() > 183 * DAY));
+  assert.equal(plan.people.filter((person) => person.doNotContact).length, 1);
+  assert.equal(plan.people.filter((person) => person.roles.length === 2).length, 1);
+  // Everyone is fictional: invented names and links that are never opened.
+  for (const person of plan.people) assert.match(person.key, /^[a-z]+$/);
+  assert.match(plan.templates[0].body, /\{\{booking_link\}\}/);
+});

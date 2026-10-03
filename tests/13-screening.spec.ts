@@ -79,6 +79,8 @@ test("S1 a call becomes four facts to check, an invented quote is caught, and no
   const candidate = await makeCandidate("Imogen Achterberg");
   await page.goto(`/roles/${roleId}`);
   await page.locator("li.card", { hasText: "Imogen Achterberg" }).getByRole("link", { name: "Screening", exact: true }).click();
+  // The first visit compiles the page on the test server, which can be slow.
+  await expect(page).toHaveURL(/\/screening$/, { timeout: 60_000 });
   await expect(page.getByRole("heading", { level: 1, name: "Screening call with Imogen Achterberg" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Add the call" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Summarise" })).toBeDisabled();

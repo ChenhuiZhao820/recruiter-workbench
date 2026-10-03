@@ -28,6 +28,8 @@ import {
 } from "@/lib/screening-core.mjs";
 import { ScreeningRefusedError, ScreeningShapeError, screeningModel, summariseScreening as callModel } from "@/lib/screening-model.mjs";
 import { FIELDS, isFactField, parseSummary, type ScreeningSummary } from "@/lib/screening";
+import { canUseFeature } from "@/lib/features";
+import { readDate } from "@/lib/talent.mjs";
 
 const DAY_MS = 86_400_000;
 // Stages a confirmed screening moves forward from. Later stages are left alone.
@@ -241,6 +243,11 @@ export async function confirmScreening(_prev: FormState, formData: FormData): Pr
   const skillsSummary = String(formData.get("skillsSummary") ?? "").trim().slice(0, 2000) || null;
   const motivation = String(formData.get("motivation") ?? "").trim().slice(0, 2000) || null;
   const represent = formData.get("represent") === "on";
+  // A reminder only where revisit reminders are available; otherwise the
+  // fields are not on the page and nothing about them is written.
+  const revisit = canUseFeature(user, "revisitReminders")
+    ? { revisitOn: readDate(formData.get("revisitOn")), revisitNote: String(formData.get("revisitNote") ?? "").trim().slice(0, 500) || null }
+    : null;
   const edited = FIELDS.filter((field) => {
     const ai = summary.ai[field];
     const mine = summary.fields[field];
@@ -265,6 +272,7 @@ export async function confirmScreening(_prev: FormState, formData: FormData): Pr
         motivation: next.motivation,
         factsConfirmedAt: now,
         lastContactAt: now,
+        ...(revisit?.revisitOn ? { revisitOn: revisit.revisitOn, revisitNote: revisit.revisitNote } : {}),
         searchText: personSearchText(next),
       },
     });

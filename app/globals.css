@@ -775,3 +775,29 @@ select.field-input { padding-right: 28px; }
   .booking-day { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .booking-grid, .booking-modes { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Role budget: two figures and a currency on one line. */
+.role-budget { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px; gap: 12px; }
+
+/* People search and matches: the four facts on one line under a name. */
+.person-row-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; font-size: 12px; color: var(--color-ink); }
+.person-stale { border-color: rgb(180 83 9 / .28); background: rgb(255 251 235); color: rgb(120 53 15); }
+.people-search { display: grid; gap: 12px; margin-bottom: 4px; }
+.people-filters { border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.people-filters > summary { padding: 12px 16px; font-size: 13px; font-weight: 550; cursor: pointer; }
+.people-filters[open] { display: grid; gap: 14px; padding-bottom: 16px; }
+.people-filters[open] > :not(summary) { margin: 0 16px; }
+.people-filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.role-matches { margin-top: 24px; border-top: 1px solid var(--color-line); padding-top: 16px; }
+.role-matches > summary { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; list-style: none; cursor: pointer; }
+.role-matches > summary::-webkit-details-marker { display: none; }
+.role-matches[open] > summary svg { transform: rotate(180deg); color: var(--color-accent); }
+.match-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 14px 18px; }
+.match-hits { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+@media (max-width: 760px) {
+  .match-row { grid-template-columns: minmax(0, 1fr); }
+  .role-budget { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+.screening-revisit { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 12px; }
+.screening-revisit-help { grid-column: 1 / -1; margin-top: -4px; }
+@media (max-width: 760px) { .screening-revisit { grid-template-columns: minmax(0, 1fr); } }

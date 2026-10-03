@@ -87,7 +87,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - A role page reads as three headings of equal weight - Briefing, Candidates,
   Searches for this role. Candidates is a plain heading carrying its count;
   the stage groups inside it are what open and close, so a long pipeline can be
-  folded down without the section itself becoming a thing to unfold. Adding a
+  folded down without the section itself becoming a thing to unfold. With
+  talent matches, "From your database" is one more collapsed group at the end
+  of Candidates, not a fourth heading. Adding a
   candidate is a button at the top of that section that opens the fields, the
   same shape as a new role or a new template. It stays rendered in a read-only
   view and is disabled by the page's fieldset, so what cannot be done reads as
@@ -322,6 +324,43 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   with no session: booking, two people taking one time at once, forged, altered
   and expired links, closed roles, do not contact, cancelling, a Basic account,
   foreign ids, the read-only view and a phone-width page.
+
+## Talent database: search, matches, reminders, review
+
+- The rules are in `lib/talent.mjs`, shared with `tests/talent.test.mjs`:
+  reading money, the role budget, scoring, the people-search filters, revisit
+  dates and stale facts. No model, no embeddings, no network: matching is
+  whole-word matching over each person's lower-cased `searchText`.
+- A role may carry an optional annual budget (`Role.budgetMin/Max/Currency`),
+  on every plan, typed as "85k" or "£85,000", turned round if given backwards,
+  and shown under the client.
+- People search (`peopleSearch`, Pro) on `/people`: every word must appear in
+  `searchText`, which holds the name, headline, location, skills and
+  motivation; filters on confirmed facts only (salary up to, notice up to,
+  working pattern, right to work, confirmed within). Someone with nothing
+  confirmed for a filter is left out of it. Without the feature the search
+  stays on name and headline, as before. Facts confirmed more than six months
+  ago are marked "May be out of date" wherever they are listed.
+- Talent matches (`talentMatches`, Pro): the role's briefing key skills and
+  search titles are scored against people not on the role and not do not
+  contact: three points a whole phrase, one a significant word. People whose
+  confirmed salary is above the budget are left out; without a confirmed salary,
+  or in another currency, they are shown as "Salary unknown"; without a budget
+  nothing is filtered. Top ten, with what matched. `addPersonToRole` files the
+  existing person against the role as sourced. A fixed fictional set of 300
+  people with known right answers measures the top ten in the unit tests.
+- Revisit reminders (`revisitReminders`, Pro): a screening's revisit hint is
+  offered as a date (`suggestRevisitDate`) when it is saved, and set or cleared
+  on the person page (`setRevisit`). Follow-ups lists "Due to revisit" within a
+  week or overdue, excluding do not contact. Computed on page load; no
+  scheduler, no email.
+- Review list (`privacy`, every plan) at `/people/review`: people with no
+  update, contact or candidacy activity for 12 months. "Keep for another year"
+  (`keepPerson`) touches the record and writes a nameless `person.kept` audit
+  event; erasing stays on the person page behind its typed confirmation.
+- `tests/16-search-revisit.spec.ts` covers the budget, search and filters,
+  matches (budget, labels, add), reminders from the person page and from a
+  screening, the review list, Basic accounts and the read-only view.
 
 ## Accounts and authorization
 

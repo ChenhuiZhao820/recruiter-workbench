@@ -8,6 +8,9 @@ import { featureAvailability } from "@/lib/feature-access";
 import { getSettings } from "@/lib/settings";
 import { bookingLinkFor } from "@/lib/booking";
 import { googleCalendarUrl } from "@/lib/booking-core.mjs";
+import { factsAreStale, matchTerms, rankMatches } from "@/lib/talent.mjs";
+import { locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
+import { addPersonToRole } from "@/app/actions/talent";
 import { CopyButton } from "@/components/CopyButton";
 import { cancelBooking } from "@/app/actions/booking";
 import { parseObjectArray, parseStringArray } from "@/lib/json";
@@ -84,6 +87,24 @@ export default async function RolePage({ params }: { params: { id: string } }) {
     .filter(Boolean)
     .join(" ");
 
+  // People already in the database who fit this role, best first. Plain word
+  // matching of the briefing against what each person told you; people above
+  // the budget are left out and people with no confirmed salary are labelled.
+  const terms = briefing ? matchTerms(skills.map((item) => item.skill), searchTitles) : [];
+  const matches = features.talentMatches && terms.length
+    ? rankMatches(
+        await db.person.findMany({
+          where: { userId: owner.id, doNotContact: false, candidates: { none: { roleId: role.id } } },
+          orderBy: { updatedAt: "desc" },
+          take: 5000,
+          select: { id: true, fullName: true, headline: true, searchText: true, salaryMin: true, salaryMax: true, salaryCurrency: true, noticeWeeks: true, location: true, remotePreference: true, rightToWork: true, factsConfirmedAt: true },
+        }),
+        terms,
+        role,
+      )
+    : [];
+  const budgetText = salaryText(role.budgetMin, role.budgetMax, role.budgetCurrency);
+
   const createSearchHref = briefing
     ? `/searches/new?roleId=${role.id}&titles=${encodeURIComponent(searchTitles.join(", "))}&companies=${encodeURIComponent(targetCompanies.join(", "))}&name=${encodeURIComponent(`${role.title} search`)}`
     : `/searches/new?roleId=${role.id}`;
@@ -98,6 +119,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
             {role.status === "closed" && <span className="chip">Closed</span>}
           </div>
           {role.client && <p className="mt-1 text-ink/70">{role.client}</p>}
+          {budgetText && <p className="mt-1 text-sm text-ink/70 tabular">Budget {budgetText}</p>}
           {role.status === "closed" && (
             <p className="mt-2 text-sm text-ink/70">
               This role is closed, so it is hidden from Roles and its candidates are left
@@ -478,6 +500,59 @@ export default async function RolePage({ params }: { params: { id: string } }) {
           })}
         </div>
 
+        {features.talentMatches && (
+          <details className="role-matches">
+            <summary>
+              <span className="font-mono text-sm uppercase tracking-wide text-ink/70">From your database ({matches.length})</span>
+              <Icon name="down" size={14} className="text-ink/40" />
+            </summary>
+            {!briefing ? (
+              <p className="section-caption">Generate the briefing first: people are matched on its key skills and job titles.</p>
+            ) : matches.length === 0 ? (
+              <p className="section-caption">No one else in your database mentions this role&rsquo;s key skills or job titles yet.</p>
+            ) : (
+              <>
+                <p className="section-caption">
+                  People you already know who are not on this role, matched on the briefing&rsquo;s key skills and job titles
+                  {role.budgetMax !== null ? ", leaving out anyone whose confirmed salary is above the budget" : ""}. Their facts are what they told you, not verified.
+                </p>
+                <ul className="people-list mt-3">
+                  {matches.map(({ person, hits, budget }) => {
+                    const facts = [
+                      salaryText(person.salaryMin, person.salaryMax, person.salaryCurrency),
+                      noticeText(person.noticeWeeks) && `${noticeText(person.noticeWeeks)} notice`,
+                      locationText(person.location, person.remotePreference),
+                      rightToWorkText(person.rightToWork),
+                    ].filter(Boolean);
+                    return (
+                      <li key={person.id} className="match-row">
+                        <div className="min-w-0">
+                          <Link href={`/people/${person.id}`} className="person-row-name">{person.fullName}</Link>
+                          {person.headline && <p className="person-row-headline">{person.headline}</p>}
+                          <p className="person-row-facts">
+                            {facts.length ? facts.join(" / ") : "No facts confirmed yet"}
+                            {budget === "unknown" && <span className="chip">Salary unknown</span>}
+                            {factsAreStale(person.factsConfirmedAt, now) && <span className="chip person-stale">May be out of date</span>}
+                          </p>
+                          <ul className="match-hits" aria-label="Matched on">
+                            {hits.slice(0, 5).map((hit) => <li key={hit} className="chip">{hit}</li>)}
+                          </ul>
+                        </div>
+                        {role.status === "open" && (
+                          <ActionForm action={addPersonToRole} className="match-add">
+                            <input type="hidden" name="personId" value={person.id} />
+                            <input type="hidden" name="roleId" value={role.id} />
+                            <button type="submit" className="btn-quiet">Add to this role</button>
+                          </ActionForm>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </details>
+        )}
       </section>
 
       {/* Searches for this role */}

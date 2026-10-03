@@ -5,6 +5,7 @@ import { requireWritableWorkspace } from "@/lib/workspace";
 import type { FormState } from "@/lib/formState";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { readBudget } from "@/lib/talent.mjs";
 
 export async function createRole(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await requireWritableWorkspace();
@@ -13,7 +14,9 @@ export async function createRole(_prev: FormState, formData: FormData): Promise<
 
   const client = String(formData.get("client") ?? "").trim() || null;
   const jobDesc = String(formData.get("jobDesc") ?? "").trim() || null;
-  const role = await db.role.create({ data: { userId: user.id, title, client, jobDesc } });
+  const budget = readBudget((name: string) => formData.get(name));
+  if ("error" in budget) return { error: `${budget.error} Nothing was created.` };
+  const role = await db.role.create({ data: { userId: user.id, title, client, jobDesc, ...budget } });
   revalidatePath("/");
   revalidatePath("/getting-started");
   redirect(`/roles/${role.id}`);
@@ -25,6 +28,8 @@ export async function updateRole(_prev: FormState, formData: FormData): Promise<
   const title = String(formData.get("title") ?? "").trim();
   if (!id) return { error: "That role could not be found." };
   if (!title) return { error: "A role needs a job title. Nothing was saved." };
+  const budget = readBudget((name: string) => formData.get(name));
+  if ("error" in budget) return { error: `${budget.error} Nothing was saved.` };
 
   const result = await db.role.updateMany({
     where: { id, userId: user.id },
@@ -33,6 +38,7 @@ export async function updateRole(_prev: FormState, formData: FormData): Promise<
       client: String(formData.get("client") ?? "").trim() || null,
       jobDesc: String(formData.get("jobDesc") ?? "").trim() || null,
       status: formData.get("status") === "closed" ? "closed" : "open",
+      ...budget,
     },
   });
   if (!result.count) return { error: "That role could not be found." };

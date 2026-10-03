@@ -70,7 +70,12 @@ test("R1 signing in with an unread release lands on it, and reading it is a deci
   await signIn(page, user.email);
   await expect(page).toHaveURL(`${BASE}/whats-new`);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/What.s new/);
-  await expect(page.getByRole("heading", { name: /Send outreach walks the shortlist/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Everyone is one person now/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Candidates book their own call/ })).toBeVisible();
+  await expect(page.getByText("One thing to do once.")).toBeVisible();
+  // A Basic account is not told about what its plan does not include.
+  await expect(page.getByRole("heading", { name: /A screening call becomes four facts/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /Your own database finds people/ })).toHaveCount(0);
   // Reading the page is not reading the release.
   expect((await db.settings.findUniqueOrThrow({ where: { userId: user.id } })).seenRelease).toBeNull();
 
@@ -83,6 +88,20 @@ test("R1 signing in with an unread release lands on it, and reading it is a deci
   await signIn(page, user.email);
   await expect(page).toHaveURL(`${BASE}/`);
   await cleanUp(user.id);
+});
+
+test("R1b a Pro account is told about everything its plan includes", async ({ page }) => {
+  const user = await account();
+  await db.user.update({ where: { id: user.id }, data: { accountTier: "pro" } });
+  try {
+    await signIn(page, user.email);
+    await expect(page).toHaveURL(`${BASE}/whats-new`);
+    await expect(page.getByRole("heading", { name: /A screening call becomes four facts, and an email to the client/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Your own database finds people/ })).toBeVisible();
+    await expect(page.getByText(/becomes a reminder that shows in Follow-ups/)).toBeVisible();
+  } finally {
+    await cleanUp(user.id);
+  }
 });
 
 test("R2 an account already signed in gets a link in the top bar, which leaves with the release", async ({ page }) => {

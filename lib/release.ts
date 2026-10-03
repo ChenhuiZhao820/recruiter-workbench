@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 // unread - and this is the only channel that reaches a recruiter who does not
 // read the repository.
 
-export const CURRENT_RELEASE = "2026-09-24";
+export const CURRENT_RELEASE = "2026-10-03";
 
 // A brand new account has used no earlier version, so what changed since one
 // is not news to them; they get the setup guide instead. Everyone else is

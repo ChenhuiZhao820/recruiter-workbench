@@ -509,6 +509,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Post-import verification: `node scripts/backup-legacy.mjs --verify <REPORT_JSON>
   --admin-email <ADMIN_EMAIL>`. It opens the target read-only and checks every
   migrated field, ownership, audit records and unchanged source/backup checksums.
+- Demo workspace: `scripts/seed-demo.mjs --origin <ORIGIN> --output
+  <NEW_PRIVATE_FILE>` against a local SQLite `DATABASE_URL` only (it refuses
+  PostgreSQL). It adds one Pro account with no password, three fictional roles
+  with briefings and budgets, and fifteen fictional candidates covering every
+  stage, a booked call today and next week, a screening with a missing quote,
+  submitted candidates, a due reminder, stale facts, do not contact and one
+  person on two roles, all dated from the day it runs (`demoPlan`, checked in
+  `tests/talent.test.mjs`). The one-time sign-in link goes only to the new
+  file; a second run on the same database is refused and adds nothing.
 - `prisma/private-local/` is ignored: it contains local backups, verification
   reports and one-time activation files. Never print activation-file contents.
 - In this Windows PowerShell environment, npm's wrapper can consume script flags.

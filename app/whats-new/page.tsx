@@ -1,150 +1,117 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
+import { featureAvailability } from "@/lib/feature-access";
 import { dismissRelease } from "@/app/actions/release";
-import { parseIndustries } from "@/lib/linkedin-industries";
+import { bookingReadiness } from "@/lib/booking";
 
 export const dynamic = "force-dynamic";
 
 // One release, written as the habits it changes. Nobody wants release notes;
 // they want to know which of the things they do every day is different now,
-// and what they have to do once before it works.
+// and what they have to do once before it works. What a plan does not include
+// is left out, not teased.
 export default async function WhatsNewPage() {
   const { owner, readOnly } = await getWorkspace();
-
-  // Two links that only help if they lead somewhere real, so they are only
-  // offered when they do.
-  const [role, searches] = await Promise.all([
-    db.role.findFirst({
-      where: { userId: owner.id, status: "open", candidates: { some: {} } },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, title: true },
-    }),
-    db.savedSearch.findMany({
-      where: { userId: owner.id },
-      select: { id: true, name: true, industries: true },
-    }),
+  const features = await featureAvailability();
+  const [settings, people] = await Promise.all([
+    db.settings.findUnique({ where: { userId: owner.id }, select: { bookingWindows: true, meetingLink: true, offerPhone: true } }),
+    db.person.count({ where: { userId: owner.id } }),
   ]);
-
-  // Industries written before the picker existed are the recruiter's own
-  // wording with no LinkedIn id behind them, so they cannot reach a search URL
-  // until they are picked again. It is the one piece of old data worth a word.
-  const needsIndustries = searches.filter((s) =>
-    parseIndustries(s.industries).some((entry) => !entry.id)
-  );
+  const bookingReady = settings ? bookingReadiness(settings).ready : false;
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 max-w-3xl">
       <header className="page-header">
         <div>
-          <p className="page-eyebrow">Capture / 24 September</p>
+          <p className="page-eyebrow">Capture / 3 October</p>
           <h1>What&rsquo;s new</h1>
-          <p className="page-description">Three things you do every day work differently now.</p>
+          <p className="page-description">Everyone you talk to now becomes a record you keep, and the steps between a first message and a client email got shorter.</p>
         </div>
       </header>
 
       <ol className="space-y-4">
         <li className="card space-y-2">
-          <h2 className="text-lg">Industries are LinkedIn&rsquo;s own list now</h2>
+          <h2 className="text-lg">Everyone is one person now, across every role</h2>
           <p className="text-ink/80">
-            You used to write an industry here and then read LinkedIn&rsquo;s taxonomy and tick
-            the boxes again over there. Now you type how you talk &mdash; pharma, logistics,
-            manufacturing &mdash; and pick from the entries LinkedIn actually recognises.
+            Save the same profile for a second role and it is the same person, with every role, message and call in one place
+            under <strong>People</strong> in the sidebar. Two people who share a name stay two people.
           </p>
           <p className="text-ink/80">
-            An ordinary LinkedIn search then opens with those industries already applied.
-            Recruiter keeps its filters to itself, so there you get the exact names to paste
-            into its own filter, with a copy button next to them.
+            From a person&rsquo;s page you can mark them do not contact, or erase them completely; Capture then warns you if the same
+            profile is saved again. Settings has a full download of your data, and People lists anyone with no activity for a year,
+            to keep or erase.
           </p>
-          {needsIndustries.length > 0 && (
-            <p className="rounded border border-line bg-sunken p-3 text-sm">
-              <strong>One thing to do once.</strong>{" "}
-              {needsIndustries.length === 1 ? "One saved search still uses" : `${needsIndustries.length} saved searches still use`}{" "}
-              your own wording, which cannot travel in a search address. Open{" "}
-              {needsIndustries.slice(0, 3).map((s, i) => (
-                <span key={s.id}>
-                  {i > 0 ? ", " : ""}
-                  <Link href={`/searches/${s.id}/edit`} className="underline">
-                    {s.name}
-                  </Link>
-                </span>
-              ))}
-              {needsIndustries.length > 3 ? ` and ${needsIndustries.length - 3} more` : ""} and the
-              picker offers the closest real entries.
-            </p>
-          )}
           <p>
-            <Link href="/searches" className="btn-quiet">
-              Go to Searches
+            <Link href="/people" className="btn-quiet">
+              {people > 0 ? `Open People (${people})` : "Open People"}
             </Link>
           </p>
         </li>
 
         <li className="card space-y-2">
-          <h2 className="text-lg">Send outreach walks the shortlist for you</h2>
+          <h2 className="text-lg">Candidates book their own call</h2>
           <p className="text-ink/80">
-            The trip between messages is gone: no going back to the role, finding the next name,
-            opening it and picking the same template again. Pick a template and tick the shortlist
-            once, then each person arrives with their message already written and editable.
+            Put <code className="font-mono">{"{{booking_link}}"}</code> in a template and each person gets their own link to a page with your free
+            times, in their time zone. They pick one, and it lands on the role page and in Follow-ups with a calendar file; they move to Booked.
+            Capture sends nothing; the link travels in your own message.
           </p>
-          <p className="text-ink/80">
-            One button copies it and opens LinkedIn &mdash; at the message box itself for anyone
-            the extension saved, at their profile otherwise. Paste, read it, send it, then
-            <em> Mark as sent and next</em>. Nothing sends itself, and it never moves on without
-            you.
-          </p>
+          {!bookingReady && (
+            <p className="rounded border border-line bg-sunken p-3 text-sm">
+              <strong>One thing to do once.</strong> Choose the hours you take calls and how the call happens, and the links start working.
+            </p>
+          )}
           <p>
-            {role ? (
-              <Link href={`/roles/${role.id}/outreach`} className="btn-quiet">
-                Try it on {role.title}
-              </Link>
-            ) : (
-              <Link href="/" className="btn-quiet">
-                Open a role with candidates on it
-              </Link>
-            )}
+            <Link href="/settings/booking" className="btn-quiet">
+              {bookingReady ? "Booking page settings" : "Set up your booking page"}
+            </Link>
           </p>
         </li>
 
-        <li className="card space-y-2">
-          <h2 className="text-lg">The Capture panel can follow you</h2>
-          <p className="text-ink/80">
-            The panel stays open as you walk from profile to profile. Until now it could not read
-            each new one without another click on the toolbar icon, because Chrome takes that
-            access back the moment a tab moves.
-          </p>
-          <p className="text-ink/80">
-            The panel now offers a button that asks Chrome for permission to read LinkedIn. Allow
-            it and every profile you open fills the panel in as you go; refuse and nothing changes
-            at all. <em>Pause</em> stops the reading without closing the panel, and Chrome&rsquo;s
-            own settings take the permission back. It also tells you when someone is already on
-            one of your roles, before you save them twice.
-          </p>
-          <div className="rounded border border-line bg-sunken p-3 text-sm">
-            <strong>This one needs a new copy of the extension.</strong> Chrome does not update an
-            extension you loaded yourself, so:
-            <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>
-                Download it again from{" "}
-                <Link href="/account" className="underline">
-                  Your account
-                </Link>
-                .
-              </li>
-              <li>Unzip it over the folder you installed from, replacing the files.</li>
-              <li>
-                Open <code className="font-mono">chrome://extensions</code> and press Reload on
-                Capture.
-              </li>
-            </ol>
-            <p className="mt-2">
-              Your capture key and your connection are untouched; you do not have to set it up
-              again. Future updates will say so in the panel itself.
+        {features.screening && (
+          <li className="card space-y-2">
+            <h2 className="text-lg">A screening call becomes four facts, and an email to the client</h2>
+            <p className="text-ink/80">
+              Paste the transcript your call app saved, or your notes, and press <em>Summarise</em>. Salary, notice, location and right to
+              work come back next to the line the candidate said them in; anything the summary cannot quote is marked for you to check.
+              Nothing is saved to their record until you confirm all four.
             </p>
-          </div>
-        </li>
+            {features.clientEmail && (
+              <p className="text-ink/80">
+                Once they agree to be put forward, the facts become an email to the client that you edit and send from your own inbox.
+                Marking it sent moves them to Submitted.
+              </p>
+            )}
+            <p className="text-sm text-ink-soft">Find it under <em>Screening</em> on any candidate.</p>
+          </li>
+        )}
+
+        {(features.talentMatches || features.peopleSearch || features.revisitReminders) && (
+          <li className="card space-y-2">
+            <h2 className="text-lg">Your own database finds people for a new role</h2>
+            {features.talentMatches && (
+              <p className="text-ink/80">
+                Each role now lists <em>From your database</em> at the end of its candidates: people you already know who fit its key skills,
+                leaving out anyone above the budget you can now set on the role.
+              </p>
+            )}
+            {features.peopleSearch && (
+              <p className="text-ink/80">
+                People search reaches what they told you, and filters by salary, notice, working pattern and right to work.
+              </p>
+            )}
+            {features.revisitReminders && (
+              <p className="text-ink/80">
+                &ldquo;Get back to me in six months&rdquo; becomes a reminder that shows in Follow-ups the week it is due.
+              </p>
+            )}
+          </li>
+        )}
       </ol>
 
+      <p className="mt-6 text-sm text-ink-soft">
+        No new copy of the browser extension is needed this time.
+      </p>
       {!readOnly && (
         <form action={dismissRelease} className="mt-6">
           <button type="submit" className="btn-primary">

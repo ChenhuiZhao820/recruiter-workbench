@@ -5,6 +5,7 @@ import { requireWritableWorkspace } from "@/lib/workspace";
 import { normalizeMessage } from "@/lib/render";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { utcDayStart } from "@/lib/outreach-log";
 
 // Stages that already say more than "I have messaged this person". Sending
 // another message chases them; it does not undo what they told us, so these
@@ -49,6 +50,14 @@ async function recordSend(
       : null;
     if (templateId && !template) return null;
     const kind = template?.kind ?? "message";
+
+    // The same text already recorded for them today is the same message: a
+    // second click records nothing more and does not count as another nudge.
+    const already = await tx.outreachLog.findFirst({
+      where: { candidateId, renderedBody, sentAt: { gte: utcDayStart(new Date()) } },
+      select: { id: true },
+    });
+    if (already) return candidate.roleId;
 
     await tx.outreachLog.create({
       data: {

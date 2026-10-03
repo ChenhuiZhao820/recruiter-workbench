@@ -312,3 +312,40 @@ test("Q10 the progress list shows the whole run", async ({ page }) => {
   await expect(page.getByText("2 of 3")).toBeVisible();
   expect(await countVisibleChips(page)).toBe(3);
 });
+
+test("Q11 the same message recorded twice on one day is one message, wherever it is counted", async ({ page }) => {
+  const role = await db.role.create({ data: { userId: TEST_ADMIN_ID, title: "Repeat Test Lead" } });
+  const person = await db.person.create({ data: { userId: TEST_ADMIN_ID, fullName: "Ottoline Repeat", searchText: "ottoline repeat" } });
+  const candidate = await db.candidate.create({ data: { roleId: role.id, personId: person.id, fullName: person.fullName, stage: "sourced" } });
+  const params = (extra = "") => `/roles/${role.id}/outreach?template=${templateId}&c=${candidate.id}&i=0${extra}`;
+  try {
+    // A second "Mark as sent" for the same text records nothing more.
+    for (let click = 0; click < 2; click++) {
+      await page.goto(params());
+      await page.getByRole("button", { name: "Mark as sent and finish" }).click();
+      await expect(page.getByText("That is the whole shortlist.")).toBeVisible();
+    }
+    expect(await db.outreachLog.count({ where: { candidateId: candidate.id } })).toBe(1);
+    expect((await db.candidate.findUniqueOrThrow({ where: { id: candidate.id } })).nudgeCount).toBe(0);
+
+    // Different words on the same day are a different message.
+    await page.goto(params());
+    await page.getByLabel("Message").fill("Hi Ottoline, one more thing about the role.");
+    await page.getByRole("button", { name: "Mark as sent and finish" }).click();
+    await expect(page.getByText("That is the whole shortlist.")).toBeVisible();
+    expect(await db.outreachLog.count({ where: { candidateId: candidate.id } })).toBe(2);
+
+    // Repeats logged before this rule existed are counted once too.
+    const earlier = new Date(Date.now() - 2 * 86_400_000);
+    await db.outreachLog.createMany({ data: [0, 1, 2].map((n) => ({ candidateId: candidate.id, renderedBody: "Hi Ottoline, an older note.", kind: "message", sentAt: new Date(earlier.getTime() + n * 60_000) })) });
+    await page.goto(`/people/${person.id}`);
+    const messages = page.getByRole("region", { name: /Messages sent/ });
+    await expect(messages.getByRole("heading", { name: /Messages sent/ })).toContainText("3");
+    await expect(messages.locator("ol.message-log > li")).toHaveCount(3);
+    await page.goto(`/candidates/${candidate.id}/outreach`);
+    await expect(page.getByRole("heading", { name: "Past outreach (3)" })).toBeVisible();
+  } finally {
+    await db.role.delete({ where: { id: role.id } });
+    await db.person.delete({ where: { id: person.id } });
+  }
+});

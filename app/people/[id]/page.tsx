@@ -8,11 +8,13 @@ import { templateKindLabel } from "@/lib/templates";
 import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { deletePerson, setDoNotContact } from "@/app/actions/people";
+import { oncePerDay } from "@/lib/outreach-log";
 import { factDate as dateFormat, locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
 import { factsAreStale } from "@/lib/talent.mjs";
 import { setRevisit } from "@/app/actions/talent";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
+import { SCREENING_HINT } from "@/lib/screening";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
           role: { select: { id: true, title: true, client: true, status: true } },
           outreach: { orderBy: { sentAt: "desc" } },
           screenings: { orderBy: { createdAt: "desc" }, select: { id: true, status: true, createdAt: true, confirmedAt: true, representConsentAt: true, clientEmailSentAt: true } },
+          bookings: { orderBy: { startsAt: "desc" }, select: { id: true, startsAt: true, mode: true, phone: true, status: true } },
         },
       },
     },
@@ -36,9 +39,21 @@ export default async function PersonPage({ params }: { params: { id: string } })
   if (!person) notFound();
 
   const profile = profileHref(person.profileUrl);
-  const messages = person.candidates
-    .flatMap((candidate) => candidate.outreach.map((log) => ({ ...log, roleTitle: candidate.role.title })))
-    .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime());
+  // The same text on the same day counts once, whichever role it was logged on.
+  const messages = oncePerDay(
+    person.candidates
+      .flatMap((candidate) => candidate.outreach.map((log) => ({ ...log, roleTitle: candidate.role.title })))
+      .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())
+  );
+
+  // Calls they booked through the booking page, newest first, in the
+  // recruiter's own time zone. A cancelled call stays listed, marked as such.
+  const now = new Date();
+  const settings = await db.settings.findUnique({ where: { userId: owner.id }, select: { bookingTimezone: true } });
+  const callTime = new Intl.DateTimeFormat("en-GB", { timeZone: settings?.bookingTimezone || "Europe/London", weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const calls = person.candidates
+    .flatMap((candidate) => candidate.bookings.map((booking) => ({ ...booking, roleId: candidate.role.id, roleTitle: candidate.role.title })))
+    .sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime());
 
   const screenings = person.candidates
     .flatMap((candidate) => candidate.screenings.map((screening) => ({ ...screening, candidateId: candidate.id, roleTitle: candidate.role.title, client: candidate.role.client })))
@@ -84,11 +99,11 @@ export default async function PersonPage({ params }: { params: { id: string } })
               nothing recorded, the section is omitted rather than shown empty. */}
           {(hasFacts || features.screening) && <section aria-labelledby="facts-heading" className="space-y-4">
             <div>
-              <h2 id="facts-heading" className="section-heading">What they told you</h2>
+              <h2 id="facts-heading" className="section-heading">Confirmed details</h2>
               <p className="section-caption">
                 {hasFacts && person.factsConfirmedAt
-                  ? `Their own statements, confirmed by you on ${dateFormat.format(person.factsConfirmedAt)}. Not verified.`
-                  : "Filled in when you confirm a screening call. Their own statements, not verified."}
+                  ? `Salary, notice, location and right to work as they gave them on a screening call, confirmed by you on ${dateFormat.format(person.factsConfirmedAt)}. Their own words, not checked.`
+                  : "Salary, notice, location and right to work, filled in when you confirm a screening call. Their own words, not checked."}
                 {hasFacts && factsAreStale(person.factsConfirmedAt) && <span className="chip person-stale ml-2">May be out of date</span>}
               </p>
             </div>
@@ -125,7 +140,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
                     <p className="person-row-when tabular">Last activity {formatWhen(candidate.lastActivityAt)}</p>
                     <div className="flex flex-wrap gap-2">
                       {features.screening && (
-                        <Link href={`/candidates/${candidate.id}/screening`} className="btn-quiet">Screening</Link>
+                        <Link href={`/candidates/${candidate.id}/screening`} className="btn-quiet" title={SCREENING_HINT}>Screening call</Link>
                       )}
                       {candidate.role.status === "open" && !person.doNotContact && (
                         <Link href={`/candidates/${candidate.id}/outreach`} className="btn-quiet">Write a message</Link>
@@ -158,6 +173,35 @@ export default async function PersonPage({ params }: { params: { id: string } })
                     <p className="person-row-when tabular">Added {formatWhen(screening.createdAt)}</p>
                   </li>
                 ))}
+              </ul>
+            </section>
+          )}
+
+          {features.booking && calls.length > 0 && (
+            <section aria-labelledby="calls-heading" className="space-y-4">
+              <div>
+                <h2 id="calls-heading" className="section-heading">Calls <span className="person-count tabular">{calls.length}</span></h2>
+                <p className="section-caption">Booked through your booking page, most recent first.</p>
+              </div>
+              <ul className="people-list">
+                {calls.map((call) => {
+                  const state = call.status === "cancelled" ? "Cancelled" : call.startsAt > now ? "Upcoming" : "Done";
+                  return (
+                    <li key={call.id} className="person-role-row">
+                      <div className="min-w-0">
+                        <p className="person-row-name tabular">{callTime.format(call.startsAt)}</p>
+                        <p className="person-row-headline">
+                          <Link href={`/roles/${call.roleId}`} className="person-row-role">{call.roleTitle}</Link>
+                          {call.mode === "phone" ? `, phone ${call.phone}` : ", video"}
+                        </p>
+                      </div>
+                      <span className={`chip${state === "Upcoming" ? " screening-chip-done" : ""}`}>{state}</span>
+                      {state === "Upcoming" && !readOnly ? (
+                        <a href={`/api/bookings/${call.id}/ics`} className="btn-quiet" download>Calendar file</a>
+                      ) : <span />}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}

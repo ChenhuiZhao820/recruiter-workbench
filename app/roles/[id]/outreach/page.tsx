@@ -5,6 +5,7 @@ import { getWorkspace } from "@/lib/workspace";
 import { getSettings } from "@/lib/settings";
 import { firstName, renderTemplate } from "@/lib/render";
 import { bookingLinkFor } from "@/lib/booking";
+import { privacyNoticeLine } from "@/lib/booking-core.mjs";
 import { formatWhen } from "@/lib/dates";
 import { profileHref } from "@/lib/urls";
 import { limitForKind, templateKindLabel } from "@/lib/templates";
@@ -14,6 +15,7 @@ import { messageComposeUrl } from "@/lib/linkedin";
 import { OutreachStep } from "@/components/OutreachStep";
 import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
+import { oncePerDay } from "@/lib/outreach-log";
 
 export const dynamic = "force-dynamic";
 
@@ -205,18 +207,18 @@ export default async function RoleOutreachPage({
   const index = Number.isFinite(requested) && requested > 0 ? requested : 0;
 
   const now = new Date();
-  const [sentToday, invitesLast7Days] = await Promise.all([
-    db.outreachLog.count({
-      where: { candidate: { role: { userId: owner.id } }, sentAt: { gte: startOfToday(now) } },
+  // A message recorded twice on one day counts once here too, so the pace
+  // line is not pushed up by double clicks.
+  const recent = oncePerDay(
+    await db.outreachLog.findMany({
+      where: { candidate: { role: { userId: owner.id } }, sentAt: { gte: sevenDaysAgo(now) } },
+      orderBy: { sentAt: "desc" },
+      select: { candidateId: true, renderedBody: true, kind: true, sentAt: true },
     }),
-    db.outreachLog.count({
-      where: {
-        candidate: { role: { userId: owner.id } },
-        kind: "connection_note",
-        sentAt: { gte: sevenDaysAgo(now) },
-      },
-    }),
-  ]);
+    (log) => log.candidateId
+  );
+  const sentToday = recent.filter((log) => log.sentAt >= startOfToday(now)).length;
+  const invitesLast7Days = recent.filter((log) => log.kind === "connection_note" && log.sentAt >= sevenDaysAgo(now)).length;
   const pace = paceAdvice({ sentToday, invitesLast7Days });
   const paceClass =
     pace.tone === "warning"
@@ -259,6 +261,7 @@ export default async function RoleOutreachPage({
         calendar_link: settings.calendarLink,
         recruiter_name: settings.recruiterName,
         booking_link: bookingLinkFor({ ...candidate, role }, settings),
+        privacy_notice: privacyNoticeLine(settings.privacyContactEmail || owner.email),
       })
     : "";
   const kind = selected?.kind ?? "message";

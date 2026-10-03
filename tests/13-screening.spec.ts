@@ -53,8 +53,15 @@ async function generations(userId = TEST_ADMIN_ID) {
   return (await db.aiUsage.findUnique({ where: { userId_month: { userId, month } } }))?.generations ?? 0;
 }
 
+// The box opens on a click; a saved draft or an upload opens it already.
+async function transcriptBox(page: Page) {
+  const add = page.getByRole("button", { name: "Add meeting note or transcript" });
+  if (await add.isVisible()) await add.click();
+  return page.getByLabel("Transcript or notes");
+}
+
 async function paste(page: Page, text: string) {
-  await page.getByLabel("Transcript or notes").fill(text);
+  await (await transcriptBox(page)).fill(text);
   await page.getByRole("button", { name: "Summarise" }).click();
 }
 
@@ -78,11 +85,11 @@ test.beforeAll(async () => {
 test("S1 a call becomes four facts to check, an invented quote is caught, and nothing is saved until all four are confirmed", async ({ page }) => {
   const candidate = await makeCandidate("Imogen Achterberg");
   await page.goto(`/roles/${roleId}`);
-  await page.locator("li.card", { hasText: "Imogen Achterberg" }).getByRole("link", { name: "Screening", exact: true }).click();
+  await page.locator("li.card", { hasText: "Imogen Achterberg" }).getByRole("link", { name: "Screening call", exact: true }).click();
   // The first visit compiles the page on the test server, which can be slow.
   await expect(page).toHaveURL(/\/screening$/, { timeout: 60_000 });
   await expect(page.getByRole("heading", { level: 1, name: "Screening call with Imogen Achterberg" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Add the call" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add the call transcript" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Summarise" })).toBeDisabled();
 
   await paste(page, CALL);
@@ -185,7 +192,7 @@ test("S2 an uploaded .vtt is read into the box and stored as speaker lines; the 
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Discard this summary" }).click();
-  await expect(page.getByRole("heading", { name: "Add the call" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add the call transcript" })).toBeVisible();
   expect(await db.screening.count({ where: { candidateId: candidate.id } })).toBe(0);
 });
 
@@ -193,7 +200,7 @@ test("S3 a CV that is too long or not a PDF is refused before anything is sent",
   const candidate = await makeCandidate("Ewa Szczepanska");
   const before = await generations();
   await page.goto(`/candidates/${candidate.id}/screening`);
-  await page.getByLabel("Transcript or notes").fill(CALL);
+  await (await transcriptBox(page)).fill(CALL);
   const pages = Array.from({ length: 6 }, (_, i) => `${i + 1} 0 obj << /Type /Page >>`).join("\n");
   await page.getByLabel("CV (optional)").setInputFiles({ name: "long.pdf", mimeType: "application/pdf", buffer: Buffer.from(`%PDF-1.7\n${pages}\n`) });
   await page.getByRole("button", { name: "Summarise" }).click();
@@ -257,7 +264,8 @@ test("S6 a transcript past its date is hidden at once and removed by the next sc
   } });
   await page.goto(`/candidates/${old.id}/screening`);
   await expect(page.getByText("an old call")).toHaveCount(0);
-  await expect(page.getByLabel("Transcript or notes")).toHaveValue("");
+  await expect(page.getByLabel("Transcript or notes")).toHaveCount(0);
+  await expect(await transcriptBox(page)).toHaveValue("");
 
   const fresh = await makeCandidate("Ines Caetano-Lowe");
   await page.goto(`/candidates/${fresh.id}/screening`);
@@ -281,11 +289,11 @@ test("S7 a Basic account sees no screening anywhere and its routes are not found
     const candidate = await makeCandidate("Basic Candidate", { userId: basic.user.id, role: role.id });
     await basic.page.goto(`/roles/${role.id}`);
     await expect(basic.page.getByRole("link", { name: "Draft outreach" })).toBeVisible();
-    await expect(basic.page.getByRole("link", { name: "Screening", exact: true })).toHaveCount(0);
+    await expect(basic.page.getByRole("link", { name: "Screening call", exact: true })).toHaveCount(0);
     await basic.page.goto(`/people/${candidate.personId}`);
     await expect(basic.page.getByRole("heading", { level: 1, name: "Basic Candidate" })).toBeVisible();
-    await expect(basic.page.getByRole("link", { name: "Screening", exact: true })).toHaveCount(0);
-    await expect(basic.page.getByRole("heading", { name: "What they told you" })).toHaveCount(0);
+    await expect(basic.page.getByRole("link", { name: "Screening call", exact: true })).toHaveCount(0);
+    await expect(basic.page.getByRole("heading", { name: "Confirmed details" })).toHaveCount(0);
     const response = await basic.page.goto(`/candidates/${candidate.id}/screening`);
     expect(response?.status()).toBe(404);
   } finally {
@@ -347,9 +355,42 @@ test("S10 a reused draft starts its own 30 days, and a summary the server abando
   await expect(page.getByRole("heading", { name: "Summarising the call" })).toBeVisible();
   await db.screening.update({ where: { id: claim.id }, data: { updatedAt: new Date(Date.now() - 10 * 60_000) } });
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Add the call" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add the call transcript" })).toBeVisible();
   await expect(page.getByLabel("Transcript or notes")).toHaveValue(CALL);
   await page.getByRole("button", { name: "Summarise" }).click();
   await expect(page.getByRole("heading", { name: "Check the four facts" })).toBeVisible();
   expect(await db.screening.count({ where: { candidateId: busy.id } })).toBe(1);
+});
+
+test("S11 the box opens on a click, a summary in flight shows its progress, and a transcript the recruiter chose not to keep is never stored", async ({ page }) => {
+  const candidate = await makeCandidate("Rosalind Featherstone-Obi");
+  await page.goto(`/candidates/${candidate.id}/screening`);
+  await expect(page.getByRole("heading", { name: "Add the call transcript" })).toBeVisible();
+  await expect(page.getByLabel("Transcript or notes")).toHaveCount(0);
+  await expect(page.getByText(/Usually under a minute|A PDF of up to 5 pages|A \.txt or \.vtt file/)).toHaveCount(0);
+  await page.getByRole("button", { name: "Add meeting note or transcript" }).click();
+  await expect(page.getByLabel("Transcript or notes")).toBeFocused();
+
+  await page.getByLabel("Transcript or notes").fill(`${CALL}\nSTUB_SLOW`);
+  await page.getByLabel(/Don.t keep the transcript in Capture/).check();
+  await page.getByRole("button", { name: "Summarise" }).click();
+  const progress = page.getByRole("progressbar", { name: "Summarising the call" });
+  await expect(progress).toBeVisible();
+  await expect(progress).toHaveAttribute("aria-valuetext", /.+/);
+  await expect(page.getByRole("heading", { name: "Check the four facts" })).toBeVisible();
+  await expect(progress).toHaveCount(0);
+
+  const stored = await db.screening.findFirstOrThrow({ where: { candidateId: candidate.id } });
+  expect(stored).toMatchObject({ status: "summarized", transcript: null, transcriptDeleteAfter: null, transcriptSource: "paste" });
+  await expect(page.getByText("The transcript has been deleted.")).toBeVisible();
+
+  // A failed summary with nothing kept leaves no draft behind.
+  const failing = await makeCandidate("Bartholomew Achebe-Lund");
+  await page.goto(`/candidates/${failing.id}/screening`);
+  await page.getByRole("button", { name: "Add meeting note or transcript" }).click();
+  await page.getByLabel("Transcript or notes").fill(`${CALL}\nSTUB_DOWN`);
+  await page.getByLabel(/Don.t keep the transcript in Capture/).check();
+  await page.getByRole("button", { name: "Summarise" }).click();
+  await expect(page.locator('[data-form-message="error"]')).toContainText("Nothing was kept");
+  expect(await db.screening.count({ where: { candidateId: failing.id } })).toBe(0);
 });

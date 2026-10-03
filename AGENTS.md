@@ -74,7 +74,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `MarketingHome`/`ProductPreview` use explicitly illustrative, static data only.
   Never feed real recruiting data into a public preview or invent customer claims.
 - Dashboard search/sort in `RoleDirectory` works only on server-authorized records
-  and does not write data. Keep all mutation labels, owner checks and read-only
+  and does not write data. The four summary cards above it are links to what
+  they count: the role list below (`#role-directory`), People, Follow-ups and
+  Searches. Keep all mutation labels, owner checks and read-only
   protections intact when restyling pages.
 - `tests/06-design.spec.ts` covers public/private routing, mobile overflow, keyboard
   navigation, tabs, FAQ, password visibility and role filtering. Screenshots use
@@ -142,6 +144,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `app/actions/outreach.ts`, so "contacted", the nudge counters and the log
   cannot differ by route. `markSentAndAdvance` only redirects to a path matching
   this app's own queue route.
+- The same text marked as sent to the same candidate on the same UTC day is one
+  message: `recordSend` records nothing for the repeat and does not count it as
+  another nudge. The person page, the candidate's past outreach and the pace
+  counts read through `oncePerDay` (`lib/outreach-log.ts`), so repeats logged
+  before this rule also count once. Rows are never deleted for it.
 - `components/OutreachStep.tsx` holds the one message on screen. It is editable,
   so personalising someone's line does not mean a trip into LinkedIn and back,
   and what is copied is what `markSentAndAdvance` records. The length count and
@@ -241,7 +248,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   at sign-in, on every screening action, and by `scripts/purge-transcripts.mjs`
   (dry run by default, `--apply` needs `PURGE TRANSCRIPTS` typed). Screens treat
   an expired transcript as gone even before it is purged, and the recruiter can
-  delete one early. Summaries and confirmed facts stay.
+  delete one early. Summaries and confirmed facts stay. "Don't keep the
+  transcript in Capture" on the form means it is never written: the request
+  carries it, the summary keeps its quotes, and a failed or capped summary
+  leaves no draft behind rather than a saved copy.
+- The form opens on "Add meeting note or transcript" (or an upload, or a saved
+  draft) rather than showing an empty box. While the summary runs, a bar paced
+  to the usual time names the stage and stays full until the facts appear. Its
+  ticking writes to the page through refs: setting React state while the form
+  is pending ends `useFormStatus` early in this React version.
 - `UsageEvent` (`lib/usage.ts`) records counts and timings only, in our own
   database: `quote_missing` per field at summary time, `ai_field_edited` per
   field the recruiter changed, `screening_confirmed` with the seconds from
@@ -318,8 +333,31 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   on the role page and under Calls this week in Follow-ups, an Add to Google
   Calendar link, an authenticated `.ics` from `/api/bookings/[id]/ics` (own
   workspace only), and Cancel call, which frees the time and puts the candidate
-  back to booking pending. Rescheduling, buffers, calendar writes and reading the
-  recruiter's own calendar are not here; free/busy is planned separately.
+  back to booking pending. Rescheduling, buffers and calendar writes are not here.
+- `{{privacy_notice}}` in a template is one short line (`privacyNoticeLine`):
+  a record is kept, and how to see it or have it deleted, by the privacy contact
+  or the account email. It fits a LinkedIn message; the booking page carries the
+  full notice.
+- Calendar free/busy (`calendarFreeBusy`, every plan): on `/settings/booking`
+  a recruiter may connect Google or Microsoft, offered only when the server has
+  that provider's `*_CLIENT_ID`/`*_CLIENT_SECRET` and a `CALENDAR_TOKEN_KEY`.
+  The scopes are the narrowest each provider documents for this - Google's
+  `calendar.events.freebusy`, Microsoft's `Calendars.ReadBasic` with
+  `offline_access` - and only busy start/end times are read, never what the
+  events are. `/api/calendar/connect/[provider]` sends the signed-in account
+  (never a read-only view) to the provider with a signed, ten-minute state;
+  `/api/calendar/callback/[provider]` keeps the connection only when that state
+  names the same account and provider, and stores the refresh token encrypted
+  with AES-256-GCM (`lib/calendar-core.mjs`). Access tokens live in memory.
+- `freeSlots` subtracts the calendar's busy periods from the weekly hours.
+  Every provider request is server side with a three-second limit; a failure
+  is recorded as `lastErrorAt`, the page carries on with the weekly hours, and
+  the recruiter is warned on the booking settings until a read succeeds.
+  Disconnecting revokes Google's grant and deletes the token either way.
+  `CalendarConnection` is never exported or imported. `tests/18-calendar.spec.ts`
+  plays both providers through the local stub (`CAPTURE_TEST_CALENDAR_BASE_URL`,
+  honoured outside production only); `tests/calendar.test.mjs` covers the
+  encryption, the state, the requested scopes and reading busy replies.
 - `tests/14-booking.spec.ts` plays the candidate in a second browser context
   with no session: booking, two people taking one time at once, forged, altered
   and expired links, closed roles, do not contact, cancelling, a Basic account,
@@ -341,6 +379,17 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   confirmed for a filter is left out of it. Without the feature the search
   stays on name and headline, as before. Facts confirmed more than six months
   ago are marked "May be out of date" wherever they are listed.
+- The People search box suggests as the recruiter types (`PeopleSearchBox`,
+  `GET /api/people/suggest`): the top six by `rankSuggestions` - every word
+  found, a name before a headline before anything else, the start of a word
+  before the middle - with the filters already set applied. Both the page and
+  the endpoint build their query with `peopleWhere` (`lib/people-search.ts`),
+  so a suggestion is always something Search would list, and Basic stays on
+  name and headline in both. The endpoint reads the workspace on screen (a
+  read-only Admin view suggests that workspace's people), returns only what a
+  row shows, and writes nothing. A suggestion opens the person; Enter with
+  none chosen still runs the full search. The filter panel's label says
+  "Filter by" and then the filters in use, as they are set.
 - Talent matches (`talentMatches`, Pro): the role's briefing key skills and
   search titles are scored against people not on the role and not do not
   contact: three points a whole phrase, one a significant word. People whose

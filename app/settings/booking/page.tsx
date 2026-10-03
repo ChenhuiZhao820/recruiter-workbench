@@ -6,6 +6,19 @@ import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { bookingReadiness, defaultPrivacyNotice } from "@/lib/booking";
 import { DURATIONS, WEEKDAYS, WEEKDAY_NAMES, minutesToTime, parseWindows } from "@/lib/booking-core.mjs";
+import { db } from "@/lib/db";
+import { featureAvailability } from "@/lib/feature-access";
+import { configuredProviders } from "@/lib/calendar";
+import { PROVIDER_LABELS } from "@/lib/calendar-core.mjs";
+import { disconnectCalendar } from "@/app/actions/calendar";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { factDate } from "@/lib/fact-labels";
+
+const CALENDAR_OUTCOMES: Record<string, { tone: "ok" | "warn"; text: string }> = {
+  connected: { tone: "ok", text: "Calendar connected. Times you are busy are no longer offered." },
+  declined: { tone: "warn", text: "Nothing was connected: the permission was not given." },
+  failed: { tone: "warn", text: "The calendar could not be connected. Try again, or keep using your weekly hours alone." },
+};
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +34,14 @@ function allZones(): string[] {
   }
 }
 
-export default async function BookingSettingsPage() {
+export default async function BookingSettingsPage({ searchParams }: { searchParams: { calendar?: string } }) {
   const { owner, readOnly } = await requireFeature("booking");
+  const features = await featureAvailability();
+  const connection = features.calendarFreeBusy
+    ? await db.calendarConnection.findUnique({ where: { userId: owner.id }, select: { provider: true, connectedAt: true, lastErrorAt: true } })
+    : null;
+  const providers = features.calendarFreeBusy ? configuredProviders() : [];
+  const outcome = CALENDAR_OUTCOMES[searchParams.calendar ?? ""];
   const settings = await getSettings();
   const windows = parseWindows(settings.bookingWindows);
   const byDay = new Map(windows.map((window) => [window.day, window]));
@@ -138,6 +157,50 @@ export default async function BookingSettingsPage() {
           <Link href="/settings" className="btn-quiet">Back to settings</Link>
         </div>
       </ActionForm>
+
+      {features.calendarFreeBusy && (connection || providers.length > 0) && (
+        <section aria-labelledby="calendar-heading" className="mt-10 space-y-4 border-t border-line pt-10">
+          <div>
+            <h2 id="calendar-heading" className="section-heading">Your calendar</h2>
+            <p className="section-caption">
+              Optional. Connect it and the booking page leaves out times you are already busy. Capture reads only when you are busy, never what the events are, and never writes to it.
+            </p>
+          </div>
+          {outcome && (
+            <p role="status" className={outcome.tone === "ok" ? "auth-success" : "booking-setup-note"}>{outcome.text}</p>
+          )}
+          {connection ? (
+            <div className="card space-y-3">
+              <p className="text-sm">
+                <strong>{PROVIDER_LABELS[connection.provider] ?? connection.provider}</strong> connected on {factDate.format(connection.connectedAt)}.
+              </p>
+              {connection.lastErrorAt && (
+                <p role="alert" className="booking-setup-note">
+                  Your calendar could not be read on {factDate.format(connection.lastErrorAt)}, so the booking page offered your weekly hours alone. Reconnect it if this keeps happening.
+                </p>
+              )}
+              {!readOnly && (
+                <div className="flex flex-wrap gap-2">
+                  {providers.includes(connection.provider) && (
+                    <a href={`/api/calendar/connect/${connection.provider}`} className="btn-quiet">Reconnect</a>
+                  )}
+                  <form action={disconnectCalendar}>
+                    <ConfirmSubmitButton label="Disconnect" confirmText="Disconnect your calendar? The booking page goes back to your weekly hours alone." />
+                  </form>
+                </div>
+              )}
+            </div>
+          ) : !readOnly ? (
+            <div className="flex flex-wrap gap-2">
+              {providers.map((provider) => (
+                <a key={provider} href={`/api/calendar/connect/${provider}`} className="btn-secondary">Connect {PROVIDER_LABELS[provider]}</a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-ink-soft">No calendar connected.</p>
+          )}
+        </section>
+      )}
     </fieldset>
   );
 }

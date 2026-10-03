@@ -66,9 +66,10 @@ test("B1 the recruiter sets up the booking page, and a template's {{booking_link
   expect(JSON.parse(settings.bookingWindows)).toHaveLength(7);
 
   const candidate = await candidateOn(roleId, "Imogen Achterberg");
-  await db.messageTemplate.create({ data: { userId: TEST_ADMIN_ID, name: "Booking invite", kind: "message", body: "Hi {{first_name}}, grab a time here: {{booking_link}}" } });
+  await db.messageTemplate.create({ data: { userId: TEST_ADMIN_ID, name: "Booking invite", kind: "message", body: "Hi {{first_name}}, grab a time here: {{booking_link}}\n\n{{privacy_notice}}" } });
   await page.goto(`/candidates/${candidate.id}/outreach`);
   await expect(page.getByText(new RegExp(`grab a time here: http://localhost:3100/book/${candidate.id}\\.\\d+\\.[A-Za-z0-9_-]{43}`))).toBeVisible();
+  await expect(page.getByText("I keep a short record of the people I talk to about roles. To see it or have it deleted, email admin@test.capture.invalid.")).toBeVisible();
   await page.goto(`/roles/${roleId}`);
   await expect(page.locator("li.card", { hasText: "Imogen Achterberg" }).getByRole("button", { name: "Copy booking link" })).toBeVisible();
 });
@@ -282,5 +283,47 @@ test("B7 the candidate's page fits a phone without sideways scrolling", async ({
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   } finally {
     await context.close();
+  }
+});
+
+test("B8 a person's page lists their calls: upcoming, done and cancelled, with a calendar file only for what is ahead", async ({ page }) => {
+  const candidate = await candidateOn(roleId, "Lachlan Odum-Pryce", { stage: "booked" });
+  const at = (days: number) => new Date(Date.now() + days * 86_400_000);
+  const make = (startsAt: Date, status: string, mode = "video") => db.booking.create({ data: {
+    candidateId: candidate.id, userId: TEST_ADMIN_ID, startsAt, endsAt: new Date(startsAt.getTime() + 30 * 60_000),
+    mode, phone: mode === "phone" ? "+44 7700 900789" : null, meetingUrl: mode === "video" ? "https://meet.example/morven-room" : null,
+    email: "lachlan@example.test", consentAt: new Date(), noticeVersion: "test", status,
+  } });
+  const upcoming = await make(at(3), "booked", "phone");
+  await make(at(-10), "booked");
+  await make(at(-20), "cancelled");
+
+  await page.goto(`/people/${candidate.personId}`);
+  const calls = page.getByRole("region", { name: /Calls/ });
+  await expect(calls.getByRole("heading", { name: /Calls/ })).toContainText("3");
+  const rows = calls.locator(".person-role-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("Upcoming");
+  await expect(rows.nth(0)).toContainText("phone +44 7700 900789");
+  await expect(rows.nth(1)).toContainText("Done");
+  await expect(rows.nth(2)).toContainText("Cancelled");
+  await expect(calls.getByRole("link", { name: "Calendar file" })).toHaveCount(1);
+  await expect(calls.getByRole("link", { name: "Calendar file" })).toHaveAttribute("href", `/api/bookings/${upcoming.id}/ics`);
+  await expect(calls.getByRole("link", { name: "Booking Test Platform Lead" }).first()).toHaveAttribute("href", `/roles/${roleId}`);
+
+  // Somebody else's calls never appear, and a read-only view offers no file.
+  const other = await db.user.create({ data: { email: `calls-other-${randomUUID()}@test.capture.invalid`, name: "Other Recruiter", role: "recruiter", accountTier: "basic", settings: { create: {} } } });
+  const token = process.env.CAPTURE_TEST_SESSION_TOKEN!;
+  await db.session.update({ where: { tokenHash: hashToken(token) }, data: { viewUserId: other.id } });
+  try {
+    expect((await page.goto(`/people/${candidate.personId}`))?.status()).toBe(404);
+    const otherRole = await db.role.create({ data: { userId: other.id, title: "Other Role" } });
+    const theirs = await candidateOn(otherRole.id, "Viewed Person", { userId: other.id });
+    await db.booking.create({ data: { candidateId: theirs.id, userId: other.id, startsAt: at(2), endsAt: at(2.02), mode: "video", meetingUrl: "https://meet.example/x", email: "v@example.test", consentAt: new Date(), noticeVersion: "test" } });
+    await page.goto(`/people/${theirs.personId}`);
+    await expect(page.getByRole("region", { name: /Calls/ }).getByText("Upcoming")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Calendar file" })).toHaveCount(0);
+  } finally {
+    await db.session.update({ where: { tokenHash: hashToken(token) }, data: { viewUserId: null } });
   }
 });

@@ -11,6 +11,7 @@ import { googleCalendarUrl } from "@/lib/booking-core.mjs";
 import { factsAreStale, matchTerms, rankMatches } from "@/lib/talent.mjs";
 import { locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
 import { addPersonToRole } from "@/app/actions/talent";
+import { SCREENING_HINT } from "@/lib/screening";
 import { CopyButton } from "@/components/CopyButton";
 import { cancelBooking } from "@/app/actions/booking";
 import { parseObjectArray, parseStringArray } from "@/lib/json";
@@ -404,8 +405,8 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                           Draft outreach
                         </Link>
                         {features.screening && (
-                          <Link href={`/candidates/${c.id}/screening`} className="btn-quiet">
-                            Screening
+                          <Link href={`/candidates/${c.id}/screening`} className="btn-quiet" title={SCREENING_HINT}>
+                            Screening call
                           </Link>
                         )}
                         <form action={setCandidateStage} className="flex items-center gap-1">
@@ -514,7 +515,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               <>
                 <p className="section-caption">
                   People you already know who are not on this role, matched on the briefing&rsquo;s key skills and job titles
-                  {role.budgetMax !== null ? ", leaving out anyone whose confirmed salary is above the budget" : ""}. Their facts are what they told you, not verified.
+                  {role.budgetMax !== null ? ", leaving out anyone whose confirmed salary is above the budget" : ""}. Their details are their own words from a screening call, not checked.
                 </p>
                 <ul className="people-list mt-3">
                   {matches.map(({ person, hits, budget }) => {

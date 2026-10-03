@@ -208,9 +208,9 @@ export default async function ScreeningPage({ params }: { params: { id: string }
           {!current || (open && open.status !== "summarized" && !working) ? (
             <section aria-labelledby="add-heading" className="space-y-4">
               <div>
-                <h2 id="add-heading" className="section-heading">Add the call</h2>
+                <h2 id="add-heading" className="section-heading">Add the call transcript</h2>
                 <p className="section-caption">
-                  {open ? `Saved ${factDate.format(open.createdAt)} but not summarised yet. Summarise it, or change it first.` : "One call per summary. Paste the transcript, upload its file, or type your notes."}
+                  {open ? `Saved ${factDate.format(open.createdAt)} but not summarised yet. Summarise it, or change it first.` : "One call per summary."}
                 </p>
               </div>
               <TranscriptForm candidateId={candidate.id} initialTranscript={open && transcript ? transcript : ""} initialSource={open?.transcriptSource ?? "paste"} />
@@ -389,7 +389,7 @@ export default async function ScreeningPage({ params }: { params: { id: string }
               <details className="screening-again">
                 <summary className="btn-secondary">Add another screening</summary>
                 <div className="mt-5">
-                  <TranscriptForm candidateId={candidate.id} />
+                  <TranscriptForm candidateId={candidate.id} startOpen />
                 </div>
               </details>
             </section>

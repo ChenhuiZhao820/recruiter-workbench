@@ -28,6 +28,57 @@ function screening() {
   };
 }
 
+// Calendar providers, played locally for tests/18-calendar.spec.ts. The app
+// points at /calendar/* through CAPTURE_TEST_CALENDAR_BASE_URL. Control state
+// is set over /__calendar so a test can make time busy or the provider fail.
+const calendar = { busy: [], fail: false, revoked: [], tokenRequests: [], authorizeQueries: [] };
+
+function json(res, status, body) {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+function handleCalendar(req, res, body) {
+  const url = new URL(req.url, "http://localhost:8766");
+  const [, , provider, step] = url.pathname.split("/");
+  if (req.method === "GET" && step === "authorize") {
+    calendar.authorizeQueries.push(Object.fromEntries(url.searchParams));
+    const back = new URL(url.searchParams.get("redirect_uri"));
+    back.searchParams.set("state", url.searchParams.get("state") ?? "");
+    if (calendar.decline) back.searchParams.set("error", "access_denied");
+    else back.searchParams.set("code", `stub-code-${provider}`);
+    res.writeHead(302, { location: back.toString() });
+    res.end();
+    return;
+  }
+  if (req.method === "POST" && step === "token") {
+    const form = Object.fromEntries(new URLSearchParams(body));
+    calendar.tokenRequests.push({ provider, grant: form.grant_type, hasSecret: Boolean(form.client_secret) });
+    if (!form.client_secret || !form.client_id) return json(res, 401, { error: "invalid_client" });
+    if (form.grant_type === "authorization_code") {
+      if (form.code !== `stub-code-${provider}`) return json(res, 400, { error: "invalid_grant" });
+      return json(res, 200, { access_token: `stub-access-${provider}`, refresh_token: `stub-refresh-${provider}`, expires_in: 3600, scope: "freebusy" });
+    }
+    if (calendar.fail || form.refresh_token !== `stub-refresh-${provider}`) return json(res, 400, { error: "invalid_grant" });
+    return json(res, 200, { access_token: `stub-access-${provider}`, expires_in: 3600 });
+  }
+  const authorised = req.headers.authorization === `Bearer stub-access-${provider}`;
+  if (provider === "google" && step === "freeBusy") {
+    if (calendar.fail || !authorised) return json(res, 500, { error: "stub failure" });
+    return json(res, 200, { calendars: { primary: { busy: calendar.busy.map((b) => ({ start: new Date(b.start).toISOString(), end: new Date(b.end).toISOString() })) } } });
+  }
+  if (provider === "microsoft" && step === "calendarView") {
+    if (calendar.fail || !authorised) return json(res, 500, { error: "stub failure" });
+    const utc = (ms) => ({ dateTime: new Date(ms).toISOString().replace("Z", "0000"), timeZone: "UTC" });
+    return json(res, 200, { value: [...calendar.busy.map((b) => ({ start: utc(b.start), end: utc(b.end), showAs: "busy" })), { start: utc(Date.now()), end: utc(Date.now() + 9e8), showAs: "free" }] });
+  }
+  if (provider === "google" && step === "revoke") {
+    calendar.revoked.push(new URLSearchParams(body).get("token"));
+    return json(res, 200, {});
+  }
+  json(res, 404, { error: "not found" });
+}
+
 function reply(res, text, stopReason = "end_turn", model = "claude-opus-5-5") {
   res.writeHead(200, { "content-type": "application/json" });
   res.end(JSON.stringify({
@@ -64,6 +115,10 @@ function handleScreening(req, res, request) {
     malformedOnce.add(text);
     return reply(res, "{ not json");
   }
+  if (text.includes("STUB_SLOW")) {
+    setTimeout(() => reply(res, JSON.stringify(screening())), 2500);
+    return;
+  }
   if (text.includes("STUB_DOWN")) {
     res.writeHead(500, { "content-type": "application/json" });
     res.end(JSON.stringify({ type: "error", error: { type: "api_error", message: "stub outage" } }));
@@ -98,6 +153,15 @@ const server = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
+    if (req.url?.startsWith("/calendar/")) {
+      handleCalendar(req, res, body);
+      return;
+    }
+    if (req.url === "/__calendar") {
+      if (req.method === "POST") Object.assign(calendar, JSON.parse(body || "{}"));
+      json(res, 200, calendar);
+      return;
+    }
     if (req.method === "GET" && req.url === "/__last-screening") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(lastScreening));

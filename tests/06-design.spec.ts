@@ -78,8 +78,13 @@ async function keyboardReach(page: Page, target: Locator) {
   }
   await expect(target).toBeFocused();
   expect(await target.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0) || style.boxShadow !== "none";
+    const ringed = (node: Element) => {
+      const style = getComputedStyle(node);
+      return (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0) || style.boxShadow !== "none";
+    };
+    // A search input shows focus on the field around it, through :focus-within.
+    const field = element.closest(".search-field");
+    return ringed(element) || (field !== null && ringed(field));
   }), "Keyboard focus must have a visible outline or ring").toBe(true);
 }
 
@@ -268,6 +273,19 @@ for (const scenario of scenarios) {
     await expect(page).toHaveURL(`${BASE}/roles/${alpha.id}`);
     await expect(page.getByRole("main")).toContainText("TEST-ONLY Alpha candidate");
     await assertPrivate();
+
+    // Each summary card opens what it counts.
+    await page.goto("/");
+    const metric = (label: string) => main.locator("a.metric-card", { hasText: new RegExp(`^${label}`) });
+    await expect(metric("Open roles")).toHaveAttribute("href", "#role-directory");
+    await expect(metric("People in pipeline")).toHaveAttribute("href", "/people");
+    await expect(metric("Follow-ups today")).toHaveAttribute("href", "/followups");
+    await expect(metric("Saved searches")).toHaveAttribute("href", "/searches");
+    await metric("Open roles").click();
+    await expect(page).toHaveURL(`${BASE}/#role-directory`);
+    await expect(page.locator("#role-directory")).toBeInViewport();
+    await metric("Follow-ups today").click();
+    await expect(page).toHaveURL(`${BASE}/followups`);
   });
 }
 

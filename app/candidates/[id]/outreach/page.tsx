@@ -5,12 +5,14 @@ import { getWorkspace } from "@/lib/workspace";
 import { getSettings } from "@/lib/settings";
 import { firstName, hasGaps as messageHasGaps, renderTemplate } from "@/lib/render";
 import { bookingLinkFor } from "@/lib/booking";
+import { privacyNoticeLine } from "@/lib/booking-core.mjs";
 import { formatWhen } from "@/lib/dates";
 import { profileHref } from "@/lib/urls";
 import { markAsSent } from "@/app/actions/outreach";
 import { limitForKind, templateKindLabel } from "@/lib/templates";
 import { CopyButton } from "@/components/CopyButton";
 import { StageBadge } from "@/components/StageBadge";
+import { oncePerDay } from "@/lib/outreach-log";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,7 @@ export default async function OutreachPage({
         calendar_link: settings.calendarLink,
         recruiter_name: settings.recruiterName,
         booking_link: bookingLinkFor(candidate, settings),
+        privacy_notice: privacyNoticeLine(settings.privacyContactEmail || owner.email),
       })
     : "";
   const hasGaps = messageHasGaps(rendered);
@@ -54,8 +57,10 @@ export default async function OutreachPage({
   const selectedKind = selected?.kind ?? "message";
   const kindLimit = limitForKind(selectedKind);
   const overBy = kindLimit === null ? 0 : rendered.length - kindLimit;
-  const recentOutreach = candidate.outreach.slice(0, 3);
-  const olderOutreach = candidate.outreach.slice(3);
+  // The same text recorded twice on one day is one message.
+  const pastOutreach = oncePerDay(candidate.outreach);
+  const recentOutreach = pastOutreach.slice(0, 3);
+  const olderOutreach = pastOutreach.slice(3);
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 max-w-4xl space-y-8">
@@ -185,10 +190,10 @@ export default async function OutreachPage({
         </>
       )}
 
-      {candidate.outreach.length > 0 && (
+      {pastOutreach.length > 0 && (
         <section aria-label="Past outreach" className="card">
           <h2 className="mb-2 text-lg">
-            Past outreach ({candidate.outreach.length})
+            Past outreach ({pastOutreach.length})
           </h2>
           <ul className="space-y-2">
             {recentOutreach.map((o) => (

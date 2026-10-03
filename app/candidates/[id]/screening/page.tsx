@@ -12,6 +12,7 @@ import { FIELDS, parseSummary, type ConfirmedFact, type FactField, type FactValu
 import { FIELD_LABELS, REMOTE_OPTIONS, RIGHT_TO_WORK_OPTIONS, STALE_CLAIM_MS, monthKey, screeningMonthlyCap } from "@/lib/screening-core.mjs";
 import { REMOTE_LABELS, RIGHT_TO_WORK_LABELS, factDate, factSummary } from "@/lib/fact-labels";
 import { transcriptRetained } from "@/lib/retention";
+import { suggestRevisitDate } from "@/lib/talent.mjs";
 import { ClientEmailComposer } from "@/components/ClientEmailComposer";
 import { clientEmailBody, clientEmailSubject } from "@/lib/client-email";
 import { markClientEmailSent, recordRepresentConsent } from "@/app/actions/client-email";
@@ -274,6 +275,19 @@ export default async function ScreeningPage({ params }: { params: { id: string }
                         </div>
                       )}
                     </dl>
+                  )}
+                  {features.revisitReminders && (
+                    <div className="screening-revisit">
+                      <div>
+                        <label htmlFor="revisitOn" className="field-label">Get back in touch on (optional)</label>
+                        <input id="revisitOn" name="revisitOn" type="date" defaultValue={suggestRevisitDate(summary.ai.revisit_hint, now) ?? ""} className="field-input" />
+                      </div>
+                      <div>
+                        <label htmlFor="revisitNote" className="field-label">Why</label>
+                        <input id="revisitNote" name="revisitNote" defaultValue={summary.ai.revisit_hint ?? ""} className="field-input" />
+                      </div>
+                      <p className="screening-revisit-help text-xs text-ink-soft">Shows in Follow-ups the week it is due. Leave the date empty for no reminder.</p>
+                    </div>
                   )}
                   <label className="screening-consent">
                     <input type="checkbox" name="represent" className="screening-check" />

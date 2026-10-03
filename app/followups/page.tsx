@@ -7,6 +7,11 @@ import { templateKindLabel } from "@/lib/templates";
 import { profileHref } from "@/lib/urls";
 import { setCandidateStage } from "@/app/actions/candidates";
 import { db } from "@/lib/db";
+import { featureAvailability } from "@/lib/feature-access";
+import { setRevisit } from "@/app/actions/talent";
+import { ActionForm } from "@/components/ActionForm";
+import { REVISIT_SOON_DAYS } from "@/lib/talent.mjs";
+import { factDate } from "@/lib/fact-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +101,8 @@ function Bucket({
 export default async function FollowUpsPage() {
   const { owner, readOnly } = await getWorkspace();
   const now = new Date();
-  const [buckets, settings, calls] = await Promise.all([
+  const features = await featureAvailability();
+  const [buckets, settings, calls, revisits] = await Promise.all([
     getFollowUpBuckets(),
     getSettings(),
     // Calls candidates booked through the booking page, for the coming week.
@@ -105,6 +111,15 @@ export default async function FollowUpsPage() {
       orderBy: { startsAt: "asc" },
       select: { id: true, startsAt: true, mode: true, phone: true, candidate: { select: { id: true, fullName: true, role: { select: { id: true, title: true } } } } },
     }),
+    // People the recruiter chose to come back to, due within the week or overdue.
+    features.revisitReminders
+      ? db.person.findMany({
+          where: { userId: owner.id, doNotContact: false, revisitOn: { lte: new Date(now.getTime() + REVISIT_SOON_DAYS * 86_400_000) } },
+          orderBy: { revisitOn: "asc" },
+          take: 100,
+          select: { id: true, fullName: true, headline: true, revisitOn: true, revisitNote: true },
+        })
+      : Promise.resolve([]),
   ]);
   const callTime = new Intl.DateTimeFormat("en-GB", { timeZone: settings.bookingTimezone, weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
@@ -188,6 +203,37 @@ export default async function FollowUpsPage() {
           </>
         )}
       />
+      {features.revisitReminders && (
+        <section aria-labelledby="revisit-heading" className="workspace-section">
+          <h2 id="revisit-heading" className="section-heading"><span className="section-number" aria-hidden="true">04</span>Due to revisit</h2>
+          <p className="section-caption mb-4">People you said you would get back in touch with, due this week or overdue.</p>
+          {revisits.length === 0 ? (
+            <p className="text-ink/60">Nothing here. All clear.</p>
+          ) : (
+            <ul className="space-y-2">
+              {revisits.map((person) => (
+                <li key={person.id} className="card">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <Link href={`/people/${person.id}`} className="font-medium underline-offset-2 hover:underline">{person.fullName}</Link>
+                    <span className={`text-sm tabular ${person.revisitOn! < now ? "text-rose-900" : "text-ink/60"}`}>
+                      {person.revisitOn! < now ? "Overdue since" : "Due"} {factDate.format(person.revisitOn!)}
+                    </span>
+                  </div>
+                  {person.revisitNote && <p className="mt-1 text-sm text-ink/80">{person.revisitNote}</p>}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link href={`/people/${person.id}`} className="btn-quiet">Open record</Link>
+                    <ActionForm action={setRevisit}>
+                      <input type="hidden" name="personId" value={person.id} />
+                      <input type="hidden" name="intent" value="clear" />
+                      <button type="submit" className="btn-quiet">Done, clear reminder</button>
+                    </ActionForm>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </fieldset>
   );
 }

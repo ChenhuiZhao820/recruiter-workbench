@@ -9,6 +9,10 @@ import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { deletePerson, setDoNotContact } from "@/app/actions/people";
 import { factDate as dateFormat, locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
+import { factsAreStale } from "@/lib/talent.mjs";
+import { setRevisit } from "@/app/actions/talent";
+import { ActionForm } from "@/components/ActionForm";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +63,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {person.doNotContact && <span className="chip person-flag">Do not contact</span>}
+          {features.revisitReminders && person.revisitOn && <span className="chip tabular">Revisit {dateFormat.format(person.revisitOn)}</span>}
           {profile && (
             <a
               href={readOnly ? undefined : profile}
@@ -84,6 +89,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
                 {hasFacts && person.factsConfirmedAt
                   ? `Their own statements, confirmed by you on ${dateFormat.format(person.factsConfirmedAt)}. Not verified.`
                   : "Filled in when you confirm a screening call. Their own statements, not verified."}
+                {hasFacts && factsAreStale(person.factsConfirmedAt) && <span className="chip person-stale ml-2">May be out of date</span>}
               </p>
             </div>
             <dl className="fact-grid">
@@ -182,9 +188,28 @@ export default async function PersonPage({ params }: { params: { id: string } })
           </section>
         </div>
 
-        {features.privacy && !readOnly && (
-          <aside aria-labelledby="privacy-heading" className="person-aside">
-            <h2 id="privacy-heading" className="text-base font-semibold">Contact and privacy</h2>
+        {!readOnly && (
+          <aside aria-label="Reminders, contact and privacy" className="person-aside">
+            {features.revisitReminders && (
+              <ActionForm action={setRevisit} className="space-y-3">
+                <h2 className="text-base font-semibold">Get back in touch</h2>
+                <input type="hidden" name="personId" value={person.id} />
+                <div>
+                  <label htmlFor="revisitOn" className="field-label">On</label>
+                  <input id="revisitOn" name="revisitOn" type="date" defaultValue={person.revisitOn ? person.revisitOn.toISOString().slice(0, 10) : ""} className="field-input" />
+                </div>
+                <div>
+                  <label htmlFor="revisitNote" className="field-label">Why</label>
+                  <input id="revisitNote" name="revisitNote" defaultValue={person.revisitNote ?? ""} className="field-input" placeholder="Bonus pays out in March" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <SubmitButton className="btn-secondary" pendingLabel="Saving...">Save reminder</SubmitButton>
+                  {person.revisitOn && <SubmitButton className="btn-quiet" pendingLabel="Clearing..." name="intent" value="clear">Clear</SubmitButton>}
+                </div>
+              </ActionForm>
+            )}
+            {features.privacy && <>
+            <h2 id="privacy-heading" className={`text-base font-semibold${features.revisitReminders ? " border-t border-line pt-5" : ""}`}>Contact and privacy</h2>
 
             <form action={setDoNotContact} className="space-y-2">
               <input type="hidden" name="id" value={person.id} />
@@ -210,6 +235,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
               </div>
               <button type="submit" className="btn-destructive w-full">Erase this person</button>
             </form>
+            </>}
           </aside>
         )}
       </div>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BudgetFields } from "@/components/BudgetFields";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
@@ -36,6 +37,7 @@ export default async function EditRolePage({ params }: { params: { id: string } 
           </label>
           <input id="client" name="client" defaultValue={role.client ?? ""} className="field-input" />
         </div>
+        <BudgetFields budgetMin={role.budgetMin} budgetMax={role.budgetMax} budgetCurrency={role.budgetCurrency} />
         <div className="sm:col-span-2">
           <label htmlFor="jobDesc" className="field-label">
             Job description

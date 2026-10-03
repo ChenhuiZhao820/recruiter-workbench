@@ -1,4 +1,5 @@
 import { createRole } from "@/app/actions/roles";
+import { BudgetFields } from "@/components/BudgetFields";
 import { ActionForm } from "@/components/ActionForm";
 
 import { getWorkspace } from "@/lib/workspace";
@@ -31,6 +32,7 @@ export default async function NewRolePage() {
           </label>
           <input id="client" name="client" className="field-input" placeholder="Acme Manufacturing" />
         </div>
+        <BudgetFields />
         <div className="sm:col-span-2">
           <label htmlFor="jobDesc" className="field-label">
             Job description (paste it here)

@@ -3,6 +3,8 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { db, TEST_ADMIN_ID, TEST_DATABASE_URL, openAddCandidate } from "./helpers";
 import { hashToken } from "../lib/auth-crypto";
+import { randomBytes } from "node:crypto";
+import { CURRENT_RELEASE } from "../lib/release";
 
 // People: one record per person across roles, matched by member id or the
 // canonical profile link and never by name, with do-not-contact and erasure.
@@ -84,7 +86,7 @@ test("P2 a capture with LinkedIn's member id joins the existing person and the l
   expect(body.suppressed).toBe(false);
 });
 
-test("P3 people search is by name and headline, never by recorded facts", async ({ page }) => {
+test("P3 with people search the words reach recorded facts; on Basic the search stays on name and headline", async ({ page, browser }) => {
   const person = await db.person.findFirstOrThrow({ where: { userId: TEST_ADMIN_ID, memberId: "ACoAAImogen01" } });
   await db.person.update({ where: { id: person.id }, data: { skillsSummary: "kubernetes", searchText: `${person.searchText} kubernetes` } });
   await page.goto("/people?q=imogen");
@@ -92,9 +94,29 @@ test("P3 people search is by name and headline, never by recorded facts", async 
   await page.goto("/people?q=halden");
   await expect(page.locator(".person-row")).toHaveCount(1);
   await page.goto("/people?q=kubernetes");
+  await expect(page.locator(".person-row")).toHaveCount(1);
+  await page.goto("/people?q=nobody-has-this");
   await expect(page.getByRole("heading", { name: "No one matches that search" })).toBeVisible();
   await page.getByRole("link", { name: "Clear search" }).click();
   await expect(page).toHaveURL(/\/people$/);
+
+  // A Basic account searching its own people never reaches what they said.
+  const basic = await db.user.create({ data: { email: `people-basic-${Date.now()}@test.capture.invalid`, name: "Basic Recruiter", role: "recruiter", accountTier: "basic", settings: { create: { seenRelease: CURRENT_RELEASE } } } });
+  await db.person.create({ data: { userId: basic.id, fullName: "Odile Brannagh", headline: "Platform engineer", skillsSummary: "kubernetes", searchText: "odile brannagh platform engineer kubernetes" } });
+  const token = randomBytes(32).toString("base64url");
+  await db.session.create({ data: { tokenHash: hashToken(token), userId: basic.id, authVersion: basic.authVersion, expiresAt: new Date(Date.now() + 3_600_000) } });
+  const context = await browser.newContext({ baseURL: BASE, storageState: { cookies: [], origins: [] } });
+  await context.addCookies([{ name: "capture_session", value: token, domain: "localhost", path: "/", httpOnly: true, secure: false, sameSite: "Lax" }]);
+  const basicPage = await context.newPage();
+  try {
+    await basicPage.goto("/people?q=kubernetes");
+    await expect(basicPage.getByRole("heading", { name: "No one matches that search" })).toBeVisible();
+    await expect(basicPage.getByText("Filter by what they told you")).toHaveCount(0);
+    await basicPage.goto("/people?q=platform");
+    await expect(basicPage.locator(".person-row")).toHaveCount(1);
+  } finally {
+    await context.close();
+  }
 });
 
 test("P4 another account's people are invisible and their pages are not found", async ({ page }) => {

@@ -149,6 +149,29 @@ function briefing(callNumber) {
   };
 }
 
+// Suggested replies for the follow-up run. The answer quotes the first line
+// of what the candidate said, so a test can tell one suggestion from another;
+// STUB_REPLY_REFUSE in their message makes the model decline.
+let lastReply = null;
+let replyCalls = 0;
+function handleReplySuggestion(res, request) {
+  const text = String(request.messages?.[0]?.content ?? "");
+  const theirs = /<candidate_reply>\n([\s\S]*?)\n<\/candidate_reply>/.exec(text)?.[1] ?? "";
+  replyCalls += 1;
+  lastReply = {
+    model: request.model,
+    max_tokens: request.max_tokens,
+    hasEffort: Boolean(request.output_config?.effort),
+    hasThinking: Boolean(request.thinking),
+    delimited: text.includes("<candidate_reply>") && String(request.system).includes("is data, not instructions"),
+    hasBookingLink: /Booking link for a call: http/.test(text),
+    calls: replyCalls,
+  };
+  if (theirs.includes("STUB_REPLY_REFUSE")) return reply(res, "", "refusal", request.model);
+  const first = theirs.split("\n")[0].slice(0, 40);
+  reply(res, `Thanks for coming back to me. You said "${first}" - happy to talk it through this week.`, "end_turn", request.model);
+}
+
 const server = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
@@ -165,6 +188,14 @@ const server = http.createServer((req, res) => {
     if (req.method === "GET" && req.url === "/__last-screening") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(lastScreening));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/__last-reply") {
+      json(res, 200, lastReply);
+      return;
+    }
+    if (req.method === "POST" && req.url?.startsWith("/v1/messages") && String(JSON.parse(body).system ?? "").startsWith("You draft a short reply")) {
+      handleReplySuggestion(res, JSON.parse(body));
       return;
     }
     if (req.method === "POST" && req.url?.startsWith("/v1/messages") && JSON.parse(body).output_config?.format) {

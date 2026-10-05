@@ -15,6 +15,9 @@ export type FollowUpRow = {
   lastEventAt: Date;
   // How the last message went out, so a chase can match the door it used.
   lastOutreachKind: string | null;
+  lastSentAt: Date | null;
+  nudgeCount: number;
+  doNotContact: boolean;
 };
 
 export type FollowUpBuckets = {
@@ -38,6 +41,7 @@ export async function getFollowUpBuckets(): Promise<FollowUpBuckets> {
     include: {
       role: { select: { id: true, title: true } },
       outreach: { orderBy: { sentAt: "desc" }, take: 1 },
+      person: { select: { doNotContact: true } },
     },
   });
 
@@ -57,6 +61,9 @@ export async function getFollowUpBuckets(): Promise<FollowUpBuckets> {
       lastEvent,
       lastEventAt: c.lastActivityAt,
       lastOutreachKind: c.outreach[0]?.kind ?? null,
+      lastSentAt: c.outreach[0]?.sentAt ?? null,
+      nudgeCount: c.nudgeCount,
+      doNotContact: c.person?.doNotContact ?? false,
     });
     const lastOutreach = c.outreach[0];
 

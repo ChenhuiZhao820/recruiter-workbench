@@ -844,3 +844,19 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .screening-revisit { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 12px; }
 .screening-revisit-help { grid-column: 1 / -1; margin-top: -4px; }
 @media (max-width: 760px) { .screening-revisit { grid-template-columns: minmax(0, 1fr); } }
+
+/* Follow-up run: the list to start from, and the reply box with its suggestion. */
+.run-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.run-row input { margin-top: 3px; flex: none; accent-color: var(--color-accent); }
+.run-row label { display: grid; gap: 2px; font-size: 14px; cursor: pointer; }
+.run-row-locked { background: var(--color-sunken); }
+.run-row-locked label { cursor: default; color: var(--color-ink-soft); }
+.run-reason { font-size: 12px; color: var(--color-ink-soft); }
+.run-note { font-size: 12px; color: rgb(136 19 55); }
+.run-preview { max-width: 100%; font-size: 13px; }
+.run-preview > summary { cursor: pointer; color: var(--color-ink-soft); }
+.run-preview .message-body { margin-top: 8px; padding: 12px 14px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-sunken); white-space: pre-wrap; }
+.reply-field { position: relative; border-radius: 6px; background: var(--color-surface); }
+.reply-ghost { position: absolute; inset: 0; overflow: hidden; margin: 0; border-color: transparent; background: transparent; color: var(--color-ink-soft); white-space: pre-wrap; overflow-wrap: break-word; pointer-events: none; }
+.reply-ghost-typed { color: transparent; }
+.reply-input { position: relative; background: transparent; }

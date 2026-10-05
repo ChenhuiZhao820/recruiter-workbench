@@ -185,6 +185,48 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   send: the real limit is LinkedIn's, unpublished and per account. Keep the
   counting honest and the thresholds conservative rather than precise.
 
+## Follow-up run
+
+- `/followups/run` (`followUpRuns`, every plan) is the outreach queue for
+  everyone due a follow-up, across roles, under the same rules: it never
+  sends, opens LinkedIn by itself, advances without a click, or offers a
+  control that acts on more than the person on screen. "Mark as sent" records
+  and moves to the next person; the arrow at the corner goes back.
+- The list comes from the follow-up buckets through `planRun`
+  (`lib/followup-run.mjs`): replied first, then said-yes-not-booked, then
+  went quiet, longest wait first, each with a reason. Do not contact and
+  anyone already written to today cannot be ticked; nudged twice starts
+  unticked with a suggestion to mark them rejected. It is advisory, not a cap:
+  there is no pace limit on a run. Entry points are "Follow up in batches" and
+  "Go through these one by one" on Follow-ups (`?only=r|b|q`).
+- The address is the whole run: `c=<group>.<candidateId>` in order, `tb`/`tq`
+  the template per group, `i` the position. Ids are scoped to the owner before
+  anything renders; foreign, unknown and do-not-contact ids are dropped, and a
+  run with nobody left goes back to the list. Said-yes and quiet use the
+  chosen template or Capture's built-in follow-up (`BUILT_IN_TEMPLATES`), which
+  asks for times instead of a link when booking is not set up. A template
+  change on the list re-reads the page with `review=1`, ticks kept.
+- Without a message, a person can be settled from the card - they replied,
+  said yes, booked, or rejected - through `setStageAndAdvance`, which then
+  moves on. `markSentAndAdvance` and it redirect only to this app's own queue
+  paths (`isQueuePath`). The latest run is remembered in the browser so
+  Follow-ups can offer "Continue your run".
+- Replies (`replySuggestions`, every plan): on someone who replied, the
+  recruiter pastes what they said and `POST /api/followups/suggest` returns a
+  suggested answer, shown in grey behind the reply box; Tab takes it, typing
+  the same opening keeps the rest offered, "Use suggestion" does the same by
+  click. Nothing is read from LinkedIn. The request (`lib/reply-model.mjs`) is
+  `claude-haiku-4-5` by default (`CAPTURE_REPLY_MODEL`), plain text, 400 output
+  tokens, their message delimited and called data. The route checks the
+  origin, refuses read-only views and other accounts' candidates and do not
+  contact, and caps suggestions per account per UTC month by counting
+  `reply_suggested` usage events (`CAPTURE_REPLY_MONTHLY_CAP`, default 300).
+  Neither their message nor the suggestion is stored; the browser keeps a
+  suggestion for the tab only, so going back does not pay twice.
+- `tests/19-followup-run.spec.ts` plays it on a Basic account;
+  `tests/followup-run.test.mjs` covers the list rules, the address and the
+  request.
+
 ## Telling people what changed
 
 - There is one current release, not an archive: `CURRENT_RELEASE` in

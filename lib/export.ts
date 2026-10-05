@@ -4,7 +4,7 @@ import { db } from "./db";
 // secrets or hashes are included: capture keys, session data, suppression
 // hashes and calendar tokens stay behind.
 
-export const EXPORT_TABLES = ["people", "candidates", "roles", "screenings", "bookings", "outreach", "templates", "searches"] as const;
+export const EXPORT_TABLES = ["people", "notes", "candidates", "roles", "screenings", "bookings", "outreach", "templates", "searches"] as const;
 export type ExportTable = (typeof EXPORT_TABLES)[number];
 
 export function isExportTable(value: string): value is ExportTable {
@@ -26,8 +26,9 @@ function rows<T extends Record<string, unknown>>(items: T[], columns: (keyof T &
 
 export async function buildExport(ownerId: string): Promise<Record<ExportTable, Row[]>> {
   const now = new Date();
-  const [people, roles, candidates, screenings, bookings, outreach, templates, searches] = await Promise.all([
+  const [people, notes, roles, candidates, screenings, bookings, outreach, templates, searches] = await Promise.all([
     db.person.findMany({ where: { userId: ownerId }, orderBy: { createdAt: "asc" } }),
+    db.personNote.findMany({ where: { person: { userId: ownerId } }, orderBy: { createdAt: "asc" } }),
     db.role.findMany({ where: { userId: ownerId }, include: { briefing: true }, orderBy: { createdAt: "asc" } }),
     db.candidate.findMany({ where: { role: { userId: ownerId } }, orderBy: { createdAt: "asc" } }),
     db.screening.findMany({ where: { candidate: { role: { userId: ownerId } } }, orderBy: { createdAt: "asc" } }),
@@ -44,6 +45,7 @@ export async function buildExport(ownerId: string): Promise<Record<ExportTable, 
       "location", "remotePreference", "rightToWork", "rightToWorkNote", "skillsSummary", "motivation",
       "factsConfirmedAt", "revisitOn", "revisitNote", "doNotContact", "lastContactAt", "createdAt", "updatedAt",
     ]),
+    notes: rows(notes, ["id", "personId", "candidateId", "body", "createdAt", "updatedAt"]),
     candidates: rows(candidates, [
       "id", "personId", "roleId", "fullName", "profileUrl", "headline", "notes", "stage",
       "lastActivityAt", "lastNudgeAt", "nudgeCount", "createdAt", "updatedAt",

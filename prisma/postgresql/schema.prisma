@@ -31,6 +31,7 @@ model User {
   calendar         CalendarConnection?
   aiUsage          AiUsage[]
   usageEvents      UsageEvent[]
+  integrations     IntegrationConnection[]
   suppressions     Suppression[]
 }
 
@@ -172,6 +173,7 @@ model Candidate {
   outreach       OutreachLog[]
   screenings     Screening[]
   bookings       Booking[]
+  personNotes    PersonNote[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -271,6 +273,7 @@ model Person {
   searchText       String    @default("")
   lastContactAt    DateTime?
   candidates       Candidate[]
+  notes            PersonNote[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -340,6 +343,37 @@ model CalendarConnection {
   scope       String
   connectedAt DateTime  @default(now())
   lastErrorAt DateTime?
+}
+
+// A note the recruiter wrote or saved about a person, kept until they delete
+// it or the person is erased. Not a transcript: those follow their 30 days.
+// The role it was written for is kept when there was one, and survives the
+// candidacy being removed.
+model PersonNote {
+  id          String     @id @default(cuid())
+  personId    String
+  person      Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
+  candidateId String?
+  candidate   Candidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  body        String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([personId, createdAt])
+}
+
+// An account's connection to an app it imports from (notion). The tokens are
+// encrypted with the server's key and never exported or imported.
+model IntegrationConnection {
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    String
+  tokenCipher String
+  label       String    @default("")
+  connectedAt DateTime  @default(now())
+  lastErrorAt DateTime?
+
+  @@id([userId, provider])
 }
 
 model AiUsage {

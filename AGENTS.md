@@ -295,7 +295,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   carries it, the summary keeps its quotes, and a failed or capped summary
   leaves no draft behind rather than a saved copy.
 - The form opens on "Add meeting note or transcript" (or an upload, or a saved
-  draft) rather than showing an empty box. While the summary runs, a bar paced
+  draft) rather than showing an empty box. "Fold away" closes it again and
+  keeps the text in the form, and the button then says a note is there.
+  "Save to their record" (`intent=save` on `summariseScreening`) keeps the
+  text as a `PersonNote` on the person, with the role it was written for,
+  for good - no model call, no cap claim, no screening row, no 30 days. It is
+  refused while "Don't keep" is ticked and when the candidate has no person
+  yet; the box then empties and folds. While the summary runs, a bar paced
   to the usual time names the stage and stays full until the facts appear. Its
   ticking writes to the page through refs: setting React state while the form
   is pending ends `useFormStatus` early in this React version.
@@ -445,6 +451,40 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   on the person page (`setRevisit`). Follow-ups lists "Due to revisit" within a
   week or overdue, excluding do not contact. Computed on page load; no
   scheduler, no email.
+- Notes (`people`, every plan): a person's page lists their `PersonNote`s,
+  newest first, with the role a note was saved from, and takes new ones
+  (`addPersonNote`). Notes are the recruiter's own record and have no expiry:
+  they go when deleted (`deletePersonNote`, with a confirmation) or when the
+  person is erased (cascade). The same text saved to the same person within a
+  minute is one save. Shared rules are in `lib/notes.ts` (server only, never a
+  "use server" export, because it takes an owner id). Notes are exported as
+  their own table and imported by `scripts/import-accounts.mjs`; a note on
+  another account's candidate is refused. Read-only views show notes but
+  cannot add or delete them.
+- Import from Notion (part of `screening`): Notion is offered only when the
+  server has `NOTION_CLIENT_ID`/`NOTION_CLIENT_SECRET` and a
+  `CALENDAR_TOKEN_KEY`, and shown by Notion's own logo (`NotionLogo`, inline
+  SVG). `/api/notion/connect` sends the signed-in account (never a read-only
+  view) to Notion's sign-in and page picker with a signed ten-minute state;
+  where to come back to is a short-lived cookie limited by `safeReturn` to a
+  screening page or Settings. `/api/notion/callback` keeps the connection only
+  when the state names the same account, storing access and refresh tokens
+  encrypted in `IntegrationConnection`. Search (`/api/notion/pages`) and one
+  page as text (`/api/notion/pages/[id]`) are server-side, read-only, on a
+  click, Notion-Version `2026-03-11`; an expired token is refreshed once, and
+  failures ask to reconnect. `lib/notion-core.mjs` turns blocks into lines,
+  including a `meeting_notes` block's summary, notes and transcript; images and
+  unsupported blocks are skipped and text past 60,000 characters is cut with a
+  warning. The text lands in the box for the recruiter to read first; nothing
+  from Notion is stored until they summarise or save. Settings > Connected
+  apps shows the connection and Disconnect, which deletes the tokens (Notion
+  has no revoke endpoint). `IntegrationConnection` is never exported or
+  imported. `tests/20-notes-notion.spec.ts` plays Notion through the local stub
+  (`CAPTURE_TEST_NOTION_BASE_URL`, outside production only);
+  `tests/notion.test.mjs` covers the state, the return path and the blocks.
+- `20261006000000_person_notes_integrations` adds both tables (additive). It
+  must be applied to the hosted database, with approval and the usual backup,
+  before this version is served.
 - Review list (`privacy`, every plan) at `/people/review`: people with no
   update, contact or candidacy activity for 12 months. "Keep for another year"
   (`keepPerson`) touches the record and writes a nameless `person.kept` audit

@@ -7,11 +7,17 @@ import { updateSettings } from "@/app/actions/settings";
 import { CaptureKeyPanel } from "@/components/CaptureKeyPanel";
 import { ActionForm } from "@/components/ActionForm";
 import { bookingReadiness } from "@/lib/booking";
+import { canUseFeature } from "@/lib/features";
+import { notionConfigured, notionConnection } from "@/lib/notion";
+import { disconnectNotion } from "@/app/actions/notion";
+import { NotionLogo } from "@/components/NotionLogo";
+import { factDate } from "@/lib/fact-labels";
 
 export const dynamic = "force-dynamic";
 
 const exportTables = [
   { id: "people", label: "People" },
+  { id: "notes", label: "Notes" },
   { id: "candidates", label: "Candidates" },
   { id: "roles", label: "Roles" },
   { id: "screenings", label: "Screenings" },
@@ -21,8 +27,12 @@ const exportTables = [
   { id: "searches", label: "Searches" },
 ] as const;
 
-export default async function SettingsPage() {
-  const { owner, readOnly } = await getWorkspace();
+export default async function SettingsPage({ searchParams }: { searchParams: { notion?: string } }) {
+  const { user, owner, readOnly } = await getWorkspace();
+  // Apps to import from belong to the signed-in account, so a read-only view
+  // of another workspace does not show them.
+  const showApps = !readOnly && notionConfigured() && canUseFeature(user, "screening");
+  const notion = showApps ? await notionConnection(user.id) : null;
   const settings = await getSettings();
   const access = await db.extensionAccess.findUnique({ where: { userId: owner.id }, select: { activatedAt: true } });
   const extensionEnabled = canUseExtension({ ...owner, extensionAccess: access });
@@ -136,9 +146,48 @@ export default async function SettingsPage() {
           <Link href="/settings/booking" className="btn-secondary">{readOnly ? "View booking page settings" : "Set up booking page"}</Link>
         </div>
       </section>
+      {showApps && (
+        <section className="min-w-0 space-y-5" aria-labelledby="apps-heading">
+          <div>
+            <h2 id="apps-heading" className="section-heading"><span aria-hidden="true" className="section-number">04</span> Connected apps</h2>
+            <p className="section-caption">Import meeting notes into a screening call. Capture only reads the pages you choose, when you import one.</p>
+          </div>
+          <div className="card flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <NotionLogo size={32} />
+              <div>
+                <p className="font-medium">Notion</p>
+                <p className="text-sm text-ink-soft">
+                  {notion
+                    ? `Connected${notion.label ? ` to ${notion.label}` : ""} on ${factDate.format(notion.connectedAt)}.`
+                    : "Not connected."}
+                  {searchParams.notion === "failed" && " It could not be connected. Try again."}
+                </p>
+                {notion?.lastErrorAt && <p role="alert" className="text-sm text-rose-900">The last import could not reach Notion. Connect again if it keeps happening.</p>}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <a href="/api/notion/connect?return=%2Fsettings" className="app-pill">
+                <NotionLogo />
+                {notion ? "Choose pages again" : "Connect Notion"}
+              </a>
+              {notion && (
+                <form action={disconnectNotion}>
+                  <button type="submit" className="btn-quiet">Disconnect</button>
+                </form>
+              )}
+            </div>
+          </div>
+          {notion && (
+            <p className="text-sm text-ink-soft">
+              Disconnecting deletes Capture&rsquo;s access token. To remove Capture from Notion as well, open Settings, then Connections, in Notion.
+            </p>
+          )}
+        </section>
+      )}
       <section className="min-w-0 space-y-5" aria-label="Capture connection">
         <div>
-          <h2 className="section-heading"><span aria-hidden="true" className="section-number">04</span> Browser connection</h2>
+          <h2 className="section-heading"><span aria-hidden="true" className="section-number">{showApps ? "05" : "04"}</span> Browser connection</h2>
           <p className="section-caption">Connect the Capture extension to your workspace.</p>
         </div>
         {readOnly || extensionEnabled ? <>

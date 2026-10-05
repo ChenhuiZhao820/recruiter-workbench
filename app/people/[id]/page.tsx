@@ -9,6 +9,9 @@ import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { deletePerson, setDoNotContact } from "@/app/actions/people";
 import { oncePerDay } from "@/lib/outreach-log";
+import { NoteComposer } from "@/components/NoteComposer";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { deletePersonNote } from "@/app/actions/notes";
 import { factDate as dateFormat, locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
 import { factsAreStale } from "@/lib/talent.mjs";
 import { setRevisit } from "@/app/actions/talent";
@@ -33,6 +36,10 @@ export default async function PersonPage({ params }: { params: { id: string } })
           screenings: { orderBy: { createdAt: "desc" }, select: { id: true, status: true, createdAt: true, confirmedAt: true, representConsentAt: true, clientEmailSentAt: true } },
           bookings: { orderBy: { startsAt: "desc" }, select: { id: true, startsAt: true, mode: true, phone: true, status: true } },
         },
+      },
+      notes: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, body: true, createdAt: true, candidate: { select: { role: { select: { title: true } } } } },
       },
     },
   });
@@ -117,6 +124,37 @@ export default async function PersonPage({ params }: { params: { id: string } })
               ))}
             </dl>
           </section>}
+
+          <section aria-labelledby="notes-heading" className="space-y-4">
+            <div>
+              <h2 id="notes-heading" className="section-heading">Notes <span className="person-count tabular">{person.notes.length}</span></h2>
+              <p className="section-caption">Your own notes about {person.fullName.split(/\s+/)[0]}, newest first. Kept until you delete them.</p>
+            </div>
+            {!readOnly && <NoteComposer personId={person.id} firstName={person.fullName.split(/\s+/)[0]} />}
+            {person.notes.length === 0 ? (
+              <p className="text-sm text-ink-soft">No notes yet.</p>
+            ) : (
+              <ol className="person-notes">
+                {person.notes.map((note) => (
+                  <li key={note.id}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="text-xs text-ink-soft">
+                        <span className="tabular">{dateFormat.format(note.createdAt)}</span>
+                        {note.candidate ? ` · ${note.candidate.role.title}` : ""}
+                      </p>
+                      {!readOnly && (
+                        <form action={deletePersonNote}>
+                          <input type="hidden" name="noteId" value={note.id} />
+                          <ConfirmSubmitButton label="Delete" confirmText="Delete this note? This cannot be undone." />
+                        </form>
+                      )}
+                    </div>
+                    <p className="message-body">{note.body}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
 
           <section aria-labelledby="roles-heading" className="space-y-4">
             <div>

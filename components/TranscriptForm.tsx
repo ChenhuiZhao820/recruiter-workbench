@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { summariseScreening } from "@/app/actions/screening";
 import { EMPTY_FORM_STATE } from "@/lib/formState";
-import { SubmitButton } from "@/components/SubmitButton";
+import { NotionImport, type NotionState } from "@/components/NotionImport";
 
 const LIMIT = 60_000;
 
@@ -17,24 +17,49 @@ export function TranscriptForm({
   initialTranscript = "",
   initialSource = "paste",
   startOpen = false,
+  notion,
 }: {
   candidateId: string;
   initialTranscript?: string;
   initialSource?: string;
   startOpen?: boolean;
+  notion?: NotionState;
 }) {
   const [state, action] = useFormState(summariseScreening, EMPTY_FORM_STATE);
   const [text, setText] = useState(initialTranscript);
   const [source, setSource] = useState(initialSource);
   const [open, setOpen] = useState(startOpen || Boolean(initialTranscript));
   const [fileNote, setFileNote] = useState<string | null>(null);
+  const [discard, setDiscard] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
+  const opener = useRef<HTMLButtonElement>(null);
+  const intent = useRef<HTMLInputElement>(null);
 
   function openBox() {
     setOpen(true);
     requestAnimationFrame(() => box.current?.focus());
   }
+
+  // Folding the box away keeps what is in it: it stays in the form, so a
+  // summary or a save still uses it, and the button says it is there.
+  function closeBox() {
+    setOpen(false);
+    requestAnimationFrame(() => opener.current?.focus());
+  }
+
+  // A note saved to their record is done with: the box empties and folds, so
+  // it is not saved or summarised a second time by mistake.
+  useEffect(() => {
+    if (!state.notice || state.error) return;
+    setText("");
+    setSource("paste");
+    setOpen(false);
+  }, [state]);
+
+  const setIntent = (value: "save" | "summarise") => {
+    if (intent.current) intent.current.value = value;
+  };
 
   async function readFile(file: File | undefined) {
     if (!file) return;
@@ -56,40 +81,70 @@ export function TranscriptForm({
     <form action={action} className="screening-form">
       <input type="hidden" name="candidateId" value={candidateId} />
       <input type="hidden" name="source" value={source} />
+      <input ref={intent} type="hidden" name="intent" defaultValue="summarise" />
       {state.error && (
         <p role="alert" data-form-message="error" className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-900">
           {state.error}
         </p>
       )}
+      {state.notice && !state.error && (
+        <p role="status" data-form-message="notice" className="auth-success !mb-0 !text-sm">{state.notice}</p>
+      )}
 
-      {open ? (
-        <div>
+      {fileNote && <p role="status" className="text-sm text-ink-soft">{fileNote}</p>}
+
+      <div hidden={!open}>
+        <div className="flex items-baseline justify-between gap-3">
           <label htmlFor="transcript" className="field-label">Transcript or notes</label>
-          <textarea
-            ref={box}
-            id="transcript"
-            name="transcript"
-            rows={12}
-            value={text}
-            placeholder="Paste the transcript from Meet, Teams or Zoom, or type your notes from the call."
-            onChange={(event) => {
-              setText(event.target.value);
-              if (source === "upload" && !event.target.value) setSource("paste");
-            }}
-            className="field-input font-mono text-xs leading-relaxed"
-            aria-describedby="transcript-count"
-          />
-          <p id="transcript-count" className={`mt-2 text-right text-xs tabular ${over ? "text-rose-900" : "text-ink-soft"}`}>
-            {text.length.toLocaleString("en-GB")} of {LIMIT.toLocaleString("en-GB")} characters
-          </p>
+          <button type="button" className="screening-fold" onClick={closeBox} aria-controls="transcript" aria-expanded={open}>
+            <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m4 10 4-4 4 4" />
+            </svg>
+            Fold away
+          </button>
         </div>
-      ) : (
-        <button type="button" className="screening-add" onClick={openBox}>
+        <textarea
+          ref={box}
+          id="transcript"
+          name="transcript"
+          rows={12}
+          value={text}
+          placeholder="Paste the transcript from Meet, Teams or Zoom, or type your notes from the call."
+          onChange={(event) => {
+            setText(event.target.value);
+            if (source === "upload" && !event.target.value) setSource("paste");
+          }}
+          className="field-input font-mono text-xs leading-relaxed"
+          aria-describedby="transcript-count"
+        />
+        <p id="transcript-count" className={`mt-2 text-right text-xs tabular ${over ? "text-rose-900" : "text-ink-soft"}`}>
+          {text.length.toLocaleString("en-GB")} of {LIMIT.toLocaleString("en-GB")} characters
+        </p>
+      </div>
+      {!open && (
+        <button ref={opener} type="button" className="screening-add" onClick={openBox} aria-controls="transcript" aria-expanded={false}>
           <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            <path d="M8 3v10M3 8h10" />
+            {text.trim() ? <path d="m4 6 4 4 4-4" /> : <path d="M8 3v10M3 8h10" />}
           </svg>
-          Add meeting note or transcript
+          {text.trim()
+            ? `Show your note (${text.length.toLocaleString("en-GB")} characters)`
+            : "Add meeting note or transcript"}
         </button>
+      )}
+
+      {notion && (
+        <NotionImport
+          state={notion}
+          returnTo={`/candidates/${candidateId}/screening`}
+          onImport={(page) => {
+            setText(page.text);
+            setSource("upload");
+            setOpen(true);
+            setFileNote(
+              `Imported "${page.title}" from Notion.${page.cut ? " It was longer than the box holds, so the end was left out." : ""} Check it, then summarise or save it.`,
+            );
+          }}
+        />
       )}
 
       <div className="screening-files">
@@ -104,14 +159,13 @@ export function TranscriptForm({
             className="screening-file"
             onChange={(event) => readFile(event.target.files?.[0])}
           />
-          {fileNote && <p role="status" className="mt-2 text-xs text-ink-soft">{fileNote}</p>}
         </div>
         <div>
           <label htmlFor="cv" className="field-label">CV (optional)</label>
           <input id="cv" name="cv" type="file" accept="application/pdf,.pdf" className="screening-file" />
         </div>
         <label className="screening-keep">
-          <input type="checkbox" name="discardTranscript" className="mt-0.5" />
+          <input type="checkbox" name="discardTranscript" className="mt-0.5" checked={discard} onChange={(event) => setDiscard(event.target.checked)} />
           <span>
             <span className="block text-sm text-ink">Don&rsquo;t keep the transcript in Capture</span>
             <span className="block text-xs text-ink-soft">It is deleted as soon as the summary is ready. A CV is never kept.</span>
@@ -119,7 +173,14 @@ export function TranscriptForm({
         </label>
       </div>
 
-      <SummariseControls disabled={over || !text.trim()} failed={Boolean(state.error)} />
+      <SummariseControls
+        disabled={over || !text.trim()}
+        // Saving keeps the text, which is exactly what "don't keep" refuses.
+        saveDisabled={over || !text.trim() || discard}
+        failed={Boolean(state.error)}
+        onSummarise={() => setIntent("summarise")}
+        onSave={() => setIntent("save")}
+      />
     </form>
   );
 }
@@ -143,8 +204,23 @@ function percentAt(seconds: number) {
   return Math.round(92 * (1 - Math.exp(-seconds / 22)));
 }
 
-function SummariseControls({ disabled, failed }: { disabled: boolean; failed: boolean }) {
-  const { pending } = useFormStatus();
+function SummariseControls({
+  disabled,
+  saveDisabled,
+  failed,
+  onSummarise,
+  onSave,
+}: {
+  disabled: boolean;
+  saveDisabled: boolean;
+  failed: boolean;
+  onSummarise: () => void;
+  onSave: () => void;
+}) {
+  const status = useFormStatus();
+  // Saving as it is takes a moment and calls no model, so it gets no bar.
+  const saving = status.pending && status.data?.get("intent") === "save";
+  const pending = status.pending && !saving;
   // A finished summary keeps the bar full until the page shows the facts,
   // rather than flashing the form back for a moment in between.
   const [done, setDone] = useState(false);
@@ -190,8 +266,13 @@ function SummariseControls({ disabled, failed }: { disabled: boolean; failed: bo
   // The button stays mounted, hidden, while the bar shows.
   return (
     <div>
-      <div hidden={busy}>
-        <SubmitButton pendingLabel="Summarising..." disabled={disabled}>Summarise</SubmitButton>
+      <div hidden={busy} className="flex flex-wrap items-center gap-3">
+        <button type="submit" className="btn-primary" disabled={disabled || status.pending} onClick={onSummarise}>
+          Summarise
+        </button>
+        <button type="submit" className="btn-secondary" disabled={saveDisabled || status.pending} onClick={onSave}>
+          {saving ? "Saving..." : "Save to their record"}
+        </button>
       </div>
       {busy && (
         <div className="screening-progress" aria-live="polite">

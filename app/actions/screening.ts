@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireWritableFeature } from "@/lib/feature-access";
+import { saveCandidateNote } from "@/lib/notes";
 import type { FormState } from "@/lib/formState";
 import { ensureCandidatePerson, personSearchText } from "@/lib/people";
 import { purgeExpiredTranscripts } from "@/lib/retention";
@@ -104,6 +105,16 @@ async function readCv(formData: FormData): Promise<{ base64?: string; error?: st
   return { base64: Buffer.from(bytes).toString("base64") };
 }
 
+// The note kept as it is, with no summary and no model call, on the person's
+// record for good (lib/notes.ts) rather than as a transcript with 30 days. It
+// is refused while the recruiter has asked for the text not to be kept.
+async function saveAsNote(ownerId: string, candidate: { id: string; personId: string | null }, text: string, formData: FormData): Promise<FormState> {
+  if (formData.get("discardTranscript") === "on") {
+    return { error: "Untick \"Don't keep the transcript in Capture\" to save it, or summarise it instead." };
+  }
+  return saveCandidateNote(ownerId, candidate, text);
+}
+
 // Paste, upload or type notes, then one click sends them for a summary. The
 // CV, if attached, goes with that one request and is not kept.
 export async function summariseScreening(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -119,6 +130,7 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
   if (transcript.length > MAX_TRANSCRIPT_CHARS) {
     return { error: `That transcript is ${transcript.length.toLocaleString("en-GB")} characters; the limit is ${MAX_TRANSCRIPT_CHARS.toLocaleString("en-GB")}. Remove the small talk at the start or end and try again.` };
   }
+  if (formData.get("intent") === "save") return saveAsNote(user.id, candidate, transcript, formData);
   const cv = await readCv(formData);
   if (cv.error) return { error: cv.error };
   if (!process.env.ANTHROPIC_API_KEY) {

@@ -33,6 +33,83 @@ function screening() {
 // is set over /__calendar so a test can make time busy or the provider fail.
 const calendar = { busy: [], fail: false, revoked: [], tokenRequests: [], authorizeQueries: [] };
 
+// Notion, played locally: OAuth with a page picker that always shares the two
+// fixture pages, search, and the blocks of a page including a meeting notes
+// block. `expireAccess` makes the first access token stale so the refresh is
+// exercised; `decline` answers the sign-in with an error.
+const notion = { decline: false, expireAccess: false, fail: false, tokenRequests: [], versions: [] };
+const NOTION_PAGES = {
+  "11111111-1111-4111-8111-111111111111": { title: "Call with Imogen Achterberg", edited: "2026-10-04T09:00:00.000Z" },
+  "22222222-2222-4222-8222-222222222222": { title: "Weekly planning", edited: "2026-10-01T09:00:00.000Z" },
+};
+const text = (content) => ({ rich_text: [{ type: "text", text: { content }, plain_text: content }] });
+const NOTION_BLOCKS = {
+  "11111111-1111-4111-8111-111111111111": [
+    { id: "b-h", type: "heading_2", heading_2: text("Screening call"), has_children: false },
+    { id: "b-p", type: "paragraph", paragraph: text("Spoke for twenty minutes."), has_children: false },
+    { id: "b-l", type: "bulleted_list_item", bulleted_list_item: text("Open to hybrid in Leeds"), has_children: false },
+    { id: "b-t", type: "to_do", to_do: { ...text("Send the job spec"), checked: true }, has_children: false },
+    { id: "b-g", type: "toggle", toggle: text("More detail"), has_children: true },
+    { id: "b-i", type: "image", image: { type: "external", external: { url: "https://example.invalid/x.png" } }, has_children: false },
+    { id: "b-m", type: "meeting_notes", meeting_notes: { title: [{ plain_text: "Imogen call" }], status: "notes_ready", children: { summary_block_id: "b-s", transcript_block_id: "b-x" } }, has_children: true },
+  ],
+  "b-g": [{ id: "b-g1", type: "paragraph", paragraph: text("Four weeks notice."), has_children: false }],
+  "b-s": [{ id: "b-s1", type: "paragraph", paragraph: text("Wants around 90k."), has_children: false }],
+  "b-x": [
+    { id: "b-x1", type: "paragraph", paragraph: text("Morven Ellis: What are you looking for on salary?"), has_children: false },
+    { id: "b-x2", type: "paragraph", paragraph: text("Imogen Achterberg: I'd be looking for something around 85 to 95 thousand base."), has_children: false },
+  ],
+  "22222222-2222-4222-8222-222222222222": [{ id: "w-p", type: "paragraph", paragraph: text("Plan the week."), has_children: false }],
+};
+
+function handleNotion(req, res, body) {
+  const url = new URL(req.url, "http://localhost:8766");
+  const path = url.pathname.replace(/^\/notion/, "");
+  if (path === "/v1/oauth/authorize") {
+    const back = new URL(url.searchParams.get("redirect_uri"));
+    back.searchParams.set("state", url.searchParams.get("state") ?? "");
+    if (notion.decline) back.searchParams.set("error", "access_denied");
+    else back.searchParams.set("code", "stub-notion-code");
+    res.writeHead(302, { location: back.toString() });
+    res.end();
+    return;
+  }
+  if (path === "/v1/oauth/token") {
+    const form = JSON.parse(body || "{}");
+    const basic = Buffer.from(String(req.headers.authorization ?? "").replace(/^Basic /, ""), "base64").toString();
+    notion.tokenRequests.push({ grant: form.grant_type, basicOk: basic === "test-notion-client:test-notion-secret" });
+    if (basic !== "test-notion-client:test-notion-secret") return json(res, 401, { error: "invalid_client" });
+    if (form.grant_type === "authorization_code" && form.code === "stub-notion-code") {
+      return json(res, 200, { access_token: "stub-notion-access-1", refresh_token: "stub-notion-refresh", workspace_name: "Morven's Notion", bot_id: "bot" });
+    }
+    if (form.grant_type === "refresh_token" && form.refresh_token === "stub-notion-refresh") {
+      return json(res, 200, { access_token: "stub-notion-access-2", refresh_token: "stub-notion-refresh", workspace_name: "Morven's Notion" });
+    }
+    return json(res, 400, { error: "invalid_grant" });
+  }
+  notion.versions.push(req.headers["notion-version"]);
+  const token = String(req.headers.authorization ?? "").replace(/^Bearer /, "");
+  const valid = token === "stub-notion-access-2" || (token === "stub-notion-access-1" && !notion.expireAccess);
+  if (!valid) return json(res, 401, { object: "error", code: "unauthorized" });
+  if (notion.fail) return json(res, 500, { object: "error", code: "internal_server_error" });
+  if (path === "/v1/search" && req.method === "POST") {
+    const query = String(JSON.parse(body || "{}").query ?? "").toLowerCase();
+    const results = Object.entries(NOTION_PAGES)
+      .filter(([, page]) => page.title.toLowerCase().includes(query))
+      .map(([id, page]) => ({ object: "page", id, last_edited_time: page.edited, url: `https://www.notion.so/${id}`, properties: { Name: { type: "title", title: [{ plain_text: page.title }] } } }));
+    return json(res, 200, { object: "list", results, has_more: false, next_cursor: null });
+  }
+  const page = /^\/v1\/pages\/([^/]+)$/.exec(path);
+  if (page && NOTION_PAGES[page[1]]) {
+    return json(res, 200, { object: "page", id: page[1], properties: { Name: { type: "title", title: [{ plain_text: NOTION_PAGES[page[1]].title }] } } });
+  }
+  const blocks = /^\/v1\/blocks\/([^/]+)\/children$/.exec(path);
+  if (blocks && NOTION_BLOCKS[decodeURIComponent(blocks[1])]) {
+    return json(res, 200, { object: "list", results: NOTION_BLOCKS[decodeURIComponent(blocks[1])], has_more: false, next_cursor: null });
+  }
+  json(res, 404, { object: "error", code: "object_not_found" });
+}
+
 function json(res, status, body) {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
@@ -176,6 +253,15 @@ const server = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
+    if (req.url?.startsWith("/notion/")) {
+      handleNotion(req, res, body);
+      return;
+    }
+    if (req.url === "/__notion") {
+      if (req.method === "POST") Object.assign(notion, JSON.parse(body || "{}"));
+      json(res, 200, notion);
+      return;
+    }
     if (req.url?.startsWith("/calendar/")) {
       handleCalendar(req, res, body);
       return;

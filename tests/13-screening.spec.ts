@@ -264,7 +264,7 @@ test("S6 a transcript past its date is hidden at once and removed by the next sc
   } });
   await page.goto(`/candidates/${old.id}/screening`);
   await expect(page.getByText("an old call")).toHaveCount(0);
-  await expect(page.getByLabel("Transcript or notes")).toHaveCount(0);
+  await expect(page.getByLabel("Transcript or notes")).toBeHidden();
   await expect(await transcriptBox(page)).toHaveValue("");
 
   const fresh = await makeCandidate("Ines Caetano-Lowe");
@@ -366,7 +366,7 @@ test("S11 the box opens on a click, a summary in flight shows its progress, and 
   const candidate = await makeCandidate("Rosalind Featherstone-Obi");
   await page.goto(`/candidates/${candidate.id}/screening`);
   await expect(page.getByRole("heading", { name: "Add the call transcript" })).toBeVisible();
-  await expect(page.getByLabel("Transcript or notes")).toHaveCount(0);
+  await expect(page.getByLabel("Transcript or notes")).toBeHidden();
   await expect(page.getByText(/Usually under a minute|A PDF of up to 5 pages|A \.txt or \.vtt file/)).toHaveCount(0);
   await page.getByRole("button", { name: "Add meeting note or transcript" }).click();
   await expect(page.getByLabel("Transcript or notes")).toBeFocused();
@@ -393,4 +393,23 @@ test("S11 the box opens on a click, a summary in flight shows its progress, and 
   await page.getByRole("button", { name: "Summarise" }).click();
   await expect(page.locator('[data-form-message="error"]')).toContainText("Nothing was kept");
   expect(await db.screening.count({ where: { candidateId: failing.id } })).toBe(0);
+});
+
+test("S12 the box folds away keeping what is in it, and what is in it can be summarised later", async ({ page }) => {
+  const candidate = await makeCandidate("Fausto Artico-Brennan");
+  await page.goto(`/candidates/${candidate.id}/screening`);
+  await page.getByRole("button", { name: "Add meeting note or transcript" }).click();
+  const box = page.getByLabel("Transcript or notes");
+  await box.fill("Spoke for ten minutes. Open to hybrid in Leeds, four weeks notice.");
+  await page.getByRole("button", { name: "Fold away" }).click();
+  await expect(box).toBeHidden();
+  const reopen = page.getByRole("button", { name: /Show your note \(\d+ characters\)/ });
+  await expect(reopen).toBeFocused();
+  await reopen.click();
+  await expect(box).toHaveValue("Spoke for ten minutes. Open to hybrid in Leeds, four weeks notice.");
+  // Folded away, it is still what Summarise sends.
+  await page.getByRole("button", { name: "Fold away" }).click();
+  await page.getByRole("button", { name: "Summarise" }).click();
+  await expect(page.getByRole("heading", { name: "Check the four facts" })).toBeVisible();
+  expect((await db.screening.findFirstOrThrow({ where: { candidateId: candidate.id } })).transcript).toMatch(/four weeks notice/);
 });

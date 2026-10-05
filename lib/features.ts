@@ -11,6 +11,8 @@ export const FEATURE_TIERS = {
   export: "basic",          // full data export
   booking: "basic",         // booking page and its settings
   calendarFreeBusy: "basic",
+  followUpRuns: "basic",    // walking through everyone due a follow-up
+  replySuggestions: "basic", // a suggested answer to someone who replied
   screening: "pro",         // screening assistant
   clientEmail: "pro",
   peopleSearch: "pro",      // filters and keyword search across people

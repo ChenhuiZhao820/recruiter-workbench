@@ -482,9 +482,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   imported. `tests/20-notes-notion.spec.ts` plays Notion through the local stub
   (`CAPTURE_TEST_NOTION_BASE_URL`, outside production only);
   `tests/notion.test.mjs` covers the state, the return path and the blocks.
-- `20261006000000_person_notes_integrations` adds both tables (additive). It
-  must be applied to the hosted database, with approval and the usual backup,
-  before this version is served.
+- `20261006000000_person_notes_integrations` adds both tables (additive); see
+  Hosting for when it was applied.
 - Review list (`privacy`, every plan) at `/people/review`: people with no
   update, contact or candidacy activity for 12 months. "Keep for another year"
   (`keepPerson`) touches the record and writes a nameless `person.kept` audit
@@ -762,6 +761,16 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   than Prisma's SQLite table rebuild, rehearsed on a copy first; Prisma then
   reports no difference from the schema. The SQL, the backup copy, the dump
   and the reports are in ignored `prisma/private-local/`.
+- On 2026-10-05, `20261006000000_person_notes_integrations` (`PersonNote`,
+  `IntegrationConnection`) was applied and registered on the hosted database
+  the same way: preflight identity/TLS and migration-state check, a
+  custom-format dump restored into a disposable container and the migration
+  rehearsed there, then one transaction checked against the reviewed file's
+  SHA-256. Every existing table came out unchanged and both new tables empty;
+  Prisma reports 8 migrations and no difference. The local account database
+  received the same two `CREATE TABLE`s in place after a backup copy and a
+  rehearsal on another copy, with every existing table's content unchanged.
+  The scripts, dump, copies and reports are in ignored `prisma/private-local/`.
 
 ## Searches and LinkedIn industry filters
 

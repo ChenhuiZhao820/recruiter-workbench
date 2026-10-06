@@ -161,7 +161,8 @@ async function main() {
   const reason = guardPaidRun({ script: "make-synthetic-screenings", estimateUsd: estimate, args });
   if (!process.env.ANTHROPIC_API_KEY) throw new SafeError("Set ANTHROPIC_API_KEY for this terminal.");
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, ...(workspaceId ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } } : {}) });
   mkdirSync(OUT, { recursive: true });
   const answers = [];
   let input = 0;

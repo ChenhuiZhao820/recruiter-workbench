@@ -202,7 +202,15 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
     revalidateScreening(candidate.id, candidate.roleId, candidate.personId);
     if (error instanceof ScreeningRefusedError) return { error: "The summary service declined this transcript. Check it is the right file, or fill the four facts in by hand." };
     if (error instanceof ScreeningShapeError) return { error: `The summary came back in a shape that could not be read. ${kept}.` };
-    if (error instanceof Anthropic.APIError) return { error: `The summary service could not be reached. ${kept} in a moment.` };
+    if (error instanceof Anthropic.APIError) {
+      // The status and the service's own message say why; they never contain
+      // the transcript. A 4xx other than a timeout, conflict or rate limit is
+      // a request the service refused, which waiting will not fix.
+      console.error("Screening summary failed:", error.status ?? "no response", error.message);
+      const refused = error.status !== undefined && error.status >= 400 && error.status < 500 && ![408, 409, 429].includes(error.status);
+      if (refused) return { error: `The summary service refused this request, so trying again will not help. ${kept.replace("; try again", "")}. Tell support if it keeps happening.` };
+      return { error: `The summary service could not be reached. ${kept} in a moment.` };
+    }
     throw error;
   }
   revalidateScreening(candidate.id, candidate.roleId, candidate.personId);

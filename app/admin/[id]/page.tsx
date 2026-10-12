@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { publicUserSelect, requireAdmin } from "@/lib/auth";
-import { issueActivation, setAccountActive, setAccountTier, startViewing } from "@/app/actions/accounts";
-import { AccountManagementForm, AccountTierFields, ExtensionCodeForm } from "@/components/AccountForms";
+import { deleteAccount, issueActivation, setAccountActive, setAccountTier, startViewing } from "@/app/actions/accounts";
+import { AccountManagementForm, AccountTierFields, DeleteAccountForm, ExtensionCodeForm } from "@/components/AccountForms";
 import { accountTierLabels, getAccountTier } from "@/lib/account-tiers";
 import { getWorkspace } from "@/lib/workspace";
 import { ActionForm } from "@/components/ActionForm";
@@ -62,6 +62,7 @@ export default async function AdminAccountPage({ params }: { params: { id: strin
         <input type="hidden" name="active" value={String(!user.active)} />
         <button type="submit" className="btn-quiet">{user.active ? "Disable account" : "Enable account"}</button>
       </ActionForm>}
+      {!readOnly && user.role === "recruiter" && user.id !== admin.id && <DeleteAccountForm userId={user.id} email={user.email} action={deleteAccount} />}
     </article>
     <section className="card" aria-label="Audit history">
       <h2 className="mb-3 text-lg">Recent account activity</h2>

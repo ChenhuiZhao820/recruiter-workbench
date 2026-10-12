@@ -148,3 +148,22 @@ export function AccountManagementForm({ action, children, submitLabel }: {
     </div>
   </form>;
 }
+
+export function DeleteAccountForm({ userId, email, action }: { userId: string; email: string; action: (state: FormState, form: FormData) => Promise<FormState> }) {
+  const [state, formAction] = useFormState(action, {});
+  return <details className="border-t border-line pt-4">
+    <summary className="cursor-pointer text-sm text-rose-900">Delete account</summary>
+    <form action={formAction} className="mt-3 max-w-xl space-y-3">
+      <Status state={state} />
+      <p className="text-sm text-ink-soft">This permanently deletes the account and all of its roles, candidates, people, notes, searches, templates, bookings and settings. It cannot be undone. The audit history is kept.</p>
+      <input type="hidden" name="userId" value={userId} />
+      <div><label htmlFor={`confirm-delete-${userId}`} className="field-label">Type {email} to confirm</label><input id={`confirm-delete-${userId}`} name="confirmEmail" autoComplete="off" required className="field-input" /></div>
+      <DeleteSubmit />
+    </form>
+  </details>;
+}
+
+function DeleteSubmit() {
+  const { pending } = useFormStatus();
+  return <button type="submit" className="btn-secondary border-rose-300 text-rose-900" disabled={pending}>{pending ? "Deleting…" : "Delete account permanently"}</button>;
+}

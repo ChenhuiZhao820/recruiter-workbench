@@ -103,6 +103,34 @@ export async function setAccountActive(_state: FormState, form: FormData): Promi
   return changed ? { notice: active ? "Account enabled. Issue a new activation link if needed." : "Account disabled. Sessions, activation links and capture keys have been revoked." } : { error: "This account cannot be changed here." };
 }
 
+// Permanent. Most business tables point at the user with onDelete Restrict, so
+// the account's data is removed explicitly, children before parents, in one
+// transaction: either the whole account goes or nothing does. The audit trail
+// is kept (it has no foreign key) and records who deleted which account.
+export async function deleteAccount(_state: FormState, form: FormData): Promise<FormState> {
+  assertSameOrigin();
+  const admin = await requireAdmin();
+  await requireWritableWorkspace();
+  const userId = String(form.get("userId") ?? "");
+  if (userId === admin.id) return { error: "You cannot delete your own administrator account." };
+  const target = await db.user.findFirst({ where: { id: userId, role: "recruiter" }, select: { id: true, email: true } });
+  if (!target) return { error: "This account cannot be deleted here." };
+  if (normalizeEmail(String(form.get("confirmEmail") ?? "")) !== target.email) return { error: "Type the account's email address exactly to confirm deletion." };
+  await db.$transaction(async (tx) => {
+    await tx.session.updateMany({ where: { viewUserId: userId }, data: { viewUserId: null } });
+    await tx.booking.deleteMany({ where: { userId } });
+    await tx.savedSearch.deleteMany({ where: { userId } });
+    await tx.role.deleteMany({ where: { userId } });
+    await tx.person.deleteMany({ where: { userId } });
+    await tx.messageTemplate.deleteMany({ where: { userId } });
+    await tx.settings.deleteMany({ where: { userId } });
+    await tx.user.delete({ where: { id: userId } });
+    await tx.auditEvent.create({ data: { actorId: admin.id, targetUserId: userId, action: "account_deleted" } });
+  });
+  revalidatePath("/", "layout");
+  redirect("/admin");
+}
+
 export async function startViewing(form: FormData) {
   assertSameOrigin();
   const admin = await requireAdmin();

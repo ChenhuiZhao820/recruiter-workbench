@@ -469,6 +469,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Capture uses a per-user hashed key, independent of website cookies. Its API
   returns the connected account and only its open roles. Password changes and
   account disabling revoke sessions and capture keys; no raw stored capture keys.
+- Admin can permanently delete a recruiter account from `/admin/[id]` (`deleteAccount`): never an administrator or oneself, never from a read-only view, and only after the account's email is typed. Business tables use `onDelete: Restrict` on the user, so the action removes bookings, searches, roles, people, templates and settings explicitly in one transaction before the user (the rest cascades). Audit events are kept and a nameless `account_deleted` event is written. `tests/21-delete-account.spec.ts`.
 - Public signup is disabled. Activation links use URL fragments and expire after
   24 hours; the raw link is shown only at creation. No default admin password.
 

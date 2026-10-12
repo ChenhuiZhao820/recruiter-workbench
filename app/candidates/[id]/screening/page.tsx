@@ -5,6 +5,7 @@ import { featureAvailability, requireFeature } from "@/lib/feature-access";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { TranscriptForm } from "@/components/TranscriptForm";
+import { notionConfigured, notionConnection } from "@/lib/notion";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { StageBadge } from "@/components/StageBadge";
 import { confirmScreening, confirmScreeningField, deleteTranscript, discardScreening } from "@/app/actions/screening";
@@ -155,8 +156,17 @@ function FactCard({ screeningId, field, summary }: { screeningId: string; field:
   );
 }
 
-export default async function ScreeningPage({ params }: { params: { id: string } }) {
-  const { owner, readOnly } = await requireFeature("screening");
+export default async function ScreeningPage({ params, searchParams }: { params: { id: string }; searchParams: { notion?: string } }) {
+  const { user, owner, readOnly } = await requireFeature("screening");
+  // Importing from Notion uses the signed-in account's own connection, so a
+  // read-only view of someone else's workspace is never offered it.
+  const notionLink = !readOnly && notionConfigured() ? await notionConnection(user.id) : null;
+  const notion = {
+    configured: !readOnly && notionConfigured(),
+    connected: Boolean(notionLink),
+    workspace: notionLink?.label ?? "",
+    outcome: ["connected", "declined", "failed"].includes(searchParams.notion ?? "") ? searchParams.notion! : null,
+  };
   const candidate = await db.candidate.findFirst({
     where: { id: params.id, role: { userId: owner.id } },
     include: {
@@ -213,7 +223,7 @@ export default async function ScreeningPage({ params }: { params: { id: string }
                   {open ? `Saved ${factDate.format(open.createdAt)} but not summarised yet. Summarise it, or change it first.` : "One call per summary."}
                 </p>
               </div>
-              <TranscriptForm candidateId={candidate.id} initialTranscript={open && transcript ? transcript : ""} initialSource={open?.transcriptSource ?? "paste"} />
+              <TranscriptForm candidateId={candidate.id} initialTranscript={open && transcript ? transcript : ""} initialSource={open?.transcriptSource ?? "paste"} notion={notion} />
             </section>
           ) : working ? (
             <section aria-labelledby="working-heading" className="screening-working" aria-live="polite">
@@ -389,7 +399,7 @@ export default async function ScreeningPage({ params }: { params: { id: string }
               <details className="screening-again">
                 <summary className="btn-secondary">Add another screening</summary>
                 <div className="mt-5">
-                  <TranscriptForm candidateId={candidate.id} startOpen />
+                  <TranscriptForm candidateId={candidate.id} startOpen notion={notion} />
                 </div>
               </details>
             </section>

@@ -509,6 +509,8 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .screening-add { display: flex; width: 100%; min-height: 64px; align-items: center; justify-content: center; gap: 10px; border: 1px dashed rgb(var(--rgb-ink) / .22); border-radius: 8px; background: var(--color-surface); color: var(--color-ink); font-size: 14px; font-weight: 500; cursor: pointer; transition: border-color .15s, background-color .15s, color .15s; }
 .screening-add svg { color: var(--color-accent); }
 .screening-add:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.screening-fold { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; color: var(--color-ink-soft); font-size: 12px; font-weight: 500; transition: background-color .15s, color .15s; }
+.screening-fold:hover { background: var(--color-sunken); color: var(--color-ink); }
 .screening-add:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .screening-add:disabled { cursor: not-allowed; color: rgb(var(--rgb-ink) / .35); background: var(--color-surface); border-color: var(--color-line); }
 .screening-keep { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 10px; padding-top: 14px; border-top: 1px solid var(--color-line); cursor: pointer; }
@@ -860,3 +862,21 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .reply-ghost { position: absolute; inset: 0; overflow: hidden; margin: 0; border-color: transparent; background: transparent; color: var(--color-ink-soft); white-space: pre-wrap; overflow-wrap: break-word; pointer-events: none; }
 .reply-ghost-typed { color: transparent; }
 .reply-input { position: relative; background: transparent; }
+
+/* A person's own notes: plain, dated, newest first. */
+.person-notes { display: grid; gap: 10px; }
+.person-notes > li { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.person-notes .message-body { margin: 0; padding: 0; border: 0; background: none; font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Apps a recruiter imports from: each shown by its own logo, on a pill. */
+.notion-logo { display: inline-flex; flex: none; align-items: center; justify-content: center; border: 1px solid rgb(var(--rgb-ink) / .12); border-radius: 5px; background: #fff; }
+.app-pill { display: inline-flex; align-items: center; gap: 9px; min-height: 40px; padding: 6px 14px 6px 8px; border: 1px solid var(--color-line); border-radius: 999px; background: var(--color-surface); color: var(--color-ink); font-size: 14px; font-weight: 500; text-decoration: none; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.app-pill:hover { border-color: rgb(var(--rgb-ink) / .3); box-shadow: 0 2px 8px rgb(var(--rgb-ink) / .06); }
+.app-pill[aria-expanded="true"] { border-color: var(--color-ink); }
+.notion-import { display: grid; gap: 12px; }
+.notion-picker { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); animation: suggest-in .2s cubic-bezier(.16, 1, .3, 1); }
+.notion-pages { display: grid; gap: 2px; max-height: 280px; overflow-y: auto; }
+.notion-pages button { display: flex; width: 100%; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 10px; border-radius: 6px; text-align: left; transition: background-color .14s; }
+.notion-pages button:hover:not(:disabled) { background: var(--color-sunken); }
+.notion-pages button:disabled { cursor: progress; opacity: .7; }
+.notion-page-title { min-width: 0; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }

@@ -25,6 +25,7 @@ export const accountColumns = {
   SavedSearch: { ...legacyColumns.SavedSearch, userId: "id", searchUrl: "text?" },
   Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?", personId: "id?" },
   OutreachLog: legacyColumns.OutreachLog,
+  PersonNote: { id: "id", personId: "id", candidateId: "id?", body: "text", createdAt: "date", updatedAt: "date" },
   Screening: {
     id: "id", candidateId: "id", status: "text", transcript: "text?", transcriptSource: "text?",
     transcriptDeleteAfter: "date?", summaryJson: "text?", summaryModel: "text?", generatedAt: "date?",
@@ -44,12 +45,13 @@ export const accountColumns = {
   Suppression: { userId: "id", keyHash: "text", createdAt: "date" },
 };
 // Tables a source may not have yet: it was written before they existed.
-const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot"]);
-// Accepted in a source but never copied. Calendar tokens are encrypted with
-// the source deployment's key and must be reconnected; monthly AI counters
-// start again; booked-slot locks are rebuilt from the bookings themselves.
+const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection"]);
+// Accepted in a source but never copied. Calendar and integration tokens are
+// encrypted with the source deployment's key and must be reconnected; monthly
+// AI counters start again; booked-slot locks are rebuilt from the bookings.
 const notImportedColumns = {
   CalendarConnection: { userId: "id", provider: "text", tokenCipher: "text", scope: "text", connectedAt: "date", lastErrorAt: "date?" },
+  IntegrationConnection: { userId: "id", provider: "text", tokenCipher: "text", label: "text", connectedAt: "date", lastErrorAt: "date?" },
   AiUsage: { userId: "id", month: "text", generations: "int" },
   BookedSlot: { userId: "id", startsAt: "date", bookingId: "id" },
 };
@@ -62,7 +64,7 @@ const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
 const allTables = [...Object.keys(accountColumns), ...Object.keys(ephemeralColumns), ...Object.keys(notImportedColumns)];
 const allModels = allTables.map(modelFor);
 const primaryKeys = {
-  ExtensionAccess: ["userId"], Suppression: ["userId", "keyHash"], CalendarConnection: ["userId"],
+  ExtensionAccess: ["userId"], Suppression: ["userId", "keyHash"], CalendarConnection: ["userId"], IntegrationConnection: ["userId", "provider"],
   AiUsage: ["userId", "month"], BookedSlot: ["userId", "startsAt"], LoginThrottle: ["key"],
   Session: ["tokenHash"], ActivationToken: ["tokenHash"],
 };
@@ -179,6 +181,10 @@ export function validateAccounts(source, adminEmail) {
   for (const candidate of data.candidate) {
     if (candidate.personId !== null && get("Person", candidate.personId).userId !== get("Role", candidate.roleId).userId) invalid("candidate belongs to a different account than its person");
   }
+  for (const note of data.personNote) {
+    const person = get("Person", note.personId);
+    if (note.candidateId !== null && get("Role", get("Candidate", note.candidateId).roleId).userId !== person.userId) invalid("note belongs to a different account than its candidate");
+  }
   for (const screening of data.screening) get("Candidate", screening.candidateId);
   const heldSlots = new Set();
   for (const booking of data.booking) {
@@ -289,7 +295,7 @@ async function verifyData(db, validated) {
     }
     if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "AiUsage"]) {
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage"]) {
     if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar or usage-counter state in target.");
   }
   const expectedSlots = validated.data.booking.filter((booking) => booking.status === "booked").map((booking) => `${booking.userId}|${booking.startsAt.toISOString()}|${booking.id}`).sort();

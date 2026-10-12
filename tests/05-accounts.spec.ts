@@ -269,7 +269,7 @@ test("A4 reset links expire and reissuing invalidates the previous fragment toke
   const actor = await accounts.create();
   await admin.page.goto(`/admin/${actor.id}`);
   const card = admin.page.locator("article", { hasText: actor.email });
-  await card.locator("summary").click();
+  await card.locator("summary", { hasText: "Activation" }).click();
   await card.getByRole("button", { name: "Generate setup/reset link" }).click();
   const link = card.getByLabel("One-time setup link");
   await expect(link).toBeVisible();

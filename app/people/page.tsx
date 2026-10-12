@@ -84,8 +84,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             Everyone you have saved, once each, with every role you considered them for.
           </p>
         </div>
-        {toReview > 0 && !readOnly && (
-          <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>
+        {!readOnly && (features.peopleImport || toReview > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {features.peopleImport && <Link href="/people/import" className="btn-secondary">Import people</Link>}
+            {toReview > 0 && <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>}
+          </div>
         )}
       </header>
 
@@ -178,6 +181,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             <p>
               People appear here when you add a candidate to a role or save a profile with the Capture extension.
               Saving the same profile for another role adds to the same person.
+              {features.peopleImport && !readOnly && <> Or <Link href="/people/import" className="underline">import a spreadsheet</Link> you already keep.</>}
             </p>
           )}
         </div>

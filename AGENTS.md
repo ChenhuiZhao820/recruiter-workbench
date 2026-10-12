@@ -484,6 +484,32 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `tests/notion.test.mjs` covers the state, the return path and the blocks.
 - `20261006000000_person_notes_integrations` adds both tables (additive); see
   Hosting for when it was applied.
+- Import from a spreadsheet (`peopleImport`, every plan) at `/people/import`, from the Import people
+  button on People: an `.xlsx` (first sheet) or `.csv`, first row the column names, 4 MB and 2,000
+  people at most. The reader is `lib/sheet-read.mjs`, a small zip-and-XML reader with no dependency
+  (SheetJS on npm is unpatched and vulnerable; do not swap it in): every size is capped before it is
+  expanded, formulas are never evaluated (the saved value is used), and unclosed XML ends a linear scan
+  rather than a regular expression. The rules are in `lib/people-import.mjs`; `lib/people-import-server.ts`
+  looks up who exists and writes. Do not give the server module the same base name as the `.mjs` one:
+  the bundler resolves `@/lib/people-import` to whichever extension it tries first.
+- Two steps over one upload. Preview (`previewPeopleImport`) reads the file and reports what would happen,
+  writing nothing; Import (`runPeopleImport`) re-reads the same file and trusts nothing the preview said:
+  column choices are filtered to known fields, one column each, and every lookup is repeated. The file is
+  never stored. Rows are matched by member id, then canonical profile link, and by email only for a row
+  with neither - never by name. Anyone in `Suppression` (on any of their identifiers) is skipped, so an
+  erasure cannot be undone by re-importing the list; a repeat within the file is skipped, first row wins.
+  Someone already in People is never overwritten: a row can only add do-not-contact (the safe direction;
+  any value but a plain no counts) and, if ticked, fill an empty headline, location, skills or email.
+- Imported people carry identity and description only. Salary, notice and right to work are not
+  imported: they count in search only once confirmed on a screening, and a cell is not a confirmation.
+  An imported email has `emailSource: "import"` and no consent date; Capture never sends email anyway.
+  Every new person gets a `PersonNote` saying which file and day they came from (and their notes cell as a
+  second note); that also keeps `dropIfOrphan` from removing them when their only role goes. The import
+  needs the recruiter to tick that they have a legitimate reason to hold these records. The audit event
+  `people.imported` and the `people_imported` usage event carry counts only, never names or a file name.
+- `tests/people-import.test.mjs` (reader limits, hostile files, rules; workbooks are built in memory by
+  `tests/xlsx-fixture.mjs`) and `tests/22-people-import.spec.ts` (preview writes nothing, notes,
+  suppression, other accounts, mapping by hand, refused files, orphan guard, read-only view, phone width).
 - Review list (`privacy`, every plan) at `/people/review`: people with no
   update, contact or candidacy activity for 12 months. "Keep for another year"
   (`keepPerson`) touches the record and writes a nameless `person.kept` audit

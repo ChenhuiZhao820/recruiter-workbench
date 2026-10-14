@@ -485,19 +485,51 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `20261006000000_person_notes_integrations` adds both tables (additive); see
   Hosting for when it was applied.
 - Import from a spreadsheet (`peopleImport`, every plan) at `/people/import`, from the Import people
-  button on People: an `.xlsx` (first sheet) or `.csv`, first row the column names, 4 MB and 2,000
-  people at most. The reader is `lib/sheet-read.mjs`, a small zip-and-XML reader with no dependency
+  button on People: an `.xlsx`, a `.csv` or Excel's UTF-16 "Unicode Text", 4 MB and 2,000 people at
+  most. The reader is `lib/sheet-read.mjs`, a small zip-and-XML reader with no dependency
   (SheetJS on npm is unpatched and vulnerable; do not swap it in): every size is capped before it is
   expanded, formulas are never evaluated (the saved value is used), and unclosed XML ends a linear scan
   rather than a regular expression. The rules are in `lib/people-import.mjs`; `lib/people-import-server.ts`
   looks up who exists and writes. Do not give the server module the same base name as the `.mjs` one:
   the bundler resolves `@/lib/people-import` to whichever extension it tries first.
+- Files arrive in every shape, so the layout is read, not assumed (`prepareTable`, shared with
+  `tests/people-import-dirty.test.mjs`, which holds the odd files it was tuned on): the visible sheet whose
+  headings name the most known columns (hidden sheets are skipped); the heading row among the first ten,
+  or none when the first row is a person; columns by heading and then by contents (a column of LinkedIn
+  addresses or emails is one whatever it is called, and contents outvote a heading such as "Contact"
+  full of emails); several columns into one location, skills or note; title plus company as the
+  headline; the link behind a cell or a `HYPERLINK` formula; merged cells filled the way Excel shows
+  them; a one-cell row above each group read as the group's role; "SMITH, Jane" turned round and
+  capitals written normally only when the whole column is like that; a name from the start of a cell
+  that holds everything, or from the email when there is no name column; placeholders, a repeated
+  heading row and a totals row refused as "Not a name". Each reading is one line on the page with one
+  button that reads it the other way; whatever is left over is kept in the person's note unless the
+  recruiter says not to. Nothing is guessed silently.
+- A column that may hold roles (`classifyRoleColumn`) is read as roles without asking only when most of
+  its values are the account's existing roles, or its heading says so ("Applied for", "Vacancy") and it
+  would create no more than ten new roles or 30% of the rows, whichever is fewer. Otherwise - and always
+  for "Role", "Position" or "Job" in a new account - the recruiter is asked what it means, with nothing
+  pre-chosen, before Import is possible. Each role named (`resolveRoleValues`) goes to the one open role
+  of that exact title; two of that title, a closed one, a close spelling or a new name default to no role
+  and offer the choices in one list, so no role is created or attached on a guess. A person on several
+  rows is one person on each of their roles; nobody is put on a role twice. Role ids from the page are
+  checked against the account again when writing.
+- Undo (`undoImport`, `ImportBatch`): every person, role and candidacy an import creates carries its
+  `importBatchId`, and the empty fields it filled are listed on the batch. For 7 days the done screen and
+  People offer Undo import, asked in place. It removes what the import made except people worked on since
+  (moved on from sourced, contacted, screened, booked, given a note, edited or put on a role by hand),
+  who stay and are named; roles go only when nothing else holds them; filled fields are emptied only if
+  unchanged; do-not-contact stays. Undo is not erasure and adds nothing to `Suppression`. The batch is
+  never exported or carried by `scripts/import-accounts.mjs`; it belongs to the database it ran on.
+  `20261015000000_import_batches` adds the table and the three nullable columns (additive); see Hosting
+  for when it was applied.
 - Two steps over one upload. Preview (`previewPeopleImport`) reads the file and reports what would happen,
   writing nothing; Import (`runPeopleImport`) re-reads the same file and trusts nothing the preview said:
-  column choices are filtered to known fields, one column each, and every lookup is repeated. The file is
-  never stored. Rows are matched by member id, then canonical profile link, and by email only for a row
-  with neither - never by name. Anyone in `Suppression` (on any of their identifiers) is skipped, so an
-  erasure cannot be undone by re-importing the list; a repeat within the file is skipped, first row wins.
+  every choice goes through `parseOptions`, and every lookup is repeated. The file is never stored. Rows
+  are matched by member id, then canonical profile link, and by email only for a row with neither - never
+  by name. Anyone in `Suppression` (on any of their identifiers) is skipped, so an erasure cannot be
+  undone by re-importing the list; a repeat within the file is combined with the first row, and any row
+  can be left out from "Check every row".
   Someone already in People is never overwritten: a row can only add do-not-contact (the safe direction;
   any value but a plain no counts) and, if ticked, fill an empty headline, location, skills or email.
 - The page is three steps with one decision each (Choose file, Review, Done), not a long form. Choosing a
@@ -516,9 +548,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   second note); that also keeps `dropIfOrphan` from removing them when their only role goes. The import
   needs the recruiter to tick that they have a legitimate reason to hold these records. The audit event
   `people.imported` and the `people_imported` usage event carry counts only, never names or a file name.
-- `tests/people-import.test.mjs` (reader limits, hostile files, rules; workbooks are built in memory by
-  `tests/xlsx-fixture.mjs`) and `tests/22-people-import.spec.ts` (preview writes nothing, notes,
-  suppression, other accounts, mapping by hand, refused files, orphan guard, read-only view, phone width).
+- `tests/people-import.test.mjs` (reader limits, hostile files, rules), `tests/people-import-dirty.test.mjs`
+  (odd files, each ten fictional people at most, and the role rules; workbooks with sheets, links, merges
+  and formulas are built in memory by `tests/xlsx-fixture.mjs`) and `tests/22-people-import.spec.ts`
+  (preview writes nothing, notes, suppression, other accounts, mapping by hand, the role question, role
+  matching, readings turned off, rows left out, undo and what it keeps, another account's undo refused,
+  refused files, orphan guard, read-only view, phone width).
 - Review list (`privacy`, every plan) at `/people/review`: people with no
   update, contact or candidacy activity for 12 months. "Keep for another year"
   (`keepPerson`) touches the record and writes a nameless `person.kept` audit
@@ -807,6 +842,21 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   received the same two `CREATE TABLE`s in place after a backup copy and a
   rehearsal on another copy, with every existing table's content unchanged.
   The scripts, dump, copies and reports are in ignored `prisma/private-local/`.
+- On 2026-10-14, `20261015000000_import_batches` (`ImportBatch`, nullable
+  `importBatchId` on Person, Role and Candidate) was applied and registered on
+  the hosted database the same way, checked against the reviewed file's
+  SHA-256. Docker Desktop would not start on this Windows build, so the
+  PostgreSQL 17 tools and the disposable rehearsal database ran in WSL Ubuntu
+  from the official PGDG packages instead (`prisma/private-local/verify-db.sh`:
+  a fresh /tmp directory, a Unix socket and no network address, deleted
+  afterwards). The first attempt lost its connection before the backup and
+  committed nothing; the second committed. Every existing table came out
+  unchanged, the new table empty and no row with a batch; Prisma reports 9
+  migrations and no difference. Prisma's connection to the hosted database
+  needed `connect_timeout=30` from this machine. The local account database
+  received the table and the three columns in place (`ADD COLUMN`, not Prisma's
+  SQLite rebuild) after a backup copy and a rehearsal, every existing table's
+  content unchanged and Prisma reporting no difference.
 
 ## Searches and LinkedIn industry filters
 

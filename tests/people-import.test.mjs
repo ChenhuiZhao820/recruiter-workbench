@@ -85,11 +85,11 @@ test("hostile XML with unclosed elements ends quickly", () => {
 // ---- columns ----------------------------------------------------------------
 
 test("guesses columns from common headings, one column for each field", () => {
-  assert.deepEqual(guessMapping(["First Name", "Surname", "LinkedIn URL", "Job Title", "E-mail", "Comments", "DNC", "Favourite colour", "Profile"]), [
+  assert.deepEqual(guessMapping(["First Name", "Surname", "LinkedIn URL", "Job Title", "E-mail", "Comments", "DNC", "Favourite colour", "Profile"], []), [
     "firstName", "lastName", "profileUrl", "headline", "email", "notes", "doNotContact", "", "",
   ]);
-  assert.deepEqual(guessMapping(["Name", "Full name"]), ["fullName", ""]);
-  assert.deepEqual(guessMapping(["", "  "]), ["", ""]);
+  assert.deepEqual(guessMapping(["Name", "Full name"], []), ["fullName", ""]);
+  assert.deepEqual(guessMapping(["", "  "], []), ["", ""]);
 });
 
 test("a mapping from a browser keeps only known fields, once each", () => {
@@ -104,13 +104,13 @@ test("a mapping from a browser keeps only known fields, once each", () => {
 
 const MAP = ["fullName", "profileUrl", "memberId", "headline", "location", "skills", "email", "notes", "doNotContact"];
 const row = (n, cells) => ({ n, cells });
-const clean = (cells, mapping = MAP) => cleanRows([row(2, cells)], mapping)[0];
+const clean = (cells, mapping = MAP) => cleanRows([row(2, cells)], mapping, mapping)[0];
 
 test("cleans a row: tidy text, canonical link, lower-case email", () => {
   const out = clean(["  Ana\u00a0 Test ", "linkedin.com/in/Ana-Test/?trk=x", "ACoAAB12345", " Staff  Engineer ", "Leeds", "Go, SQL", "ANA@Example.Test", "Met at\r\na meetup  ", "no"]);
   assert.deepEqual(
     { ...out, warnings: out.warnings },
-    { n: 2, name: "Ana Test", profileUrl: "https://www.linkedin.com/in/ana-test", memberId: "ACoAAB12345", headline: "Staff Engineer", location: "Leeds", skills: "Go, SQL", email: "ana@example.test", notes: "Met at\na meetup", doNotContact: false, warnings: [], error: null }
+    { n: 2, name: "Ana Test", profileUrl: "https://www.linkedin.com/in/ana-test", memberId: "ACoAAB12345", headline: "Staff Engineer", location: "Leeds", skills: "Go, SQL", email: "ana@example.test", notes: "Met at\na meetup", other: null, roles: [], doNotContact: false, warnings: [], error: null }
   );
 });
 
@@ -160,7 +160,7 @@ test("long free text is capped", () => {
 
 const known = (over = {}) => ({ byMember: new Map(), byUrl: new Map(), byEmail: new Map(), suppressed: new Set(), ...over });
 const person = (id, over = {}) => ({ id, fullName: "Someone", motivation: null, doNotContact: false, headline: null, location: null, skillsSummary: null, email: null, ...over });
-const rows = (cells) => cleanRows(cells.map((c, i) => row(i + 2, c)), MAP);
+const rows = (cells) => cleanRows(cells.map((c, i) => row(i + 2, c)), MAP, MAP);
 const pad = (name, extra = {}) => {
   const cells = [name, "", "", "", "", "", "", "", ""];
   for (const [index, value] of Object.entries(extra)) cells[MAP.indexOf(index)] = value;
@@ -214,7 +214,7 @@ test("a repeat within the file is skipped and the first row wins", () => {
 
 test("totals add up and say who cannot be recognised later", () => {
   const { totals } = classifyRows(rows([pad("A", { profileUrl: "linkedin.com/in/a" }), pad("B"), pad(""), pad("C", { email: "c@example.test" })]), known());
-  assert.deepEqual(totals, { rows: 4, new: 3, existing: 0, suppressed: 0, duplicate: 0, invalid: 1, warned: 0, noLink: 2, doNotContactOnExisting: 0 });
+  assert.deepEqual(totals, { rows: 4, new: 3, existing: 0, suppressed: 0, duplicate: 0, invalid: 1, excluded: 0, warned: 0, noLink: 2, doNotContactOnExisting: 0 });
 });
 
 test("do not contact on someone already there is counted only when it would change something", () => {
@@ -227,7 +227,7 @@ test("do not contact on someone already there is counted only when it would chan
 });
 
 test("gap filling adds to empty fields and never overwrites", () => {
-  const r = cleanRows([row(2, pad("A", { headline: "New headline", location: "Leeds", skills: "Go", email: "a@example.test" }))], MAP)[0];
+  const r = cleanRows([row(2, pad("A", { headline: "New headline", location: "Leeds", skills: "Go", email: "a@example.test" }))], MAP, MAP)[0];
   assert.deepEqual(gapFills(person("x", { headline: "Kept" }), r), { location: "Leeds", skillsSummary: "Go", email: "a@example.test" });
   assert.deepEqual(gapFills(person("x", { headline: "h", location: "l", skillsSummary: "s", email: "e@example.test" }), r), {});
 });

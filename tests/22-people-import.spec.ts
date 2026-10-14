@@ -127,16 +127,16 @@ test("I2 importing the same file again adds nobody and says so", async ({ create
 test("I3 when no column looks like a name it asks, then gaps can be filled without overwriting", async ({ create }) => {
   const owner = await create();
   await db.person.create({ data: { userId: owner.id, fullName: "Eve Test", profileUrl: "https://www.linkedin.com/in/eve-test", headline: "Kept", searchText: "eve test kept" } });
-  const buffer: Buffer = xlsx([["Who", "Page", "Role now", "Town"], ["Eve Test", "linkedin.com/in/eve-test", "Replacement", "Hull"]]);
+  // Nothing here says "name", and a single word does not look like one.
+  const buffer: Buffer = xlsx([["P", "Q", "R", "S"], ["Eve", "linkedin.com/in/eve-test", "Replacement", "Hull"]]);
   await choose(owner.page, buffer, "odd headings.xlsx");
   await expect(owner.page.getByRole("heading", { name: "Which column holds the name?" })).toBeFocused();
-  await expect(owner.page.locator("#import-hint")).toHaveText("Choose the name column first.");
-  await owner.page.getByLabel("Import column Who as").selectOption("fullName");
-  await expect(owner.page.getByRole("heading", { name: "1 person will be added" })).toBeVisible();
-  await owner.page.getByLabel("Import column Page as").selectOption("profileUrl");
+  await expect(owner.page.locator("#import-hint")).toHaveText("Answer the question above to import.");
+  await expect(owner.page.getByLabel("Import column Q as"), "the link column is still recognised by its contents").toHaveValue("profileUrl");
+  await owner.page.getByLabel("Import column P as").selectOption("fullName");
   await expect(owner.page.getByRole("heading", { name: "Nobody new in this file" })).toBeVisible();
-  await owner.page.getByLabel("Import column Role now as").selectOption("headline");
-  await owner.page.getByLabel("Import column Town as").selectOption("location");
+  await owner.page.getByLabel("Import column R as").selectOption("headline");
+  await owner.page.getByLabel("Import column S as").selectOption("location");
   await owner.page.getByLabel(/Also fill empty headline/).check();
   await importNow(owner.page);
   await expect(owner.page.getByRole("heading", { name: "Imported 0 people" })).toBeVisible();
@@ -150,13 +150,191 @@ test("I4 columns can be changed on request and the choice is respected", async (
   const owner = await create();
   await choose(owner.page, xlsx([HEADER, ["Gus Test", "linkedin.com/in/gus-test", "Analyst", "Leeds", "", "", "", ""]]));
   await expect(owner.page.getByRole("heading", { name: "1 person will be added" })).toBeVisible();
-  await expect(owner.page.getByText("Columns read: Full name, Profile link, Headline or job title, Location")).toBeVisible();
+  await expect(owner.page.getByText("Columns read: Full name, Profile link, Current job title, Location")).toBeVisible();
   await owner.page.getByRole("button", { name: "Change columns" }).click();
   await owner.page.getByLabel("Import column Location as").selectOption("");
-  await expect(owner.page.getByText(/Columns read: .*not imported/)).toBeVisible();
+  await expect(owner.page.getByText("Kept in each person's note: Location")).toBeVisible();
+  await owner.page.getByRole("button", { name: "Do not keep" }).click();
+  await expect(owner.page.getByText("Not imported: Location")).toBeVisible();
   await importNow(owner.page);
   await expect(owner.page.getByRole("heading", { name: "Imported 1 person" })).toBeVisible();
-  expect(await db.person.findFirstOrThrow({ where: { userId: owner.id } })).toMatchObject({ fullName: "Gus Test", headline: "Analyst", location: null });
+  const gus = await db.person.findFirstOrThrow({ where: { userId: owner.id }, include: { notes: true } });
+  expect(gus).toMatchObject({ fullName: "Gus Test", headline: "Analyst", location: null });
+  expect(gus.notes.map((note) => note.body).join("\n")).not.toContain("Leeds");
+});
+
+// ---- roles ----------------------------------------------------------------------
+
+test("R1 in a new account a Role column is asked about with nothing chosen, and new roles are created only when picked", async ({ create }) => {
+  const owner = await create();
+  const file: Buffer = xlsx([
+    ["Name", "LinkedIn", "Role"],
+    ["Ann Test", "linkedin.com/in/ann-r1", "ML Engineer"],
+    ["Bob Test", "linkedin.com/in/bob-r1", "ML Engineer"],
+    ["Cy Test", "linkedin.com/in/cy-r1", "Data Lead"],
+  ]);
+  await choose(owner.page, file, "pipeline.xlsx");
+  const question = owner.page.getByRole("group", { name: /What does the .Role. column mean/ });
+  await expect(question).toBeVisible();
+  for (const radio of await question.getByRole("radio").all()) await expect(radio).not.toBeChecked();
+  await expect(owner.page.getByRole("button", { name: "Answer 1 question to import" })).toBeDisabled();
+  await question.getByLabel(/role each person is being considered for/).click();
+  await expect(owner.page.getByLabel("Role for ML Engineer")).toHaveValue("none");
+  await expect(owner.page.getByLabel("Role for Data Lead")).toHaveValue("none");
+  await owner.page.getByLabel("Role for ML Engineer").selectOption("create");
+  await expect(owner.page.locator('[data-count="roles"]')).toHaveText("2");
+  await importNow(owner.page);
+  await expect(owner.page.getByRole("heading", { name: "Imported 3 people" })).toBeVisible();
+  const roles = await db.role.findMany({ where: { userId: owner.id }, include: { candidates: { orderBy: { fullName: "asc" } } } });
+  expect(roles.map((role) => [role.title, role.candidates.map((c) => [c.fullName, c.stage])])).toEqual([["ML Engineer", [["Ann Test", "sourced"], ["Bob Test", "sourced"]]]]);
+  expect(roles[0].importBatchId).not.toBeNull();
+  expect(await db.person.count({ where: { userId: owner.id, fullName: "Cy Test", candidates: { none: {} } } })).toBe(1);
+});
+
+test("R2 role names matching the account's open roles are used without a question, and nobody is put on a role twice", async ({ create }) => {
+  const owner = await create();
+  const role = await db.role.create({ data: { userId: owner.id, title: "Platform Lead" } });
+  await db.role.create({ data: { userId: owner.id, title: "Old Role", status: "closed" } });
+  const kim = await db.person.create({ data: { userId: owner.id, fullName: "Kim Test", profileUrl: "https://www.linkedin.com/in/kim-r2", searchText: "kim test" } });
+  await db.candidate.create({ data: { roleId: role.id, fullName: "Kim Test", personId: kim.id, profileUrl: kim.profileUrl } });
+  const file: Buffer = xlsx([
+    ["Name", "LinkedIn", "Role"],
+    ["Kim Test", "linkedin.com/in/kim-r2", "platform lead"],
+    ["Lou Test", "linkedin.com/in/lou-r2", "Platform  Lead"],
+    ["Max Test", "linkedin.com/in/max-r2", "Old Role"],
+  ]);
+  await choose(owner.page, file);
+  await expect(owner.page.getByRole("group", { name: /What does the/ })).toHaveCount(0);
+  await expect(owner.page.getByText(/.Role. read as the role each person is considered for/)).toBeVisible();
+  await expect(owner.page.getByText("Added to your roles: platform lead (2)")).toBeVisible();
+  await expect(owner.page.getByLabel("Role for Old Role")).toHaveValue("none");
+  await importNow(owner.page);
+  await expect(owner.page.getByRole("heading", { name: "Imported 2 people" })).toBeVisible();
+  const onRole = await db.candidate.findMany({ where: { roleId: role.id }, orderBy: { fullName: "asc" } });
+  expect(onRole.map((c) => c.fullName)).toEqual(["Kim Test", "Lou Test"]);
+  expect(await db.role.count({ where: { userId: owner.id } })).toBe(2);
+});
+
+test("R3 a Role column answered as job titles creates no roles and fills the headline", async ({ create }) => {
+  const owner = await create();
+  await choose(owner.page, xlsx([["Name", "Email", "Role"], ["Nia Test", "nia@example.test", "CTO at Acme"], ["Oz Test", "oz@example.test", "Head of Data"]]));
+  await owner.page.getByRole("group", { name: /What does the/ }).getByLabel("Their current job title").click();
+  await expect(owner.page.getByText(/.Role. read as their current job title/)).toBeVisible();
+  await importNow(owner.page);
+  await expect(owner.page.getByRole("heading", { name: "Imported 2 people" })).toBeVisible();
+  expect(await db.role.count({ where: { userId: owner.id } })).toBe(0);
+  expect((await db.person.findMany({ where: { userId: owner.id }, orderBy: { fullName: "asc" } })).map((p) => p.headline)).toEqual(["CTO at Acme", "Head of Data"]);
+});
+
+// ---- the recruiter's own corrections ---------------------------------------------
+
+test("M1 an odd file is read sensibly, each reading can be turned off, and any row can be left out", async ({ create }) => {
+  const owner = await create();
+  const file = Buffer.from('Our candidates\n\nName,Email,Phone\n"SMITH, Jane",jane@example.test,0777\n"LEE, Tom",tom@example.test,0788\n"WU, Amy",amy@example.test,\n');
+  await choose(owner.page, file, "odd.csv");
+  await expect(owner.page.getByRole("heading", { name: "3 people will be added" })).toBeVisible();
+  await expect(owner.page.getByText("Jane Smith, Tom Lee, Amy Wu")).toBeVisible();
+  await expect(owner.page.getByText("Headings found on row 3; the row above was skipped")).toBeVisible();
+  await expect(owner.page.getByText("Kept in each person's note: Phone")).toBeVisible();
+  await expect(owner.page.getByText(/Names like .SMITH, Jane. are written .Jane Smith./)).toBeVisible();
+  await owner.page.getByRole("button", { name: "Keep as written" }).click();
+  await expect(owner.page.getByText("SMITH, Jane, LEE, Tom, WU, Amy")).toBeVisible();
+  await owner.page.getByRole("button", { name: "Tidy them" }).click();
+  await expect(owner.page.getByText("Jane Smith, Tom Lee, Amy Wu")).toBeVisible();
+  await owner.page.getByText("Check every row (3)").click();
+  await owner.page.getByLabel("Import row 5").uncheck();
+  await expect(owner.page.getByRole("heading", { name: "2 people will be added" })).toBeVisible();
+  await expect(owner.page.locator('[data-count="excluded"]')).toHaveText("1");
+  await importNow(owner.page);
+  await expect(owner.page.getByRole("heading", { name: "Imported 2 people" })).toBeVisible();
+  const people = await db.person.findMany({ where: { userId: owner.id }, include: { notes: true }, orderBy: { fullName: "asc" } });
+  expect(people.map((p) => p.fullName), "row 5 (Tom) was left out").toEqual(["Amy Wu", "Jane Smith"]);
+  expect(people[1].notes.map((n) => n.body)).toContain("Also in the file:\nPhone: 0777");
+});
+
+// ---- afterwards -------------------------------------------------------------------
+
+test("U1 an import can be undone; people worked on since are kept and named, and do-not-contact stays", async ({ create }) => {
+  const owner = await create();
+  const existing = await db.person.create({ data: { userId: owner.id, fullName: "Pat Test", profileUrl: "https://www.linkedin.com/in/pat-u1", searchText: "pat test" } });
+  const file: Buffer = xlsx([
+    ["Name", "LinkedIn", "Vacancy", "Location", "DNC"],
+    ["Ray Test", "linkedin.com/in/ray-u1", "Undo Role", "Leeds", ""],
+    ["Sue Test", "linkedin.com/in/sue-u1", "Undo Role", "York", ""],
+    ["Pat Test", "linkedin.com/in/pat-u1", "", "Hull", "yes"],
+  ]);
+  await choose(owner.page, file, "undo.xlsx");
+  await owner.page.getByLabel("Role for Undo Role").selectOption("create");
+  await owner.page.getByLabel(/Also fill empty headline/).check();
+  await importNow(owner.page);
+  await expect(owner.page.getByRole("heading", { name: "Imported 2 people" })).toBeVisible();
+  expect(await db.person.findUniqueOrThrow({ where: { id: existing.id } })).toMatchObject({ location: "Hull", doNotContact: true });
+
+  // Sue is contacted after the import, so undo leaves her where she is.
+  const sue = await db.person.findFirstOrThrow({ where: { userId: owner.id, fullName: "Sue Test" }, include: { candidates: true } });
+  await db.candidate.update({ where: { id: sue.candidates[0].id }, data: { stage: "contacted" } });
+
+  await owner.page.getByRole("button", { name: "Undo import" }).click();
+  await expect(owner.page.getByText(/This removes the 2 people and 1 role this import added/)).toBeVisible();
+  await owner.page.getByRole("button", { name: "Undo import" }).click();
+  await expect(owner.page.getByText("Import undone.")).toBeVisible();
+  await expect(owner.page.getByText("Kept because you have worked with them since: Sue Test.")).toBeVisible();
+
+  expect(await db.person.count({ where: { userId: owner.id, fullName: "Ray Test" } })).toBe(0);
+  expect(await db.person.count({ where: { userId: owner.id, fullName: "Sue Test" } })).toBe(1);
+  expect(await db.role.count({ where: { userId: owner.id, title: "Undo Role" } }), "the role keeps Sue, so it stays").toBe(1);
+  expect(await db.person.findUniqueOrThrow({ where: { id: existing.id } })).toMatchObject({ location: null, doNotContact: true });
+  expect(await db.suppression.count({ where: { userId: owner.id } }), "undo is not erasure").toBe(0);
+  expect(await db.auditEvent.count({ where: { actorId: owner.id, action: "people.import_undone" } })).toBe(1);
+  expect((await db.importBatch.findFirstOrThrow({ where: { userId: owner.id } })).undoneAt).not.toBeNull();
+});
+
+test("U2 People offers the undo for a week, then stops; an undone import cannot be undone again", async ({ create }) => {
+  const owner = await create();
+  await choose(owner.page, xlsx([HEADER, ["Vic Test", "linkedin.com/in/vic-u2", "", "", "", "", "", ""]]), "week.xlsx");
+  await importNow(owner.page);
+  await expect(owner.page.getByRole("heading", { name: "Imported 1 person" })).toBeVisible();
+  await owner.page.goto("/people");
+  await expect(owner.page.getByText(/Imported 1 person from week.xlsx/)).toBeVisible();
+  const batch = await db.importBatch.findFirstOrThrow({ where: { userId: owner.id } });
+  await db.importBatch.update({ where: { id: batch.id }, data: { createdAt: new Date(Date.now() - 8 * 86_400_000) } });
+  await owner.page.reload();
+  await expect(owner.page.getByText(/Imported 1 person from week.xlsx/)).toHaveCount(0);
+  await db.importBatch.update({ where: { id: batch.id }, data: { createdAt: new Date() } });
+  await owner.page.reload();
+  await owner.page.getByRole("button", { name: "Undo import" }).click();
+  await owner.page.getByRole("button", { name: "Undo import" }).click();
+  await expect(owner.page.getByText("Import undone.")).toBeVisible();
+  expect(await db.person.count({ where: { userId: owner.id } })).toBe(0);
+  await owner.page.reload();
+  await expect(owner.page.getByRole("button", { name: "Undo import" })).toHaveCount(0);
+});
+
+test("U3 another account's import cannot be undone, and a read-only view is offered no undo", async ({ create }) => {
+  const owner = await create();
+  const other = await create();
+  await choose(owner.page, xlsx([HEADER, ["Wes Test", "linkedin.com/in/wes-u3", "", "", "", "", "", ""]]), "mine.xlsx");
+  await importNow(owner.page);
+  await expect(owner.page.getByRole("heading", { name: "Imported 1 person" })).toBeVisible();
+  const batch = await db.importBatch.findFirstOrThrow({ where: { userId: owner.id } });
+  // The other account sees no undo for it, and sending the owner's batch id
+  // through its own undo form (the real server action) finds nothing.
+  await other.page.goto("/people");
+  await expect(other.page.getByRole("button", { name: "Undo import" })).toHaveCount(0);
+  await choose(other.page, xlsx([HEADER, ["Xia Test", "linkedin.com/in/xia-u3", "", "", "", "", "", ""]]), "theirs.xlsx");
+  await importNow(other.page);
+  await expect(other.page.getByRole("heading", { name: "Imported 1 person" })).toBeVisible();
+  await other.page.getByRole("button", { name: "Undo import" }).click();
+  await other.page.locator('input[name="batchId"]').evaluate((input, id) => { (input as HTMLInputElement).value = id; }, batch.id);
+  await other.page.getByRole("button", { name: "Undo import" }).click();
+  await expect(other.page.locator("p[role=alert]")).toContainText("can no longer be undone");
+  expect(await db.person.count({ where: { userId: owner.id } })).toBe(1);
+  expect((await db.importBatch.findUniqueOrThrow({ where: { id: batch.id } })).undoneAt).toBeNull();
+  expect(await db.person.count({ where: { userId: other.id } }), "their own import is untouched too").toBe(1);
+  const admin = await create("admin");
+  await db.session.update({ where: { tokenHash: admin.session }, data: { viewUserId: owner.id } });
+  await admin.page.goto("/people");
+  await expect(admin.page.getByRole("button", { name: "Undo import" })).toHaveCount(0);
 });
 
 test("I5 files that cannot be read are refused with a plain message, focus goes to it, and nothing is written", async ({ create }) => {

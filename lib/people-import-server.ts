@@ -18,6 +18,7 @@ export type Preview = {
   sample: string[];
   mapping: string[];
   needsName: boolean;
+  newNames: string[];
   totals: Record<string, number>;
   rows: PreviewRow[];
 };
@@ -68,6 +69,7 @@ export async function analyse(ownerId: string, bytes: Uint8Array, rawMapping: un
     sample: Array.from({ length: columns }, (_, i) => (rows[1].cells[i] ?? "").slice(0, 60)),
     mapping,
     needsName,
+    newNames: decided.filter((row) => row.status === "new").slice(0, 5).map((row) => row.name),
     totals: needsName ? { ...totals, rows: rows.length - 1 } : totals,
     rows: decided.map(({ n, name, status, reason, warnings }) => ({ n, name, status, reason, warnings })),
     decided,

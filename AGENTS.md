@@ -500,6 +500,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   erasure cannot be undone by re-importing the list; a repeat within the file is skipped, first row wins.
   Someone already in People is never overwritten: a row can only add do-not-contact (the safe direction;
   any value but a plain no counts) and, if ticked, fill an empty headline, location, skills or email.
+- The page is three steps with one decision each (Choose file, Review, Done), not a long form. Choosing a
+  file reads it and moves straight to Review, which answers one question - "N people will be added" -
+  with the first five names, what else happens (only non-zero lines) and one commit card: the
+  legitimate-reason box, the button and, when it is off, a visible reason beside it. The columns are not
+  shown unless no column looks like a name or the recruiter presses Change columns; "fill empty fields"
+  appears only when someone in the file already exists. Each new screen takes focus at its heading and
+  results are announced through a status region; the lists are lists, not tables, so a phone needs no
+  sideways scroll, and the commit card sticks to the bottom of a small screen. The disabled state of
+  `.btn-primary`, `.btn-secondary` and `.btn-quiet` is now at least 4.5:1 (it was 1.5:1 for the primary).
 - Imported people carry identity and description only. Salary, notice and right to work are not
   imported: they count in search only once confirmed on a screening, and a cell is not a confirmation.
   An imported email has `emailSource: "import"` and no consent date; Capture never sends email anyway.

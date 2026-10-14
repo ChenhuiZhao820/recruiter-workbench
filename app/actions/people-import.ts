@@ -36,8 +36,8 @@ export async function previewPeopleImport(form: FormData): Promise<ImportState> 
   const input = await read(form);
   if ("error" in input) return { error: input.error };
   try {
-    const { header, sample, mapping, needsName, totals, rows } = await analyse(user.id, input.bytes, input.mapping);
-    return { preview: { header, sample, mapping, needsName, totals, rows } };
+    const { header, sample, mapping, needsName, newNames, totals, rows } = await analyse(user.id, input.bytes, input.mapping);
+    return { preview: { header, sample, mapping, needsName, newNames, totals, rows } };
   } catch (error) {
     if (error instanceof SheetError) return { error: error.message };
     throw error;

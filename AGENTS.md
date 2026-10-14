@@ -521,9 +521,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   who stay and are named; roles go only when nothing else holds them; filled fields are emptied only if
   unchanged; do-not-contact stays. Undo is not erasure and adds nothing to `Suppression`. The batch is
   never exported or carried by `scripts/import-accounts.mjs`; it belongs to the database it ran on.
-  `20261015000000_import_batches` adds the table and the three nullable columns (additive). It must be
-  applied to the hosted database, with approval and the usual backup and rehearsal, before a version
-  that uses it reaches `main`: Render deploys `main` straight away.
+  `20261015000000_import_batches` adds the table and the three nullable columns (additive); see Hosting
+  for when it was applied.
 - Two steps over one upload. Preview (`previewPeopleImport`) reads the file and reports what would happen,
   writing nothing; Import (`runPeopleImport`) re-reads the same file and trusts nothing the preview said:
   every choice goes through `parseOptions`, and every lookup is repeated. The file is never stored. Rows
@@ -843,6 +842,21 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   received the same two `CREATE TABLE`s in place after a backup copy and a
   rehearsal on another copy, with every existing table's content unchanged.
   The scripts, dump, copies and reports are in ignored `prisma/private-local/`.
+- On 2026-10-14, `20261015000000_import_batches` (`ImportBatch`, nullable
+  `importBatchId` on Person, Role and Candidate) was applied and registered on
+  the hosted database the same way, checked against the reviewed file's
+  SHA-256. Docker Desktop would not start on this Windows build, so the
+  PostgreSQL 17 tools and the disposable rehearsal database ran in WSL Ubuntu
+  from the official PGDG packages instead (`prisma/private-local/verify-db.sh`:
+  a fresh /tmp directory, a Unix socket and no network address, deleted
+  afterwards). The first attempt lost its connection before the backup and
+  committed nothing; the second committed. Every existing table came out
+  unchanged, the new table empty and no row with a batch; Prisma reports 9
+  migrations and no difference. Prisma's connection to the hosted database
+  needed `connect_timeout=30` from this machine. The local account database
+  received the table and the three columns in place (`ADD COLUMN`, not Prisma's
+  SQLite rebuild) after a backup copy and a rehearsal, every existing table's
+  content unchanged and Prisma reporting no difference.
 
 ## Searches and LinkedIn industry filters
 

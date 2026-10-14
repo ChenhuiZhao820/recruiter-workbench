@@ -25,7 +25,7 @@ const tables = ["User", "ExtensionAccess", "Role", "Person", "MessageTemplate", 
 const ephemeralTables = ["Session", "ActivationToken", "LoginThrottle"];
 // Accepted in a source, never copied: calendar tokens, AI counters and
 // booked-slot locks (rebuilt from bookings).
-const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot"];
+const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch"];
 // Tables a source written before them may lack.
 const optionalTables = ["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "PersonNote"];
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
@@ -333,6 +333,61 @@ test("SQLite sources from before saved search links project null and import safe
   assert.deepEqual(await readFile(path), before);
 });
 
+test("SQLite sources from before People import batches project null and import safely", async () => {
+  const path = join(directory, "pre-import-batch-source.db");
+  await copyFile(sourcePath, path);
+  const sqlite = new DatabaseSync(path);
+  try {
+    // SQLite cannot drop a column a foreign key names, so each table is
+    // rebuilt from its own definition without that column and constraint.
+    // legacy_alter_table keeps other tables' foreign keys pointing at the
+    // original name while it is briefly renamed.
+    sqlite.exec("PRAGMA foreign_keys = OFF");
+    sqlite.exec("PRAGMA legacy_alter_table = ON");
+    for (const table of ["Person", "Role", "Candidate"]) {
+      const { sql } = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+      const lines = sql.split("\n").filter((line) => !line.includes("importBatchId"));
+      lines[lines.length - 2] = lines[lines.length - 2].replace(/,\s*$/, "");
+      const kept = sqlite.prepare(`PRAGMA table_info("${table}")`).all().map((column) => `"${column.name}"`).filter((name) => name !== '"importBatchId"').join(", ");
+      const indexes = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL").all(table).map((row) => row.sql);
+      sqlite.exec(`ALTER TABLE "${table}" RENAME TO "${table}_old"`);
+      sqlite.exec(lines.join("\n"));
+      sqlite.exec(`INSERT INTO "${table}" (${kept}) SELECT ${kept} FROM "${table}_old"`);
+      sqlite.exec(`DROP TABLE "${table}_old"`);
+      for (const index of indexes) sqlite.exec(index);
+    }
+    sqlite.exec('DROP TABLE IF EXISTS "ImportBatch"');
+  } finally { sqlite.close(); }
+  const legacy = await readAccounts(path);
+  for (const table of ["Person", "Role", "Candidate"]) for (const row of legacy[table]) assert.equal(row.importBatchId, null);
+  await withTarget(async (db) => {
+    await importAccounts(db, legacy, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, legacy, adminEmail);
+    assert.equal(await db.importBatch.count(), 0);
+  });
+});
+
+test("an import batch in the source is never carried across, and what it created arrives unlinked", async () => {
+  const path = join(directory, "import-batch-source.db");
+  await copyFile(sourcePath, path);
+  const sqlite = new DatabaseSync(path);
+  try {
+    const person = sqlite.prepare('SELECT "id", "userId" FROM "Person" LIMIT 1').get();
+    if (person) {
+      sqlite.prepare('INSERT INTO "ImportBatch" ("id", "userId", "fileName", "createdCount", "roleCount", "fills", "createdAt") VALUES (?, ?, ?, 1, 0, ?, ?)').run("fixture-batch", person.userId, "fixture.xlsx", "[]", Date.now());
+      sqlite.prepare('UPDATE "Person" SET "importBatchId" = ? WHERE "id" = ?').run("fixture-batch", person.id);
+    }
+  } finally { sqlite.close(); }
+  const legacy = await readAccounts(path);
+  for (const row of legacy.Person) assert.equal(row.importBatchId, null);
+  await withTarget(async (db) => {
+    await importAccounts(db, legacy, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, legacy, adminEmail);
+    assert.equal(await db.importBatch.count(), 0);
+    assert.equal(await db.person.count({ where: { importBatchId: { not: null } } }), 0);
+  });
+});
+
 test("a saved search link survives projection, snapshot and import unchanged", async () => {
   const stored = source.SavedSearch.map((row) => row.searchUrl);
   assert.ok(stored.every((value) => typeof value === "string" && value.startsWith("https://www.linkedin.com/talent/")));
@@ -531,6 +586,7 @@ test("every nonempty target model is refused without modifying existing rows", a
     IntegrationConnection: { userId: "fixture-user-admin", provider: "notion", tokenCipher: "x", label: "", connectedAt: createdAt.getTime() },
     AiUsage: { userId: "fixture-user-admin", month: "2025-01", generations: 1 },
     BookedSlot: { userId: "fixture-user-admin", startsAt: updatedAt.getTime(), bookingId: "fixture-booking-admin" },
+    ImportBatch: { id: "fixture-import-batch", userId: "fixture-user-admin", fileName: "fixture.xlsx", createdCount: 0, roleCount: 0, fills: "[]", createdAt: createdAt.getTime() },
   };
   for (const table of [...tables, ...ephemeralTables, ...notImportedTables]) await t.test(table, async () => {
     await withTarget(async (db) => {

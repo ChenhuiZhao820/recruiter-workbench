@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireFeature } from "@/lib/feature-access";
 import { PeopleImportForm } from "@/components/PeopleImportForm";
-import { FIELD_LABELS, IMPORT_FIELDS } from "@/lib/people-import-fields.mjs";
+import { undoUntil } from "@/lib/people-import-fields.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -25,17 +25,7 @@ export default async function ImportPeoplePage() {
       {readOnly ? (
         <p className="section-caption">Return to your own workspace to import people.</p>
       ) : (
-        <>
-          <PeopleImportForm />
-          <details className="text-sm">
-            <summary className="cursor-pointer text-ink-soft">What is and is not imported</summary>
-            <div className="mt-3 space-y-2 text-ink-soft">
-              <p>Read from your file: {IMPORT_FIELDS.map((field: string) => FIELD_LABELS[field as keyof typeof FIELD_LABELS].toLowerCase()).join(", ")}.</p>
-              <p>People are recognised by LinkedIn member id, then by profile link, and never by name, so two people who share a name stay apart. Nobody is contacted or looked up on LinkedIn, and the file itself is not kept.</p>
-              <p>Salary, notice period and right to work are not imported: they count in search only once confirmed on a screening.</p>
-            </div>
-          </details>
-        </>
+        <PeopleImportForm until={undoUntil(new Date())} />
       )}
     </div>
   );

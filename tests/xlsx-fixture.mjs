@@ -67,3 +67,35 @@ export function xlsx(rows, { shared = true, sheetName = "People" } = {}) {
     "xl/worksheets/sheet1.xml": `<worksheet><sheetData>${body}</sheetData></worksheet>`,
   });
 }
+
+// A workbook with several sheets, each optionally hidden, with cells linked
+// to addresses (the way a name is often linked to a profile), merged ranges
+// and formula cells: `{ value, formula }` saves both, like Excel does.
+export function workbook(sheets) {
+  const strings = [];
+  const files = { "[Content_Types].xml": "<Types/>" };
+  const workbookSheets = [];
+  const workbookRels = [];
+  sheets.forEach((sheet, index) => {
+    const n = index + 1;
+    const cell = (value, c, r) => {
+      const ref = `${letters(c)}${r}`;
+      if (value === null || value === undefined || value === "") return `<c r="${ref}"/>`;
+      if (typeof value === "object") return `<c r="${ref}" t="str"><f>${esc(value.formula)}</f><v>${esc(value.value)}</v></c>`;
+      if (typeof value === "number") return `<c r="${ref}"><v>${value}</v></c>`;
+      strings.push(value);
+      return `<c r="${ref}" t="s"><v>${strings.length - 1}</v></c>`;
+    };
+    const body = sheet.rows.map((cells, r) => `<row r="${r + 1}">${cells.map((value, c) => cell(value, c, r + 1)).join("")}</row>`).join("");
+    const links = Object.entries(sheet.links ?? {});
+    const merges = sheet.merges ?? [];
+    files[`xl/worksheets/sheet${n}.xml`] = `<worksheet><sheetData>${body}</sheetData>${merges.length ? `<mergeCells count="${merges.length}">${merges.map((ref) => `<mergeCell ref="${ref}"/>`).join("")}</mergeCells>` : ""}${links.length ? `<hyperlinks>${links.map(([ref], i) => `<hyperlink ref="${ref}" r:id="rIdL${i}"/>`).join("")}</hyperlinks>` : ""}</worksheet>`;
+    if (links.length) files[`xl/worksheets/_rels/sheet${n}.xml.rels`] = `<Relationships>${links.map(([, url], i) => `<Relationship Id="rIdL${i}" Type="hyperlink" Target="${esc(url)}" TargetMode="External"/>`).join("")}</Relationships>`;
+    workbookSheets.push(`<sheet name="${esc(sheet.name ?? `Sheet${n}`)}" sheetId="${n}"${sheet.hidden ? ' state="hidden"' : ""} r:id="rIdS${n}"/>`);
+    workbookRels.push(`<Relationship Id="rIdS${n}" Type="worksheet" Target="worksheets/sheet${n}.xml"/>`);
+  });
+  files["xl/workbook.xml"] = `<workbook xmlns:r="x"><sheets>${workbookSheets.join("")}</sheets></workbook>`;
+  files["xl/_rels/workbook.xml.rels"] = `<Relationships>${workbookRels.join("")}</Relationships>`;
+  files["xl/sharedStrings.xml"] = `<sst>${strings.map((s) => `<si><t>${esc(s)}</t></si>`).join("")}</sst>`;
+  return zip(files);
+}

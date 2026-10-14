@@ -9,6 +9,9 @@ import { FRESH_MONTHS, REMOTE_FILTERS, RTW_FILTERS, factsAreStale, hasFactFilter
 import { peopleWhere } from "@/lib/people-search";
 import { PeopleSearchBox } from "@/components/PeopleSearchBox";
 import { FilterSummary } from "@/components/FilterSummary";
+import { ImportUndo } from "@/components/ImportUndo";
+import { recentBatch } from "@/lib/people-import-server";
+import { undoUntil } from "@/lib/people-import-fields.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +42,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
   const where = peopleWhere(owner.id, filters, features.peopleSearch, now);
 
   const cutoff = reviewCutoff(now);
+  const lastImport = features.peopleImport && !readOnly ? await recentBatch(owner.id) : null;
   const [found, total, toReview] = await Promise.all([
     db.person.findMany({
       where,
@@ -91,6 +95,10 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
           </div>
         )}
       </header>
+
+      {lastImport && (
+        <ImportUndo key={lastImport.id} compact batchId={lastImport.id} fileName={lastImport.fileName} people={lastImport.createdCount} roles={lastImport.roleCount} until={undoUntil(lastImport.createdAt)} undone={Boolean(lastImport.undoneAt)} />
+      )}
 
       {searchParams.deleted === "1" && (
         <p role="status" className="auth-success mb-6">

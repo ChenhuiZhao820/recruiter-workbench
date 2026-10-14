@@ -3,32 +3,41 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { requireWritableFeature } from "@/lib/feature-access";
-import { analyse, applyImport, type ImportResult, type Preview } from "@/lib/people-import-server";
+import { analyse, applyImport, parseOptions, undoImport, type Analysis, type ImportResult, type Preview, type UndoResult } from "@/lib/people-import-server";
 import { MAX_FILE_BYTES, SheetError } from "@/lib/sheet-read.mjs";
 
 export type ImportState = { error?: string; preview?: Preview; result?: ImportResult };
+export type UndoState = { error?: string; undo?: UndoResult };
 
 // Two steps over the same file: Preview reads it and says what would happen,
 // writing nothing; Import reads it again from the same upload and writes. The
 // second step trusts nothing the first one said: it re-reads the file, takes
-// the column choices as a list of known field names and looks up who already
-// exists again, so a page that was edited in the browser cannot import more
-// than the file holds.
+// every choice made on the page through parseOptions and looks up people and
+// roles again, so a page that was edited in the browser cannot import more
+// than the file holds or attach anyone to another account's role.
 
 async function read(form: FormData) {
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose an Excel (.xlsx) or CSV file first." } as const;
   if (file.size > MAX_FILE_BYTES) return { error: `That file is larger than ${MAX_FILE_BYTES / 1024 / 1024} MB. Split it into smaller files.` } as const;
-  let mapping: unknown = null;
-  const raw = form.get("mapping");
-  if (typeof raw === "string" && raw) {
+  let options: unknown = null;
+  const raw = form.get("options");
+  if (typeof raw === "string" && raw.length <= 200_000) {
     try {
-      mapping = JSON.parse(raw);
+      options = JSON.parse(raw);
     } catch {
-      mapping = null;
+      options = null;
     }
   }
-  return { bytes: new Uint8Array(await file.arrayBuffer()), mapping, fileName: file.name } as const;
+  return { bytes: new Uint8Array(await file.arrayBuffer()), options: parseOptions(options), fileName: file.name } as const;
+}
+
+function toPreview(analysis: Analysis): Preview {
+  const { decided: _decided, placements: _placements, createRoles: _createRoles, ...preview } = analysis;
+  void _decided;
+  void _placements;
+  void _createRoles;
+  return preview;
 }
 
 export async function previewPeopleImport(form: FormData): Promise<ImportState> {
@@ -36,8 +45,7 @@ export async function previewPeopleImport(form: FormData): Promise<ImportState> 
   const input = await read(form);
   if ("error" in input) return { error: input.error };
   try {
-    const { header, sample, mapping, needsName, newNames, totals, rows } = await analyse(user.id, input.bytes, input.mapping);
-    return { preview: { header, sample, mapping, needsName, newNames, totals, rows } };
+    return { preview: toPreview(await analyse(user.id, input.bytes, input.options)) };
   } catch (error) {
     if (error instanceof SheetError) return { error: error.message };
     throw error;
@@ -50,8 +58,9 @@ export async function runPeopleImport(form: FormData): Promise<ImportState> {
   const input = await read(form);
   if ("error" in input) return { error: input.error };
   try {
-    const analysis = await analyse(user.id, input.bytes, input.mapping);
+    const analysis = await analyse(user.id, input.bytes, input.options);
     if (analysis.needsName) return { error: "Choose which column holds the name." };
+    if (analysis.questions > 0) return { error: "Answer the question above before importing." };
     const result = await applyImport(user.id, analysis, { fileName: input.fileName, fillGaps: form.get("fillGaps") === "on" });
     revalidatePath("/", "layout");
     return { result };
@@ -64,4 +73,13 @@ export async function runPeopleImport(form: FormData): Promise<ImportState> {
     }
     throw error;
   }
+}
+
+export async function undoPeopleImport(_state: UndoState, form: FormData): Promise<UndoState> {
+  const user = await requireWritableFeature("peopleImport");
+  const batchId = String(form.get("batchId") ?? "");
+  const undo = batchId ? await undoImport(user.id, batchId) : null;
+  if (!undo) return { error: "That import can no longer be undone. People can still be deleted one by one from their page." };
+  revalidatePath("/", "layout");
+  return { undo };
 }

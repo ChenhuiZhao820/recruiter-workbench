@@ -33,6 +33,7 @@ model User {
   usageEvents      UsageEvent[]
   integrations     IntegrationConnection[]
   suppressions     Suppression[]
+  importBatches    ImportBatch[]
 }
 
 model ExtensionAccess {
@@ -102,6 +103,9 @@ model Role {
   briefing    Briefing?
   candidates  Candidate[]
   searches    SavedSearch[]
+  // Set when a People import created this role, so the import can be undone.
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -174,6 +178,9 @@ model Candidate {
   screenings     Screening[]
   bookings       Booking[]
   personNotes    PersonNote[]
+  // Set when a People import created this candidacy, so the import can be undone.
+  importBatchId  String?
+  importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -274,6 +281,9 @@ model Person {
   lastContactAt    DateTime?
   candidates       Candidate[]
   notes            PersonNote[]
+  // Set when a People import created this person, so the import can be undone.
+  importBatchId    String?
+  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -406,4 +416,28 @@ model Suppression {
   createdAt DateTime @default(now())
 
   @@id([userId, keyHash])
+}
+
+// One People import, kept so it can be undone for a while. It records what the
+// import created (through importBatchId on Person, Role and Candidate) and,
+// in `fills`, the empty fields it filled on people already there, as JSON
+// [{ "id": personId, "fields": { "headline": "..." } }], so undo can empty a
+// field again if it still holds what the import put there. Never exported or
+// carried between databases: an undo belongs to the deployment it ran on.
+model ImportBatch {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName     String
+  createdCount Int         @default(0)
+  roleCount    Int         @default(0)
+  fills        String      @default("[]")
+  createdAt    DateTime    @default(now())
+  completedAt  DateTime?
+  undoneAt     DateTime?
+  people       Person[]
+  roles        Role[]
+  candidates   Candidate[]
+
+  @@index([userId, createdAt])
 }

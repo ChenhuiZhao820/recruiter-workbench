@@ -20,7 +20,7 @@ function revalidateCandidate(roleId: string) {
 async function dropIfOrphan(personId: string | null) {
   if (!personId) return;
   await db.person.deleteMany({
-    where: { id: personId, candidates: { none: {} }, factsConfirmedAt: null, email: null, doNotContact: false },
+    where: { id: personId, candidates: { none: {} }, notes: { none: {} }, factsConfirmedAt: null, email: null, doNotContact: false },
   });
 }
 

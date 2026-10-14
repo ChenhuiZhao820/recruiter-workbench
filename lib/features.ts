@@ -7,6 +7,7 @@ import { canUseProFeatures, type TierAccount } from "./account-tiers";
 // Moving a feature between tiers is a change to one line here.
 export const FEATURE_TIERS = {
   people: "basic",          // person records and the people list by name
+  peopleImport: "basic",    // bringing people in from an Excel or CSV file
   privacy: "basic",         // delete, do not contact, suppression
   export: "basic",          // full data export
   booking: "basic",         // booking page and its settings

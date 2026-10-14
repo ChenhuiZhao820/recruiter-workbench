@@ -295,7 +295,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   carries it, the summary keeps its quotes, and a failed or capped summary
   leaves no draft behind rather than a saved copy.
 - The form opens on "Add meeting note or transcript" (or an upload, or a saved
-  draft) rather than showing an empty box. While the summary runs, a bar paced
+  draft) rather than showing an empty box. "Fold away" closes it again and
+  keeps the text in the form, and the button then says a note is there.
+  "Save to their record" (`intent=save` on `summariseScreening`) keeps the
+  text as a `PersonNote` on the person, with the role it was written for,
+  for good - no model call, no cap claim, no screening row, no 30 days. It is
+  refused while "Don't keep" is ticked and when the candidate has no person
+  yet; the box then empties and folds. While the summary runs, a bar paced
   to the usual time names the stage and stays full until the facts appear. Its
   ticking writes to the page through refs: setting React state while the form
   is pending ends `useFormStatus` early in this React version.
@@ -445,6 +451,74 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   on the person page (`setRevisit`). Follow-ups lists "Due to revisit" within a
   week or overdue, excluding do not contact. Computed on page load; no
   scheduler, no email.
+- Notes (`people`, every plan): a person's page lists their `PersonNote`s,
+  newest first, with the role a note was saved from, and takes new ones
+  (`addPersonNote`). Notes are the recruiter's own record and have no expiry:
+  they go when deleted (`deletePersonNote`, with a confirmation) or when the
+  person is erased (cascade). The same text saved to the same person within a
+  minute is one save. Shared rules are in `lib/notes.ts` (server only, never a
+  "use server" export, because it takes an owner id). Notes are exported as
+  their own table and imported by `scripts/import-accounts.mjs`; a note on
+  another account's candidate is refused. Read-only views show notes but
+  cannot add or delete them.
+- Import from Notion (part of `screening`): Notion is offered only when the
+  server has `NOTION_CLIENT_ID`/`NOTION_CLIENT_SECRET` and a
+  `CALENDAR_TOKEN_KEY`, and shown by Notion's own logo (`NotionLogo`, inline
+  SVG). `/api/notion/connect` sends the signed-in account (never a read-only
+  view) to Notion's sign-in and page picker with a signed ten-minute state;
+  where to come back to is a short-lived cookie limited by `safeReturn` to a
+  screening page or Settings. `/api/notion/callback` keeps the connection only
+  when the state names the same account, storing access and refresh tokens
+  encrypted in `IntegrationConnection`. Search (`/api/notion/pages`) and one
+  page as text (`/api/notion/pages/[id]`) are server-side, read-only, on a
+  click, Notion-Version `2026-03-11`; an expired token is refreshed once, and
+  failures ask to reconnect. `lib/notion-core.mjs` turns blocks into lines,
+  including a `meeting_notes` block's summary, notes and transcript; images and
+  unsupported blocks are skipped and text past 60,000 characters is cut with a
+  warning. The text lands in the box for the recruiter to read first; nothing
+  from Notion is stored until they summarise or save. Settings > Connected
+  apps shows the connection and Disconnect, which deletes the tokens (Notion
+  has no revoke endpoint). `IntegrationConnection` is never exported or
+  imported. `tests/20-notes-notion.spec.ts` plays Notion through the local stub
+  (`CAPTURE_TEST_NOTION_BASE_URL`, outside production only);
+  `tests/notion.test.mjs` covers the state, the return path and the blocks.
+- `20261006000000_person_notes_integrations` adds both tables (additive); see
+  Hosting for when it was applied.
+- Import from a spreadsheet (`peopleImport`, every plan) at `/people/import`, from the Import people
+  button on People: an `.xlsx` (first sheet) or `.csv`, first row the column names, 4 MB and 2,000
+  people at most. The reader is `lib/sheet-read.mjs`, a small zip-and-XML reader with no dependency
+  (SheetJS on npm is unpatched and vulnerable; do not swap it in): every size is capped before it is
+  expanded, formulas are never evaluated (the saved value is used), and unclosed XML ends a linear scan
+  rather than a regular expression. The rules are in `lib/people-import.mjs`; `lib/people-import-server.ts`
+  looks up who exists and writes. Do not give the server module the same base name as the `.mjs` one:
+  the bundler resolves `@/lib/people-import` to whichever extension it tries first.
+- Two steps over one upload. Preview (`previewPeopleImport`) reads the file and reports what would happen,
+  writing nothing; Import (`runPeopleImport`) re-reads the same file and trusts nothing the preview said:
+  column choices are filtered to known fields, one column each, and every lookup is repeated. The file is
+  never stored. Rows are matched by member id, then canonical profile link, and by email only for a row
+  with neither - never by name. Anyone in `Suppression` (on any of their identifiers) is skipped, so an
+  erasure cannot be undone by re-importing the list; a repeat within the file is skipped, first row wins.
+  Someone already in People is never overwritten: a row can only add do-not-contact (the safe direction;
+  any value but a plain no counts) and, if ticked, fill an empty headline, location, skills or email.
+- The page is three steps with one decision each (Choose file, Review, Done), not a long form. Choosing a
+  file reads it and moves straight to Review, which answers one question - "N people will be added" -
+  with the first five names, what else happens (only non-zero lines) and one commit card: the
+  legitimate-reason box, the button and, when it is off, a visible reason beside it. The columns are not
+  shown unless no column looks like a name or the recruiter presses Change columns; "fill empty fields"
+  appears only when someone in the file already exists. Each new screen takes focus at its heading and
+  results are announced through a status region; the lists are lists, not tables, so a phone needs no
+  sideways scroll, and the commit card sticks to the bottom of a small screen. The disabled state of
+  `.btn-primary`, `.btn-secondary` and `.btn-quiet` is now at least 4.5:1 (it was 1.5:1 for the primary).
+- Imported people carry identity and description only. Salary, notice and right to work are not
+  imported: they count in search only once confirmed on a screening, and a cell is not a confirmation.
+  An imported email has `emailSource: "import"` and no consent date; Capture never sends email anyway.
+  Every new person gets a `PersonNote` saying which file and day they came from (and their notes cell as a
+  second note); that also keeps `dropIfOrphan` from removing them when their only role goes. The import
+  needs the recruiter to tick that they have a legitimate reason to hold these records. The audit event
+  `people.imported` and the `people_imported` usage event carry counts only, never names or a file name.
+- `tests/people-import.test.mjs` (reader limits, hostile files, rules; workbooks are built in memory by
+  `tests/xlsx-fixture.mjs`) and `tests/22-people-import.spec.ts` (preview writes nothing, notes,
+  suppression, other accounts, mapping by hand, refused files, orphan guard, read-only view, phone width).
 - Review list (`privacy`, every plan) at `/people/review`: people with no
   update, contact or candidacy activity for 12 months. "Keep for another year"
   (`keepPerson`) touches the record and writes a nameless `person.kept` audit
@@ -723,6 +797,16 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   than Prisma's SQLite table rebuild, rehearsed on a copy first; Prisma then
   reports no difference from the schema. The SQL, the backup copy, the dump
   and the reports are in ignored `prisma/private-local/`.
+- On 2026-10-05, `20261006000000_person_notes_integrations` (`PersonNote`,
+  `IntegrationConnection`) was applied and registered on the hosted database
+  the same way: preflight identity/TLS and migration-state check, a
+  custom-format dump restored into a disposable container and the migration
+  rehearsed there, then one transaction checked against the reviewed file's
+  SHA-256. Every existing table came out unchanged and both new tables empty;
+  Prisma reports 8 migrations and no difference. The local account database
+  received the same two `CREATE TABLE`s in place after a backup copy and a
+  rehearsal on another copy, with every existing table's content unchanged.
+  The scripts, dump, copies and reports are in ignored `prisma/private-local/`.
 
 ## Searches and LinkedIn industry filters
 

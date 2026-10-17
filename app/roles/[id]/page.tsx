@@ -27,6 +27,10 @@ import { RunSearchButton } from "@/components/RunSearchButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { ActionForm } from "@/components/ActionForm";
 import { OUTREACH_KIND_SUMMARY, isTemplateKind } from "@/lib/templates";
+import { CLOSED_STAGES, consentPersonSelect, knownConsentAt, shortlistLink } from "@/lib/shortlists";
+import { shortlistStatus } from "@/lib/shortlist-core.mjs";
+import { newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
+import { ClientLinkShare } from "@/components/ClientLinkShare";
 
 export const dynamic = "force-dynamic";
 
@@ -58,14 +62,31 @@ export default async function RolePage({ params }: { params: { id: string } }) {
         orderBy: { lastActivityAt: "desc" },
         include: {
           outreach: { orderBy: { sentAt: "desc" }, take: 1 },
-          person: { select: { doNotContact: true } },
+          person: { select: consentPersonSelect },
           bookings: { where: { status: "booked", endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 1 },
         },
       },
       searches: { where: { userId: owner.id }, orderBy: { updatedAt: "desc" } },
+      shortlist: {
+        include: {
+          accesses: { where: { email: null, revokedAt: null }, take: 1 },
+          items: { select: { id: true, candidateId: true } },
+        },
+      },
     },
   });
   if (!role) notFound();
+
+  // The role's client link: who is on it, and its address when the server can
+  // sign one. Nothing is created by reading the page.
+  const clientList = role.shortlist && role.shortlist.userId === owner.id ? role.shortlist : null;
+  const onLink = new Map((clientList?.items ?? []).filter((item) => item.candidateId).map((item) => [item.candidateId!, item.id]));
+  const linkStatus = clientList ? shortlistStatus(clientList, role, now) : null;
+  const linkAccess = clientList?.accesses[0] ?? null;
+  const clientLink = linkAccess && linkStatus === "active" && !readOnly ? shortlistLink(linkAccess.id, linkAccess.nonce) : null;
+  const onLinkCount = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).length;
+  const clientName = role.client || "the client";
+  const lastViewed = linkAccess?.lastViewedAt ?? null;
 
   const briefing = role.briefing;
   const hasJobDesc = Boolean(role.jobDesc && role.jobDesc.trim());
@@ -299,6 +320,66 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               Send outreach
             </Link>
           )}
+          {features.clientShortlists && (
+            <details className="client-link min-w-0 basis-full" aria-label="Client link">
+              <summary className="btn-secondary inline-flex cursor-pointer items-center gap-2">
+                <Icon name="external" size={16} />
+                Client link
+                <span className="tabular text-ink-soft">{onLinkCount}</span>
+              </summary>
+              <div className="client-link-panel">
+                {!clientList ? (
+                  <p>
+                    Put someone forward and they appear on one page {clientName} opens without signing in:
+                    their headline, the facts they confirmed with you, their skills and why they would move.
+                    Never their LinkedIn, contact details or your notes.
+                  </p>
+                ) : linkStatus === "closed" ? (
+                  <p>This role is closed, so its client link shows {clientName} that it is no longer active.</p>
+                ) : linkStatus === "revoked" ? (
+                  <p>You closed this link. Its address no longer opens. A new link brings the page back at a new address, with the same people on it.</p>
+                ) : !clientLink ? (
+                  <p>{readOnly ? "The link is not shown in a read-only view." : "Client links need the server's shortlist link secret. Ask your administrator to set it."}</p>
+                ) : (
+                  <>
+                    <p>
+                      Anyone with this address sees the {onLinkCount === 1 ? "person" : "people"} you put forward, as {clientName} would.
+                      People you put forward later appear on the same page.
+                    </p>
+                    <ClientLinkShare link={clientLink} roleTitle={role.title} client={role.client} recruiterName={settings.recruiterName || owner.name} />
+                  </>
+                )}
+                {clientList && (
+                  <p className="client-link-stats">
+                    <span><strong className="tabular">{onLinkCount}</strong> on the page</span>
+                    <span>{lastViewed ? <>Last opened <strong>{formatWhen(lastViewed)}</strong></> : "Not opened yet"}</span>
+                  </p>
+                )}
+                {clientList && (
+                  <div className="client-link-actions">
+                    <Link href={`/shortlists/${clientList.id}/preview`} className="btn-quiet">See what {clientName} sees</Link>
+                    {linkStatus !== "closed" && (
+                      <form action={newClientLink}>
+                        <input type="hidden" name="roleId" value={role.id} />
+                        <ConfirmSubmitButton
+                          label={linkStatus === "revoked" ? "Make a new link" : "Replace the link"}
+                          confirmText={linkStatus === "revoked"
+                            ? "Make a new link for this role? The page opens again at a new address, with the same people on it."
+                            : "Replace this link? The address you sent stops working at once, and the page moves to a new address."}
+                        />
+                      </form>
+                    )}
+                    {linkStatus === "active" && (
+                      <form action={revokeClientLink}>
+                        <input type="hidden" name="roleId" value={role.id} />
+                        <ConfirmSubmitButton label="Close the link" confirmText={`Close this link? ${clientName} can no longer open the page. You can make a new link later.`} />
+                      </form>
+                    )}
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
         </div>
         {role.candidates.length === 0 && (
           <p className="mb-3 text-ink/70">
@@ -351,6 +432,34 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                         </div>
                       </div>
                       {c.notes && <p className="mt-2 text-sm text-ink/80">{c.notes}</p>}
+                      {features.clientShortlists && role.status === "open" && !CLOSED_STAGES.includes(c.stage) && !c.person?.doNotContact && (
+                        onLink.has(c.id) ? (
+                          <div className="put-forward">
+                            <span className="chip screening-chip-done">On the client link</span>
+                            <form action={takeOffClientLink}>
+                              <input type="hidden" name="itemId" value={onLink.get(c.id)} />
+                              <ConfirmSubmitButton label="Take off" confirmText={`Take ${c.fullName} off the client link? ${clientName} stops seeing them at once.`} />
+                            </form>
+                          </div>
+                        ) : knownConsentAt(c.person, c.id, role.client) ? (
+                          <ActionForm action={putForward} className="put-forward">
+                            <input type="hidden" name="candidateId" value={c.id} />
+                            <button type="submit" className="btn-quiet">Put forward to {clientName}</button>
+                          </ActionForm>
+                        ) : (
+                          <details className="mt-2">
+                            <summary className="btn-quiet cursor-pointer list-none [&::-webkit-details-marker]:hidden">Put forward to {clientName}</summary>
+                            <ActionForm action={putForward} className="put-forward-confirm">
+                              <input type="hidden" name="candidateId" value={c.id} />
+                              <label>
+                                <input type="checkbox" name="agreed" required />
+                                <span>{c.fullName} agreed to be put forward to {clientName}.</span>
+                              </label>
+                              <button type="submit" className="btn-primary justify-self-start">Put forward</button>
+                            </ActionForm>
+                          </details>
+                        )
+                      )}
                       {c.bookings[0] ? (
                         <div className="booking-on-card">
                           <p className="text-sm">

@@ -67,9 +67,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   SVG/CSS, not hotlinked template assets; no new third-party runtime requests.
 - Anonymous `/` is a public marketing homepage. Authenticated `/` remains the
   owner-scoped Roles dashboard. `/welcome` shows the marketing page for either
-  state. `/book/[token]` and its `.ics` are the one public business route: a
-  candidate's booking page, opened by a signed link and nothing else (see
-  Booking page). All other business routes still require authentication.
+  state. There are two public business routes, each opened by a signed link
+  and nothing else: `/book/[token]` and its `.ics`, a candidate's booking page
+  (see Booking page), and `/s/[token]`, a client's shortlist (see Client
+  links). All other business routes still require authentication.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
   `MarketingHome`/`ProductPreview` use explicitly illustrative, static data only.
   Never feed real recruiting data into a public preview or invent customer claims.
@@ -338,11 +339,53 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   The recipient field has no form name, so it is never submitted or stored, and
   the recipient is encoded so it cannot add headers such as `cc`.
 - "Mark as sent" (`markClientEmailSent`) records `clientEmailSentAt` once,
-  moves the candidate to Submitted from any earlier stage, and records a
-  `client_email_sent` usage event. Neither the recipient nor the text is kept.
+  moves the candidate to Submitted from any earlier stage, puts them on the
+  role's client link (see Client links), and records a `client_email_sent`
+  usage event. Neither the recipient nor the text is kept.
 - `tests/15-client-email.spec.ts` covers the consent gate, the mailto address,
   paste cleaning and copying, the long-email fallback, nothing stored, foreign
   ids and the read-only view; `tests/client-email.test.mjs` covers the builder.
+
+## Client links
+
+- Every plan (`clientShortlists` in `FEATURE_TIERS`). A role has one client
+  link: a `Shortlist` of kind `role`, made the first time someone is put
+  forward, listing everyone put forward on one page the client opens without
+  signing in. Custom shortlists, named recipients, client decisions and
+  interview booking are planned in `docs/plans/client-shortlist.en.md`; Basic
+  will have at most `SHORTLIST_LIMITS.basic` active custom shortlists, and a
+  role's own link never counts.
+- What a client sees is `clientProfile` in `lib/client-profile.ts` and nothing
+  else, shared with the client email. Every `Person` and `Candidate` column is
+  classified there as shown or hidden, and `tests/client-profile.test.mjs`
+  reads the schema, so a new column fails until it is classified. Never shown:
+  the LinkedIn address and member id, contact details, notes, revisit dates,
+  do not contact, stages, outreach, other roles, transcripts or the budget.
+- "Put forward" on a candidate row (`putForward`) needs the person's agreement
+  to be put forward to this client: a screening's `representConsentAt`, or any
+  earlier screening or shortlist for the same client (`clientKey` matches
+  spellings and company suffixes), makes it one click; otherwise the recruiter
+  ticks "agreed to be put forward" and that statement is the recorded consent.
+  It moves the candidate to Submitted from any earlier stage and sets
+  `submittedAt`. Rejected, placed and do-not-contact people, and closed roles,
+  are refused. "Take off" removes them from the page at once.
+- `/s/<accessId>.<nonce>.<hmac>` is signed with `SHORTLIST_LINK_SECRET` (32+
+  characters, server only, not the booking secret) over the access and its
+  stored nonce (`lib/shortlist-core.mjs`), so the recruiter can copy it again,
+  a database copy cannot mint one, and "Replace the link" kills the old address.
+  "Close the link" sets `revokedAt`; a closed role closes its link. Changing the
+  secret stops every link already sent.
+- The page reads live (`loadClientPage` in `lib/shortlists.ts`): someone who
+  becomes do not contact, is rejected or moves role leaves it at once, and any
+  doubt about a link shows "no longer active" with at most the recruiter's
+  name. It is `noindex`, sends no referrer, gets the bare header, and has no
+  session. A view is counted at most once per ten minutes per link, never when
+  the owner opens their own link; `/shortlists/[id]/preview` shows the same
+  component inside the app and is never counted.
+- Capture sends nothing to the client: "Open in email" is a `mailto:` built
+  like the client email's, from a recipient field with no form name.
+- `tests/23-client-links.spec.ts` plays the client in a second browser context
+  with no session; `tests/shortlist.test.mjs` covers the rules.
 
 ## Booking page
 

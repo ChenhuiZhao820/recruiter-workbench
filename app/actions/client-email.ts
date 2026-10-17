@@ -5,14 +5,13 @@ import { db } from "@/lib/db";
 import { requireWritableFeature } from "@/lib/feature-access";
 import type { FormState } from "@/lib/formState";
 import { recordUsage } from "@/lib/usage";
-
-// Stages "Mark as sent" moves forward from. Rejected and placed stay put.
-const BEFORE_SUBMITTED = ["sourced", "contacted", "replied", "booking_pending", "booked", "screened"];
+import { ensureCandidatePerson } from "@/lib/people";
+import { putOnRoleShortlist } from "@/lib/shortlists";
 
 async function ownedConfirmedScreening(screeningId: string, ownerId: string) {
   return db.screening.findFirst({
     where: { id: screeningId, status: "confirmed", candidate: { role: { userId: ownerId } } },
-    include: { candidate: { select: { id: true, roleId: true, personId: true, stage: true } } },
+    include: { candidate: { select: { id: true, roleId: true, personId: true, stage: true, submittedAt: true, role: { select: { id: true, title: true, client: true } } } } },
   });
 }
 
@@ -40,26 +39,31 @@ export async function recordRepresentConsent(_prev: FormState, formData: FormDat
 }
 
 // The recruiter sent it from their own email. Capture records when, never to
-// whom or what it said, and moves the candidate to Submitted.
+// whom or what it said, and moves the candidate to Submitted - which also puts
+// them on the role's client link, so the two can never disagree.
 export async function markClientEmailSent(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await requireWritableFeature("clientEmail");
   const screening = await ownedConfirmedScreening(String(formData.get("screeningId") ?? ""), user.id);
   if (!screening) return { error: "That screening could not be found." };
   if (!screening.representConsentAt) return { error: "Record that they agreed to be put forward before sending their details." };
   const now = new Date();
+  const personId = await ensureCandidatePerson(screening.candidate.id, user.id);
   const marked = await db.$transaction(async (tx) => {
     const { count } = await tx.screening.updateMany({
       where: { id: screening.id, clientEmailSentAt: null },
       data: { clientEmailSentAt: now },
     });
     if (count !== 1) return false;
-    await tx.candidate.update({
-      where: { id: screening.candidate.id },
-      data: {
-        lastActivityAt: now,
-        ...(BEFORE_SUBMITTED.includes(screening.candidate.stage) ? { stage: "submitted" } : {}),
-      },
-    });
+    if (personId) {
+      await putOnRoleShortlist(tx, {
+        ownerId: user.id,
+        role: screening.candidate.role,
+        candidate: screening.candidate,
+        personId,
+        consentAt: screening.representConsentAt!,
+        now,
+      });
+    }
     await recordUsage(tx, user.id, "client_email_sent");
     return true;
   });

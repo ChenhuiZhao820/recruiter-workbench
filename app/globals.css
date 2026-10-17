@@ -1104,3 +1104,66 @@ label > .im-editor-note { margin-top: 6px; }
   .people-box-card textarea, .people-box-card .search-field input { font-size: 16px; }
   .people-box .im-kbd { display: none; }
 }
+
+/* Client shortlist: the page a client opens from a recruiter's link, without
+   signing in. One ruled list, a person per row, the four facts on a grid,
+   read top to bottom like a short dossier. */
+.public-shell:has(.client-page) { min-height: 100dvh; }
+.client-page { width: min(100%, 880px); margin: 0 auto; padding: 44px 16px 72px; }
+.client-header { max-width: 660px; }
+.client-header h1 { font-size: clamp(28px, 3.4vw, 40px); line-height: 1.12; font-weight: 550; letter-spacing: -.05em; text-wrap: balance; }
+.client-meta { margin-top: 12px; font-size: 14px; color: var(--color-ink-soft); }
+.client-meta strong { font-weight: 550; color: var(--color-ink); }
+.client-note { margin-top: 10px; font-size: 13px; line-height: 1.7; color: var(--color-ink-soft); }
+.client-list { margin-top: 32px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); box-shadow: 0 2px 3px rgb(0 0 0 / .015); }
+.client-entry { padding: 26px 28px; }
+.client-entry + .client-entry { border-top: 1px solid var(--color-line); }
+.client-entry-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.client-name { font-size: 21px; line-height: 1.25; font-weight: 600; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.client-headline { margin-top: 3px; font-size: 14px; color: var(--color-ink-soft); overflow-wrap: anywhere; }
+.client-added { flex: none; padding-top: 6px; font: 10px/1.5 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--color-ink-soft); }
+.client-pitch { max-width: 62ch; margin-top: 14px; font-size: 15px; line-height: 1.65; color: var(--color-ink); }
+.client-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 20px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-paper); }
+.client-facts > div { min-width: 0; padding: 12px 14px; }
+.client-facts > div + div { border-left: 1px solid var(--color-line); }
+.client-facts dt, .client-story dt { font: 10px/1.5 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--color-ink-soft); }
+.client-facts dd { display: grid; gap: 2px; margin-top: 5px; font-size: 14px; line-height: 1.4; color: var(--color-ink); overflow-wrap: anywhere; }
+.client-fact-note { font-size: 12px; color: var(--color-ink-soft); }
+.client-facts-none { margin-top: 18px; font-size: 13px; color: var(--color-ink-soft); }
+.client-story { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; margin-top: 20px; }
+.client-story dd { max-width: 62ch; margin-top: 5px; font-size: 14px; line-height: 1.65; color: var(--color-ink); }
+.client-confirmed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; font-size: 12px; color: var(--color-ink-soft); }
+.client-empty { margin-top: 32px; padding: 32px 28px; border: 1px dashed var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.client-empty h2 { font-size: 18px; font-weight: 550; letter-spacing: -.03em; }
+.client-empty p { max-width: 52ch; margin-top: 6px; font-size: 13px; line-height: 1.65; color: var(--color-ink-soft); }
+.client-footer { display: grid; gap: 4px; margin-top: 28px; font-size: 12px; color: var(--color-ink-soft); }
+.client-preview-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; padding: 12px 16px; border: 1px solid #d3ddff; border-radius: 6px; background: var(--color-accent-soft); color: #284294; font-size: 13px; }
+@media (max-width: 760px) {
+  .client-page { padding-top: 28px; }
+  .client-entry { padding: 22px 18px; }
+  .client-entry-head { flex-direction: column; gap: 6px; }
+  .client-added { order: -1; padding-top: 0; }
+  .client-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .client-facts > div + div { border-left: 0; }
+  .client-facts > div:nth-child(even) { border-left: 1px solid var(--color-line); }
+  .client-facts > div:nth-child(n + 3) { border-top: 1px solid var(--color-line); }
+  .client-story { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* A role's client link, under Candidates: the address, how it was shared and
+   who is on it, in one panel that opens from a button. */
+.client-link > summary { list-style: none; }
+.client-link > summary::-webkit-details-marker { display: none; }
+.client-link-panel { display: grid; gap: 14px; margin-top: 12px; padding: 18px 20px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.client-link-panel > p { max-width: 64ch; font-size: 13px; line-height: 1.65; color: var(--color-ink-soft); }
+.client-link-address { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.client-link-address input { flex: 1 1 260px; font: 12px var(--font-mono); }
+.client-link-share { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.client-link-share > div { flex: 1 1 220px; }
+.client-link-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--color-ink-soft); }
+.client-link-stats strong { font-weight: 550; color: var(--color-ink); }
+.client-link-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; border-top: 1px solid var(--color-line); }
+.put-forward { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.put-forward-confirm { display: grid; gap: 10px; margin-top: 8px; padding: 12px 14px; border-radius: 6px; background: var(--color-sunken); }
+.put-forward-confirm label { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; }
+.put-forward-confirm input[type="checkbox"] { margin-top: 3px; accent-color: var(--color-accent); }

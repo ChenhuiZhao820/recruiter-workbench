@@ -11,7 +11,7 @@ On every plan:
 - **Roles** with an AI briefing from the job description, an optional budget, and the candidates for each, by stage.
 - **People**: one record per person across every role, matched by LinkedIn member id or profile link, never by name. Do not contact, erasure with a warning if the same profile comes back, a yearly review list, and a full export.
 - **Outreach** from your own templates, one person at a time, with a daily and weekly pace check. The optional Capture browser extension saves a LinkedIn profile on a click.
-- **Booking page**: `{{booking_link}}` gives each candidate their own link to pick a time; the call lands on the role page and in Follow-ups.
+- **Booking page**: `{{booking_link}}` gives each candidate their own link to pick a time, leaving out times busy in your connected Google or Outlook calendar; the call lands on the role page and in Follow-ups.
 - **Follow-ups**: replied, said yes but not booked, gone quiet, calls this week.
 
 On Pro (decided per feature in `FEATURE_TIERS`, `lib/features.ts`):
@@ -42,6 +42,7 @@ Create the first administrator with `scripts/bootstrap-admin.mjs` (see "Setup an
 | `ANTHROPIC_API_KEY` | Briefings and screening summaries (server only) |
 | `BOOKING_LINK_SECRET` | Signs booking links; 32+ random characters |
 | `CAPTURE_SCREENING_MODEL`, `CAPTURE_SCREENING_EFFORT`, `CAPTURE_SCREENING_MONTHLY_CAP` | Optional screening settings |
+| `CALENDAR_TOKEN_KEY`, `GOOGLE_CLIENT_ID/SECRET`, `MICROSOFT_CLIENT_ID/SECRET` | Optional: let recruiters connect their calendar so busy times are not offered |
 
 ### A demo workspace
 

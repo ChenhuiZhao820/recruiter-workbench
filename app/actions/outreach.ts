@@ -2,9 +2,11 @@
 
 import { db } from "@/lib/db";
 import { requireWritableWorkspace } from "@/lib/workspace";
+import { requireWritableFeature } from "@/lib/feature-access";
 import { normalizeMessage } from "@/lib/render";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { utcDayStart } from "@/lib/outreach-log";
 
 // Stages that already say more than "I have messaged this person". Sending
 // another message chases them; it does not undo what they told us, so these
@@ -49,6 +51,14 @@ async function recordSend(
       : null;
     if (templateId && !template) return null;
     const kind = template?.kind ?? "message";
+
+    // The same text already recorded for them today is the same message: a
+    // second click records nothing more and does not count as another nudge.
+    const already = await tx.outreachLog.findFirst({
+      where: { candidateId, renderedBody, sentAt: { gte: utcDayStart(new Date()) } },
+      select: { id: true },
+    });
+    if (already) return candidate.roleId;
 
     await tx.outreachLog.create({
       data: {
@@ -107,7 +117,33 @@ export async function markSentAndAdvance(formData: FormData) {
     String(formData.get("templateId") ?? "").trim() || null,
     String(formData.get("renderedBody") ?? "")
   );
-  // Only ever a path inside this app, never something the form could point
-  // anywhere it liked.
-  if (/^\/roles\/[A-Za-z0-9_-]+\/outreach\?[^\s"'<>]*$/.test(next)) redirect(next);
+  if (isQueuePath(next)) redirect(next);
+}
+
+// Only ever a path to one of this app's own queues - a role's outreach run or
+// the follow-up run - never something the form could point anywhere it liked.
+function isQueuePath(path: string) {
+  return /^\/roles\/[A-Za-z0-9_-]+\/outreach\?[^\s"'<>]*$/.test(path) || /^\/followups\/run\?[^\s"'<>]*$/.test(path);
+}
+
+// What a follow-up run can settle without a message: they replied, said yes,
+// booked, or are not going ahead. The stage changes and the run moves on.
+const RUN_OUTCOMES = new Set(["replied", "booking_pending", "booked", "rejected"]);
+
+export async function setStageAndAdvance(formData: FormData) {
+  const user = await requireWritableFeature("followUpRuns");
+  const candidateId = String(formData.get("candidateId") ?? "");
+  const stage = String(formData.get("stage") ?? "");
+  const next = String(formData.get("next") ?? "");
+  if (!candidateId || !RUN_OUTCOMES.has(stage)) return;
+  const updated = await db.candidate.updateMany({
+    where: { id: candidateId, role: { userId: user.id } },
+    data: { stage, lastActivityAt: new Date() },
+  });
+  if (updated.count !== 1) return;
+  const candidate = await db.candidate.findUnique({ where: { id: candidateId }, select: { roleId: true } });
+  if (candidate) revalidatePath(`/roles/${candidate.roleId}`);
+  revalidatePath("/followups");
+  revalidatePath("/");
+  if (isQueuePath(next)) redirect(next);
 }

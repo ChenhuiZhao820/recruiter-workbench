@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
   FACT_FIELDS,
+  MAX_SCHEMA_UNIONS,
+  SCREENING_SCHEMA,
   checkEvidence,
   hasValue,
   initialFields,
@@ -135,6 +137,29 @@ test("the evaluation counts an answer to an undiscussed fact as invented, and a 
   assert.equal(scoreField("salary", { not_discussed: false, value: { min: 85500, max: 95000 } }, { value: { min: 85000, max: 95000 } }).correct, true);
   assert.equal(scoreField("salary", { not_discussed: false, value: { min: 80000, max: 95000 } }, { value: { min: 85000, max: 95000 } }).correct, false);
   assert.equal(scoreField("notice", { not_discussed: true, value: {} }, { value: { weeks: 12 } }).missed, true);
+});
+
+test("the schema stays under the API's limit on union-typed fields, and an empty note reads as none", () => {
+  // The API rejects a structured-output schema with more than 16 unions; the
+  // local stub never checks, so this is what keeps a live request from failing.
+  const unions = (node) => {
+    if (Array.isArray(node)) return node.reduce((sum, item) => sum + unions(item), 0);
+    if (node === null || typeof node !== "object") return 0;
+    const own = Array.isArray(node.anyOf) || Array.isArray(node.type) ? 1 : 0;
+    return own + Object.values(node).reduce((sum, item) => sum + unions(item), 0);
+  };
+  assert.ok(unions(SCREENING_SCHEMA) <= MAX_SCHEMA_UNIONS, `schema has ${unions(SCREENING_SCHEMA)} unions`);
+  const reply = {
+    salary: { value: { min: 90000, max: null, currency: "GBP", note: "" }, evidence: "Ninety, maybe ninety-five.", not_discussed: false },
+    notice: { value: { weeks: 4, available_from: null, note: "" }, evidence: null, not_discussed: false },
+    location: { value: { location: "Manchester", remote: "remote", note: "" }, evidence: null, not_discussed: false },
+    right_to_work: { value: { status: "needs_sponsorship", note: "" }, evidence: null, not_discussed: false },
+    skills: ["Klaviyo"], motivation: "", reason_for_leaving: "", concerns: [], revisit_hint: "",
+  };
+  const parsed = parseScreening(JSON.stringify(reply));
+  assert.equal(parsed.motivation, null);
+  assert.equal(parsed.revisit_hint, null);
+  assert.equal(parsed.salary.value.note, null);
 });
 
 test("the request carries the schema, keeps the transcript delimited, and adds the CV only when given", () => {

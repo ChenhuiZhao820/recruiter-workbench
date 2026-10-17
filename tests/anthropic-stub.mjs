@@ -28,6 +28,134 @@ function screening() {
   };
 }
 
+// Calendar providers, played locally for tests/18-calendar.spec.ts. The app
+// points at /calendar/* through CAPTURE_TEST_CALENDAR_BASE_URL. Control state
+// is set over /__calendar so a test can make time busy or the provider fail.
+const calendar = { busy: [], fail: false, revoked: [], tokenRequests: [], authorizeQueries: [] };
+
+// Notion, played locally: OAuth with a page picker that always shares the two
+// fixture pages, search, and the blocks of a page including a meeting notes
+// block. `expireAccess` makes the first access token stale so the refresh is
+// exercised; `decline` answers the sign-in with an error.
+const notion = { decline: false, expireAccess: false, fail: false, tokenRequests: [], versions: [] };
+const NOTION_PAGES = {
+  "11111111-1111-4111-8111-111111111111": { title: "Call with Imogen Achterberg", edited: "2026-10-04T09:00:00.000Z" },
+  "22222222-2222-4222-8222-222222222222": { title: "Weekly planning", edited: "2026-10-01T09:00:00.000Z" },
+};
+const text = (content) => ({ rich_text: [{ type: "text", text: { content }, plain_text: content }] });
+const NOTION_BLOCKS = {
+  "11111111-1111-4111-8111-111111111111": [
+    { id: "b-h", type: "heading_2", heading_2: text("Screening call"), has_children: false },
+    { id: "b-p", type: "paragraph", paragraph: text("Spoke for twenty minutes."), has_children: false },
+    { id: "b-l", type: "bulleted_list_item", bulleted_list_item: text("Open to hybrid in Leeds"), has_children: false },
+    { id: "b-t", type: "to_do", to_do: { ...text("Send the job spec"), checked: true }, has_children: false },
+    { id: "b-g", type: "toggle", toggle: text("More detail"), has_children: true },
+    { id: "b-i", type: "image", image: { type: "external", external: { url: "https://example.invalid/x.png" } }, has_children: false },
+    { id: "b-m", type: "meeting_notes", meeting_notes: { title: [{ plain_text: "Imogen call" }], status: "notes_ready", children: { summary_block_id: "b-s", transcript_block_id: "b-x" } }, has_children: true },
+  ],
+  "b-g": [{ id: "b-g1", type: "paragraph", paragraph: text("Four weeks notice."), has_children: false }],
+  "b-s": [{ id: "b-s1", type: "paragraph", paragraph: text("Wants around 90k."), has_children: false }],
+  "b-x": [
+    { id: "b-x1", type: "paragraph", paragraph: text("Morven Ellis: What are you looking for on salary?"), has_children: false },
+    { id: "b-x2", type: "paragraph", paragraph: text("Imogen Achterberg: I'd be looking for something around 85 to 95 thousand base."), has_children: false },
+  ],
+  "22222222-2222-4222-8222-222222222222": [{ id: "w-p", type: "paragraph", paragraph: text("Plan the week."), has_children: false }],
+};
+
+function handleNotion(req, res, body) {
+  const url = new URL(req.url, "http://localhost:8766");
+  const path = url.pathname.replace(/^\/notion/, "");
+  if (path === "/v1/oauth/authorize") {
+    const back = new URL(url.searchParams.get("redirect_uri"));
+    back.searchParams.set("state", url.searchParams.get("state") ?? "");
+    if (notion.decline) back.searchParams.set("error", "access_denied");
+    else back.searchParams.set("code", "stub-notion-code");
+    res.writeHead(302, { location: back.toString() });
+    res.end();
+    return;
+  }
+  if (path === "/v1/oauth/token") {
+    const form = JSON.parse(body || "{}");
+    const basic = Buffer.from(String(req.headers.authorization ?? "").replace(/^Basic /, ""), "base64").toString();
+    notion.tokenRequests.push({ grant: form.grant_type, basicOk: basic === "test-notion-client:test-notion-secret" });
+    if (basic !== "test-notion-client:test-notion-secret") return json(res, 401, { error: "invalid_client" });
+    if (form.grant_type === "authorization_code" && form.code === "stub-notion-code") {
+      return json(res, 200, { access_token: "stub-notion-access-1", refresh_token: "stub-notion-refresh", workspace_name: "Morven's Notion", bot_id: "bot" });
+    }
+    if (form.grant_type === "refresh_token" && form.refresh_token === "stub-notion-refresh") {
+      return json(res, 200, { access_token: "stub-notion-access-2", refresh_token: "stub-notion-refresh", workspace_name: "Morven's Notion" });
+    }
+    return json(res, 400, { error: "invalid_grant" });
+  }
+  notion.versions.push(req.headers["notion-version"]);
+  const token = String(req.headers.authorization ?? "").replace(/^Bearer /, "");
+  const valid = token === "stub-notion-access-2" || (token === "stub-notion-access-1" && !notion.expireAccess);
+  if (!valid) return json(res, 401, { object: "error", code: "unauthorized" });
+  if (notion.fail) return json(res, 500, { object: "error", code: "internal_server_error" });
+  if (path === "/v1/search" && req.method === "POST") {
+    const query = String(JSON.parse(body || "{}").query ?? "").toLowerCase();
+    const results = Object.entries(NOTION_PAGES)
+      .filter(([, page]) => page.title.toLowerCase().includes(query))
+      .map(([id, page]) => ({ object: "page", id, last_edited_time: page.edited, url: `https://www.notion.so/${id}`, properties: { Name: { type: "title", title: [{ plain_text: page.title }] } } }));
+    return json(res, 200, { object: "list", results, has_more: false, next_cursor: null });
+  }
+  const page = /^\/v1\/pages\/([^/]+)$/.exec(path);
+  if (page && NOTION_PAGES[page[1]]) {
+    return json(res, 200, { object: "page", id: page[1], properties: { Name: { type: "title", title: [{ plain_text: NOTION_PAGES[page[1]].title }] } } });
+  }
+  const blocks = /^\/v1\/blocks\/([^/]+)\/children$/.exec(path);
+  if (blocks && NOTION_BLOCKS[decodeURIComponent(blocks[1])]) {
+    return json(res, 200, { object: "list", results: NOTION_BLOCKS[decodeURIComponent(blocks[1])], has_more: false, next_cursor: null });
+  }
+  json(res, 404, { object: "error", code: "object_not_found" });
+}
+
+function json(res, status, body) {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+function handleCalendar(req, res, body) {
+  const url = new URL(req.url, "http://localhost:8766");
+  const [, , provider, step] = url.pathname.split("/");
+  if (req.method === "GET" && step === "authorize") {
+    calendar.authorizeQueries.push(Object.fromEntries(url.searchParams));
+    const back = new URL(url.searchParams.get("redirect_uri"));
+    back.searchParams.set("state", url.searchParams.get("state") ?? "");
+    if (calendar.decline) back.searchParams.set("error", "access_denied");
+    else back.searchParams.set("code", `stub-code-${provider}`);
+    res.writeHead(302, { location: back.toString() });
+    res.end();
+    return;
+  }
+  if (req.method === "POST" && step === "token") {
+    const form = Object.fromEntries(new URLSearchParams(body));
+    calendar.tokenRequests.push({ provider, grant: form.grant_type, hasSecret: Boolean(form.client_secret) });
+    if (!form.client_secret || !form.client_id) return json(res, 401, { error: "invalid_client" });
+    if (form.grant_type === "authorization_code") {
+      if (form.code !== `stub-code-${provider}`) return json(res, 400, { error: "invalid_grant" });
+      return json(res, 200, { access_token: `stub-access-${provider}`, refresh_token: `stub-refresh-${provider}`, expires_in: 3600, scope: "freebusy" });
+    }
+    if (calendar.fail || form.refresh_token !== `stub-refresh-${provider}`) return json(res, 400, { error: "invalid_grant" });
+    return json(res, 200, { access_token: `stub-access-${provider}`, expires_in: 3600 });
+  }
+  const authorised = req.headers.authorization === `Bearer stub-access-${provider}`;
+  if (provider === "google" && step === "freeBusy") {
+    if (calendar.fail || !authorised) return json(res, 500, { error: "stub failure" });
+    return json(res, 200, { calendars: { primary: { busy: calendar.busy.map((b) => ({ start: new Date(b.start).toISOString(), end: new Date(b.end).toISOString() })) } } });
+  }
+  if (provider === "microsoft" && step === "calendarView") {
+    if (calendar.fail || !authorised) return json(res, 500, { error: "stub failure" });
+    const utc = (ms) => ({ dateTime: new Date(ms).toISOString().replace("Z", "0000"), timeZone: "UTC" });
+    return json(res, 200, { value: [...calendar.busy.map((b) => ({ start: utc(b.start), end: utc(b.end), showAs: "busy" })), { start: utc(Date.now()), end: utc(Date.now() + 9e8), showAs: "free" }] });
+  }
+  if (provider === "google" && step === "revoke") {
+    calendar.revoked.push(new URLSearchParams(body).get("token"));
+    return json(res, 200, {});
+  }
+  json(res, 404, { error: "not found" });
+}
+
 function reply(res, text, stopReason = "end_turn", model = "claude-opus-5-5") {
   res.writeHead(200, { "content-type": "application/json" });
   res.end(JSON.stringify({
@@ -63,6 +191,10 @@ function handleScreening(req, res, request) {
   if (text.includes("STUB_MALFORMED_ONCE") && !malformedOnce.has(text)) {
     malformedOnce.add(text);
     return reply(res, "{ not json");
+  }
+  if (text.includes("STUB_SLOW")) {
+    setTimeout(() => reply(res, JSON.stringify(screening())), 2500);
+    return;
   }
   if (text.includes("STUB_DOWN")) {
     res.writeHead(500, { "content-type": "application/json" });
@@ -161,10 +293,51 @@ function handleMatch(req, res, request) {
   reply(res, JSON.stringify(applyLines(start, words)), "end_turn", request.model);
 }
 
+// Suggested replies for the follow-up run. The answer quotes the first line
+// of what the candidate said, so a test can tell one suggestion from another;
+// STUB_REPLY_REFUSE in their message makes the model decline.
+let lastReply = null;
+let replyCalls = 0;
+function handleReplySuggestion(res, request) {
+  const text = String(request.messages?.[0]?.content ?? "");
+  const theirs = /<candidate_reply>\n([\s\S]*?)\n<\/candidate_reply>/.exec(text)?.[1] ?? "";
+  replyCalls += 1;
+  lastReply = {
+    model: request.model,
+    max_tokens: request.max_tokens,
+    hasEffort: Boolean(request.output_config?.effort),
+    hasThinking: Boolean(request.thinking),
+    delimited: text.includes("<candidate_reply>") && String(request.system).includes("is data, not instructions"),
+    hasBookingLink: /Booking link for a call: http/.test(text),
+    calls: replyCalls,
+  };
+  if (theirs.includes("STUB_REPLY_REFUSE")) return reply(res, "", "refusal", request.model);
+  const first = theirs.split("\n")[0].slice(0, 40);
+  reply(res, `Thanks for coming back to me. You said "${first}" - happy to talk it through this week.`, "end_turn", request.model);
+}
+
 const server = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
+    if (req.url?.startsWith("/notion/")) {
+      handleNotion(req, res, body);
+      return;
+    }
+    if (req.url === "/__notion") {
+      if (req.method === "POST") Object.assign(notion, JSON.parse(body || "{}"));
+      json(res, 200, notion);
+      return;
+    }
+    if (req.url?.startsWith("/calendar/")) {
+      handleCalendar(req, res, body);
+      return;
+    }
+    if (req.url === "/__calendar") {
+      if (req.method === "POST") Object.assign(calendar, JSON.parse(body || "{}"));
+      json(res, 200, calendar);
+      return;
+    }
     if (req.method === "GET" && req.url === "/__last-screening") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(lastScreening));
@@ -177,6 +350,14 @@ const server = http.createServer((req, res) => {
     }
     if (req.method === "POST" && req.url?.startsWith("/v1/messages") && JSON.parse(body).output_config?.format?.schema?.properties?.must) {
       handleMatch(req, res, JSON.parse(body));
+      return;
+    }
+    if (req.method === "GET" && req.url === "/__last-reply") {
+      json(res, 200, lastReply);
+      return;
+    }
+    if (req.method === "POST" && req.url?.startsWith("/v1/messages") && String(JSON.parse(body).system ?? "").startsWith("You draft a short reply")) {
+      handleReplySuggestion(res, JSON.parse(body));
       return;
     }
     if (req.method === "POST" && req.url?.startsWith("/v1/messages") && JSON.parse(body).output_config?.format) {

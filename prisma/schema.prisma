@@ -31,7 +31,9 @@ model User {
   calendar         CalendarConnection?
   aiUsage          AiUsage[]
   usageEvents      UsageEvent[]
+  integrations     IntegrationConnection[]
   suppressions     Suppression[]
+  importBatches    ImportBatch[]
 }
 
 model ExtensionAccess {
@@ -101,6 +103,9 @@ model Role {
   briefing    Briefing?
   candidates  Candidate[]
   searches    SavedSearch[]
+  // Set when a People import created this role, so the import can be undone.
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -172,6 +177,10 @@ model Candidate {
   outreach       OutreachLog[]
   screenings     Screening[]
   bookings       Booking[]
+  personNotes    PersonNote[]
+  // Set when a People import created this candidacy, so the import can be undone.
+  importBatchId  String?
+  importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -271,6 +280,10 @@ model Person {
   searchText       String    @default("")
   lastContactAt    DateTime?
   candidates       Candidate[]
+  notes            PersonNote[]
+  // Set when a People import created this person, so the import can be undone.
+  importBatchId    String?
+  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -342,6 +355,37 @@ model CalendarConnection {
   lastErrorAt DateTime?
 }
 
+// A note the recruiter wrote or saved about a person, kept until they delete
+// it or the person is erased. Not a transcript: those follow their 30 days.
+// The role it was written for is kept when there was one, and survives the
+// candidacy being removed.
+model PersonNote {
+  id          String     @id @default(cuid())
+  personId    String
+  person      Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
+  candidateId String?
+  candidate   Candidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  body        String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([personId, createdAt])
+}
+
+// An account's connection to an app it imports from (notion). The tokens are
+// encrypted with the server's key and never exported or imported.
+model IntegrationConnection {
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    String
+  tokenCipher String
+  label       String    @default("")
+  connectedAt DateTime  @default(now())
+  lastErrorAt DateTime?
+
+  @@id([userId, provider])
+}
+
 model AiUsage {
   userId      String
   user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -372,4 +416,28 @@ model Suppression {
   createdAt DateTime @default(now())
 
   @@id([userId, keyHash])
+}
+
+// One People import, kept so it can be undone for a while. It records what the
+// import created (through importBatchId on Person, Role and Candidate) and,
+// in `fills`, the empty fields it filled on people already there, as JSON
+// [{ "id": personId, "fields": { "headline": "..." } }], so undo can empty a
+// field again if it still holds what the import put there. Never exported or
+// carried between databases: an undo belongs to the deployment it ran on.
+model ImportBatch {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName     String
+  createdCount Int         @default(0)
+  roleCount    Int         @default(0)
+  fills        String      @default("[]")
+  createdAt    DateTime    @default(now())
+  completedAt  DateTime?
+  undoneAt     DateTime?
+  people       Person[]
+  roles        Role[]
+  candidates   Candidate[]
+
+  @@index([userId, createdAt])
 }

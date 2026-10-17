@@ -58,7 +58,7 @@ test("T1 a role carries an optional budget, read the way recruiters type it", as
   expect((await db.role.findUniqueOrThrow({ where: { id: roleId } })).budgetMax).toBe(95000);
 });
 
-test("T2 people search filters on what they told you, shows the facts, and flags old ones", async ({ page }) => {
+test("T2 people search filters on confirmed details, shows the facts, and flags old ones", async ({ page }) => {
   await person("Ilse Vandermeer", { salaryMin: 85000, salaryMax: 95000, noticeWeeks: 4, location: "Manchester", remotePreference: "hybrid", rightToWork: "has_right", confirmedDaysAgo: 10, skills: "quarkslate helmforge" });
   await person("Rosalind Achebe-Moss", { salaryMin: 110000, noticeWeeks: 12, location: "Leeds", remotePreference: "remote", rightToWork: "needs_sponsorship", confirmedDaysAgo: 400, skills: "kafka flink" });
   await person("Dorian Kettleworth", { skills: "quarkslate" });
@@ -69,10 +69,19 @@ test("T2 people search filters on what they told you, shows the facts, and flags
   await expect(imogen.getByText("£85,000 to £95,000 a year / 4 weeks notice / Manchester, Hybrid / Has the right to work")).toBeVisible();
 
   await page.goto("/people");
-  await page.getByText("Filter by what they told you").click();
+  const summary = page.locator(".people-filters > summary");
+  await expect(summary).toHaveText("Filter by");
+  await summary.click();
   await page.getByLabel("Salary up to (a year)").fill("90k");
+  // The label names the filters in use as they are set, joined by commas.
+  await expect(summary).toHaveText("Filter by salary");
+  await page.getByLabel("Right to work").selectOption("has_right");
+  await expect(summary).toHaveText("Filter by salary, right to work");
+  await page.getByLabel("Right to work").selectOption("");
+  await expect(summary).toHaveText("Filter by salary");
   await page.getByRole("button", { name: "Apply filters" }).click();
   await expect(page).toHaveURL(/salary=90k/);
+  await expect(summary).toHaveText("Filter by salary");
   await expect(page.locator(".person-row", { hasText: "Ilse Vandermeer" })).toBeVisible();
   await expect(page.locator(".person-row", { hasText: "Rosalind Achebe-Moss" })).toHaveCount(0);
   // Nothing confirmed means left out of a fact filter.

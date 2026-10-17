@@ -11,6 +11,7 @@ import {
   bookingToken,
   googleCalendarUrl,
   noticeVersion,
+  privacyNoticeLine,
   parseWindows,
   readBookingToken,
   timeToMinutes,
@@ -122,6 +123,12 @@ test("the Google Calendar link, phone numbers, meeting links and the notice vers
   assert.equal(validMeetingLink("javascript:alert(1)"), null);
   assert.equal(noticeVersion("a"), noticeVersion("a"));
   assert.notEqual(noticeVersion("a"), noticeVersion("b"));
+});
+
+test("the message-length privacy notice names how to ask for the record, and stays short", () => {
+  assert.equal(privacyNoticeLine("privacy@morven.example"), "I keep a short record of the people I talk to about roles. To see it or have it deleted, email privacy@morven.example.");
+  assert.match(privacyNoticeLine(""), /Reply to this message/);
+  assert.ok(privacyNoticeLine("a-rather-long-address@recruitment-studio.example").length < 160);
 });
 
 test("booking actions: settings and cancelling are the recruiter's, booking is the link's alone", () => {

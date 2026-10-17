@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
-import { db, note, backdateCandidate, daysAgo, TEST_ADMIN_ID, openAddCandidate } from "./helpers";
+import { db, note, backdateCandidate, backdateMessages, daysAgo, TEST_ADMIN_ID, openAddCandidate } from "./helpers";
 
 // The whole recruiter-day walkthrough, in order, against a fresh DB.
 // Suboptimal-but-working behavior is recorded via note(); real breakage fails.
@@ -466,6 +466,7 @@ test("14 bucket row actions, the double-nudge guard, and nudging a booking", asy
     where: { id: bobDb!.id },
     data: { stage: "booking_pending", lastActivityAt: daysAgo(3) },
   });
+  await backdateMessages(bobDb!.id, daysAgo(3));
   await page.reload();
   await bookingBucket
     .locator("li.card", { hasText: "Bob Sample" })

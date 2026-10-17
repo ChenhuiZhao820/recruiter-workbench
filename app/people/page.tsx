@@ -1,12 +1,17 @@
 import Link from "next/link";
-import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireFeature, featureAvailability } from "@/lib/feature-access";
 import { formatWhen } from "@/lib/dates";
 import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { locationText, noticeText, rightToWorkText, salaryText, REMOTE_LABELS, RIGHT_TO_WORK_LABELS } from "@/lib/fact-labels";
-import { FRESH_MONTHS, REMOTE_FILTERS, RTW_FILTERS, factsAreStale, hasFactFilters, parsePeopleFilters, reviewCutoff, searchWords } from "@/lib/talent.mjs";
+import { FRESH_MONTHS, REMOTE_FILTERS, RTW_FILTERS, factsAreStale, hasFactFilters, parsePeopleFilters, reviewCutoff } from "@/lib/talent.mjs";
+import { peopleWhere } from "@/lib/people-search";
+import { PeopleSearchBox } from "@/components/PeopleSearchBox";
+import { FilterSummary } from "@/components/FilterSummary";
+import { ImportUndo } from "@/components/ImportUndo";
+import { recentBatch } from "@/lib/people-import-server";
+import { undoUntil } from "@/lib/people-import-fields.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +20,6 @@ export const dynamic = "force-dynamic";
 // people search it reaches everything recorded about a person and can filter
 // on the four facts they confirmed.
 const PAGE_SIZE = 200;
-const DAY_MS = 86_400_000;
 
 type Params = { q?: string; deleted?: string; salary?: string; notice?: string; remote?: string; rtw?: string; fresh?: string };
 
@@ -35,22 +39,10 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
   const searching = Boolean(filters.q) || (features.peopleSearch && hasFactFilters(filters));
   const now = new Date();
 
-  const and: Prisma.PersonWhereInput[] = [];
-  if (features.peopleSearch) {
-    for (const word of searchWords(filters.q)) and.push({ searchText: { contains: word } });
-    if (filters.maxSalary !== null) {
-      and.push({ OR: [{ salaryMin: { lte: filters.maxSalary } }, { salaryMin: null, salaryMax: { lte: filters.maxSalary } }] });
-    }
-    if (filters.maxNotice !== null) and.push({ noticeWeeks: { lte: filters.maxNotice } });
-    if (filters.remote) and.push({ remotePreference: filters.remote });
-    if (filters.rightToWork) and.push({ rightToWork: filters.rightToWork });
-    if (filters.freshMonths) and.push({ factsConfirmedAt: { gte: new Date(now.getTime() - filters.freshMonths * 30 * DAY_MS) } });
-  } else if (filters.q) {
-    and.push({ searchText: { contains: filters.q.toLowerCase() } });
-  }
-  const where: Prisma.PersonWhereInput = { userId: owner.id, AND: and };
+  const where = peopleWhere(owner.id, filters, features.peopleSearch, now);
 
   const cutoff = reviewCutoff(now);
+  const lastImport = features.peopleImport && !readOnly ? await recentBatch(owner.id) : null;
   const [found, total, toReview] = await Promise.all([
     db.person.findMany({
       where,
@@ -96,15 +88,18 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             Everyone you have saved, once each, with every role you considered them for.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {toReview > 0 && !readOnly && (
-            <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>
-          )}
-          {features.instantMatch && (
-            <Link href="/people/match" className="btn-primary"><Icon name="spark" size={16} />Instant Match</Link>
-          )}
-        </div>
+        {((!readOnly && (features.peopleImport || toReview > 0)) || features.instantMatch) && (
+          <div className="flex flex-wrap gap-2">
+            {!readOnly && features.peopleImport && <Link href="/people/import" className="btn-secondary">Import people</Link>}
+            {!readOnly && toReview > 0 && <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>}
+            {features.instantMatch && <Link href="/people/match" className="btn-primary"><Icon name="spark" size={16} />Instant Match</Link>}
+          </div>
+        )}
       </header>
+
+      {lastImport && (
+        <ImportUndo key={lastImport.id} compact batchId={lastImport.id} fileName={lastImport.fileName} people={lastImport.createdCount} roles={lastImport.roleCount} until={undoUntil(lastImport.createdAt)} undone={Boolean(lastImport.undoneAt)} />
+      )}
 
       {searchParams.deleted === "1" && (
         <p role="status" className="auth-success mb-6">
@@ -114,22 +109,26 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
 
       <form method="get" className="people-search" role="search">
         <div className="directory-toolbar">
-          <div className="search-field">
-            <Icon name="search" size={18} />
-            <label htmlFor="people-search" className="sr-only">{features.peopleSearch ? "Search people" : "Search people by name"}</label>
-            <input
-              id="people-search"
-              name="q"
-              type="search"
-              defaultValue={filters.q}
-              placeholder={features.peopleSearch ? "Name, skill, place or anything they told you" : "Search by name or headline"}
-            />
-          </div>
+          <PeopleSearchBox
+            defaultValue={filters.q}
+            label={features.peopleSearch ? "Search people" : "Search people by name"}
+            placeholder={features.peopleSearch ? "Name, skill, place or a confirmed detail" : "Search by name or headline"}
+          />
           <button type="submit" className="btn-secondary">Search</button>
         </div>
         {features.peopleSearch && (
           <details className="people-filters" open={filtersOpen}>
-            <summary>Filter by what they told you</summary>
+            <summary>
+              <FilterSummary
+                initial={[
+                  filters.maxSalary !== null && "salary",
+                  filters.maxNotice !== null && "notice",
+                  filters.remote && "remote",
+                  filters.rightToWork && "rtw",
+                  filters.freshMonths && "fresh",
+                ].filter((field): field is string => Boolean(field))}
+              />
+            </summary>
             <div className="people-filter-grid">
               <div>
                 <label htmlFor="filter-salary" className="field-label">Salary up to (a year)</label>
@@ -191,6 +190,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             <p>
               People appear here when you add a candidate to a role or save a profile with the Capture extension.
               Saving the same profile for another role adds to the same person.
+              {features.peopleImport && !readOnly && <> Or <Link href="/people/import" className="underline">import a spreadsheet</Link> you already keep.</>}
             </p>
           )}
         </div>

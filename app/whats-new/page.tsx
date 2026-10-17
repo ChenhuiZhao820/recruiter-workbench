@@ -82,7 +82,7 @@ export default async function WhatsNewPage() {
                 Marking it sent moves them to Submitted.
               </p>
             )}
-            <p className="text-sm text-ink-soft">Find it under <em>Screening</em> on any candidate.</p>
+            <p className="text-sm text-ink-soft">Find it under <em>Screening call</em> on any candidate.</p>
           </li>
         )}
 
@@ -97,7 +97,7 @@ export default async function WhatsNewPage() {
             )}
             {features.peopleSearch && (
               <p className="text-ink/80">
-                People search reaches what they told you, and filters by salary, notice, working pattern and right to work.
+                People search reaches skills and confirmed details, and filters by salary, notice, working pattern and right to work.
               </p>
             )}
             {features.revisitReminders && (

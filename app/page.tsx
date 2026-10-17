@@ -39,11 +39,13 @@ export default async function RolesPage() {
     followUps: followUpsByRole.get(role.id) ?? 0,
     updatedAt: role.updatedAt.toISOString(),
   });
+  // Each card opens what it counts: the roles listed below, everyone, the
+  // follow-ups and the saved searches.
   const metrics = [
-    { label: "Open roles", value: roles.length, caption: "Active searches", icon: "roles" },
-    { label: "People in pipeline", value: roles.reduce((count, role) => count + role._count.candidates, 0), caption: "Across your open roles", icon: "people" },
-    { label: "Follow-ups today", value: followUps.length, caption: "Conversations to move forward", icon: "clock" },
-    { label: "Saved searches", value: searchCount, caption: "Ready when you are", icon: "search" },
+    { label: "Open roles", value: roles.length, caption: "Active searches", icon: "roles", href: "#role-directory" },
+    { label: "People in pipeline", value: roles.reduce((count, role) => count + role._count.candidates, 0), caption: "Across your open roles", icon: "people", href: "/people" },
+    { label: "Follow-ups today", value: followUps.length, caption: "Conversations to move forward", icon: "clock", href: "/followups" },
+    { label: "Saved searches", value: searchCount, caption: "Ready when you are", icon: "search", href: "/searches" },
   ] as const;
 
   return <div className="dashboard-page">
@@ -56,7 +58,7 @@ export default async function RolesPage() {
       <Link href="/getting-started" className="btn-primary">Open the setup guide<Icon name="arrow" size={17} /></Link>
     </section>}
     <header className="page-header"><div><p className="page-eyebrow">Your recruiting workspace</p><h1>Roles</h1><p className="page-description">A clearer view of the people and conversations that matter.</p></div>{!readOnly && <Link href="/roles/new" className="btn-primary"><Icon name="plus" size={18} />New role</Link>}</header>
-    <div className="dashboard-metrics">{metrics.map((metric) => <div key={metric.label} className="metric-card"><div><span>{metric.label}</span><Icon name={metric.icon} size={18} /></div><strong className={metric.label === "Follow-ups today" && metric.value ? "text-accent" : ""}>{String(metric.value).padStart(2, "0")}</strong><small>{metric.caption}</small></div>)}</div>
+    <div className="dashboard-metrics">{metrics.map((metric) => <Link key={metric.label} href={metric.href} className="metric-card"><div><span>{metric.label}</span><Icon name={metric.icon} size={18} /></div><strong className={metric.label === "Follow-ups today" && metric.value ? "text-accent" : ""}>{String(metric.value).padStart(2, "0")}</strong><small>{metric.caption}</small></Link>)}</div>
     <div className="dashboard-grid">
       <RoleDirectory roles={roles.map(summarize)} closedRoles={closedRoles.map(summarize)} readOnly={readOnly} />
       <aside className="dashboard-aside">

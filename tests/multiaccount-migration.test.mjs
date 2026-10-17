@@ -21,13 +21,13 @@ const activationHash = "64".repeat(32);
 const throttleKey = "fixture-private-throttle-key";
 const createdAt = new Date("2023-01-02T03:04:05.006Z");
 const updatedAt = new Date("2024-02-03T04:05:06.007Z");
-const tables = ["User", "ExtensionAccess", "Role", "Person", "MessageTemplate", "Briefing", "SavedSearch", "Candidate", "OutreachLog", "Screening", "Booking", "Settings", "AuditEvent", "UsageEvent", "Suppression"];
+const tables = ["User", "ExtensionAccess", "Role", "Person", "MessageTemplate", "Briefing", "SavedSearch", "Candidate", "OutreachLog", "PersonNote", "Screening", "Booking", "Settings", "AuditEvent", "UsageEvent", "Suppression"];
 const ephemeralTables = ["Session", "ActivationToken", "LoginThrottle"];
 // Accepted in a source, never copied: calendar tokens, AI counters and
 // booked-slot locks (rebuilt from bookings).
-const notImportedTables = ["CalendarConnection", "AiUsage", "BookedSlot"];
+const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch"];
 // Tables a source written before them may lack.
-const optionalTables = ["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression"];
+const optionalTables = ["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "PersonNote"];
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
 const models = [...tables, ...ephemeralTables, ...notImportedTables].map(modelFor);
 const fileUrl = (path) => `file:${path.replaceAll("\\", "/")}`;
@@ -67,6 +67,8 @@ async function seedSource(db) {
     await db.suppression.create({ data: { userId, keyHash: `${index}`.repeat(64), createdAt } });
     await db.calendarConnection.create({ data: { userId, provider: "google", tokenCipher: `fixture-private-cipher-${label}`, scope: "freebusy", connectedAt: createdAt } });
     await db.aiUsage.create({ data: { userId, month: "2025-01", generations: 3 + index } });
+    await db.personNote.create({ data: { id: `fixture-note-${label}`, personId, candidateId, body: `${label} private kept note`, createdAt, updatedAt } });
+    await db.integrationConnection.create({ data: { userId, provider: "notion", tokenCipher: `fixture-private-notion-${label}`, label: `${label} workspace`, connectedAt: createdAt } });
     await db.auditEvent.create({ data: { id: `fixture-audit-${label}`, actorId: "fixture-user-admin", targetUserId: userId, action: index ? "admin.workspace.view" : "admin.bootstrap", createdAt } });
   }
   await db.session.create({ data: { tokenHash: sessionHash, userId: "fixture-user-admin", viewUserId: "fixture-user-recruiter", authVersion: 4, expiresAt: new Date("2035-01-01T00:00:00Z"), createdAt } });
@@ -331,6 +333,61 @@ test("SQLite sources from before saved search links project null and import safe
   assert.deepEqual(await readFile(path), before);
 });
 
+test("SQLite sources from before People import batches project null and import safely", async () => {
+  const path = join(directory, "pre-import-batch-source.db");
+  await copyFile(sourcePath, path);
+  const sqlite = new DatabaseSync(path);
+  try {
+    // SQLite cannot drop a column a foreign key names, so each table is
+    // rebuilt from its own definition without that column and constraint.
+    // legacy_alter_table keeps other tables' foreign keys pointing at the
+    // original name while it is briefly renamed.
+    sqlite.exec("PRAGMA foreign_keys = OFF");
+    sqlite.exec("PRAGMA legacy_alter_table = ON");
+    for (const table of ["Person", "Role", "Candidate"]) {
+      const { sql } = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+      const lines = sql.split("\n").filter((line) => !line.includes("importBatchId"));
+      lines[lines.length - 2] = lines[lines.length - 2].replace(/,\s*$/, "");
+      const kept = sqlite.prepare(`PRAGMA table_info("${table}")`).all().map((column) => `"${column.name}"`).filter((name) => name !== '"importBatchId"').join(", ");
+      const indexes = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL").all(table).map((row) => row.sql);
+      sqlite.exec(`ALTER TABLE "${table}" RENAME TO "${table}_old"`);
+      sqlite.exec(lines.join("\n"));
+      sqlite.exec(`INSERT INTO "${table}" (${kept}) SELECT ${kept} FROM "${table}_old"`);
+      sqlite.exec(`DROP TABLE "${table}_old"`);
+      for (const index of indexes) sqlite.exec(index);
+    }
+    sqlite.exec('DROP TABLE IF EXISTS "ImportBatch"');
+  } finally { sqlite.close(); }
+  const legacy = await readAccounts(path);
+  for (const table of ["Person", "Role", "Candidate"]) for (const row of legacy[table]) assert.equal(row.importBatchId, null);
+  await withTarget(async (db) => {
+    await importAccounts(db, legacy, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, legacy, adminEmail);
+    assert.equal(await db.importBatch.count(), 0);
+  });
+});
+
+test("an import batch in the source is never carried across, and what it created arrives unlinked", async () => {
+  const path = join(directory, "import-batch-source.db");
+  await copyFile(sourcePath, path);
+  const sqlite = new DatabaseSync(path);
+  try {
+    const person = sqlite.prepare('SELECT "id", "userId" FROM "Person" LIMIT 1').get();
+    if (person) {
+      sqlite.prepare('INSERT INTO "ImportBatch" ("id", "userId", "fileName", "createdCount", "roleCount", "fills", "createdAt") VALUES (?, ?, ?, 1, 0, ?, ?)').run("fixture-batch", person.userId, "fixture.xlsx", "[]", Date.now());
+      sqlite.prepare('UPDATE "Person" SET "importBatchId" = ? WHERE "id" = ?').run("fixture-batch", person.id);
+    }
+  } finally { sqlite.close(); }
+  const legacy = await readAccounts(path);
+  for (const row of legacy.Person) assert.equal(row.importBatchId, null);
+  await withTarget(async (db) => {
+    await importAccounts(db, legacy, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, legacy, adminEmail);
+    assert.equal(await db.importBatch.count(), 0);
+    assert.equal(await db.person.count({ where: { importBatchId: { not: null } } }), 0);
+  });
+});
+
 test("a saved search link survives projection, snapshot and import unchanged", async () => {
   const stored = source.SavedSearch.map((row) => row.searchUrl);
   assert.ok(stored.every((value) => typeof value === "string" && value.startsWith("https://www.linkedin.com/talent/")));
@@ -421,6 +478,11 @@ test("validation rejects orphaned references and cross-owner relationships", asy
     ["candidate role", (data) => { data.Candidate[0].roleId = "fixture-missing-role"; }],
     ["search role", (data) => { data.SavedSearch[0].roleId = "fixture-missing-role"; }],
     ["outreach candidate", (data) => { data.OutreachLog[0].candidateId = "fixture-missing-candidate"; }],
+    ["note person", (data) => { data.PersonNote[0].personId = "fixture-missing-person"; }],
+    ["note on another account's candidate", (data) => {
+      const person = data.Person.find((row) => row.id === data.PersonNote[0].personId);
+      data.PersonNote[0].candidateId = data.Candidate.find((row) => data.Role.find((role) => role.id === row.roleId).userId !== person.userId).id;
+    }],
     ["outreach template", (data) => { data.OutreachLog[0].templateId = "fixture-missing-template"; }],
     ["cross-owner search role", (data) => { data.SavedSearch[0].roleId = data.Role.find((row) => row.userId !== data.SavedSearch[0].userId).id; }],
     ["cross-owner outreach template", (data) => {
@@ -492,6 +554,7 @@ test("import preserves two workspaces, password hashes, exact dates and audits w
     // Calendar tokens and AI counters stay behind; slot locks are rebuilt
     // from bookings that still hold their time.
     assert.equal(await db.calendarConnection.count(), 0);
+    assert.equal(await db.integrationConnection.count(), 0);
     assert.equal(await db.aiUsage.count(), 0);
     assert.deepEqual((await db.bookedSlot.findMany()).map((slot) => slot.bookingId), ["fixture-booking-admin"]);
     await verifyAccounts(db, source, adminEmail);
@@ -520,8 +583,10 @@ test("every nonempty target model is refused without modifying existing rows", a
     ActivationToken: { tokenHash: activationHash, userId: "fixture-user-admin", expiresAt: updatedAt.getTime(), createdAt: createdAt.getTime() },
     LoginThrottle: { key: throttleKey, attempts: 2, resetAt: updatedAt.getTime() },
     CalendarConnection: { userId: "fixture-user-admin", provider: "google", tokenCipher: "x", scope: "freebusy", connectedAt: createdAt.getTime() },
+    IntegrationConnection: { userId: "fixture-user-admin", provider: "notion", tokenCipher: "x", label: "", connectedAt: createdAt.getTime() },
     AiUsage: { userId: "fixture-user-admin", month: "2025-01", generations: 1 },
     BookedSlot: { userId: "fixture-user-admin", startsAt: updatedAt.getTime(), bookingId: "fixture-booking-admin" },
+    ImportBatch: { id: "fixture-import-batch", userId: "fixture-user-admin", fileName: "fixture.xlsx", createdCount: 0, roleCount: 0, fills: "[]", createdAt: createdAt.getTime() },
   };
   for (const table of [...tables, ...ephemeralTables, ...notImportedTables]) await t.test(table, async () => {
     await withTarget(async (db) => {
@@ -703,14 +768,14 @@ test("CLI snapshot reports counts and fingerprints without printing private cont
 
 test("sources from before the talent database import with no people, budgets or booking settings", async () => {
   const old = structuredClone(source);
-  for (const table of ["Person", "Screening", "Booking", "UsageEvent", "Suppression"]) delete old[table];
+  for (const table of ["Person", "PersonNote", "Screening", "Booking", "UsageEvent", "Suppression"]) delete old[table];
   for (const row of old.Role) { delete row.budgetMin; delete row.budgetMax; delete row.budgetCurrency; }
   for (const row of old.Candidate) delete row.personId;
   for (const row of old.Settings) {
     for (const column of ["bookingWindows", "bookingTimezone", "bookingDurationMins", "bookingMinNoticeHours", "bookingHorizonDays", "meetingLink", "offerPhone", "privacyNotice", "privacyContactEmail"]) delete row[column];
   }
   const result = validateAccounts(old, adminEmail);
-  for (const table of ["person", "screening", "booking", "usageEvent", "suppression"]) assert.deepEqual(result.data[table], [], table);
+  for (const table of ["person", "personNote", "screening", "booking", "usageEvent", "suppression"]) assert.deepEqual(result.data[table], [], table);
   for (const row of result.data.role) assert.deepEqual([row.budgetMin, row.budgetMax, row.budgetCurrency], [null, null, null]);
   for (const row of result.data.candidate) assert.equal(row.personId, null);
   for (const row of result.data.settings) {
@@ -724,6 +789,7 @@ test("sources from before the talent database import with no people, budgets or 
   const between = structuredClone(source);
   for (const row of between.Candidate) delete row.personId;
   delete between.Person;
+  delete between.PersonNote;
   assert.deepEqual(validateAccounts(between, adminEmail).data.candidate.map((row) => row.memberId).sort(), source.Candidate.map((row) => row.memberId).sort());
   await withTarget(async (db) => {
     await importAccounts(db, old, adminEmail, { provider: "sqlite", confirmed: true });

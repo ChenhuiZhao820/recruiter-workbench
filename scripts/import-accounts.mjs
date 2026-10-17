@@ -11,7 +11,7 @@ const settingsColumns = Object.fromEntries(Object.entries(legacyColumns.Settings
 export const accountColumns = {
   User: { id: "id", email: "email", name: "text", role: "userRole", accountTier: "accountTier", trialExpiresAt: "date?", active: "bool", passwordHash: "password?", authVersion: "int", createdAt: "date", updatedAt: "date" },
   ExtensionAccess: { userId: "id", codeHash: "discard", expiresAt: "date?", activatedAt: "date?", createdAt: "date", updatedAt: "date" },
-  Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus", budgetMin: "int?", budgetMax: "int?", budgetCurrency: "text?" },
+  Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus", budgetMin: "int?", budgetMax: "int?", budgetCurrency: "text?", importBatchId: "discard" },
   Person: {
     id: "id", userId: "id", fullName: "text", profileUrl: "text?", memberId: "text?", headline: "text?",
     email: "text?", emailSource: "text?", emailConsentAt: "date?", salaryMin: "int?", salaryMax: "int?",
@@ -19,12 +19,14 @@ export const accountColumns = {
     remotePreference: "text?", rightToWork: "text?", rightToWorkNote: "text?", skillsSummary: "text?",
     motivation: "text?", factsConfirmedAt: "date?", revisitOn: "date?", revisitNote: "text?",
     doNotContact: "bool", searchText: "text", lastContactAt: "date?", createdAt: "date", updatedAt: "date",
+    importBatchId: "discard",
   },
   MessageTemplate: { ...legacyColumns.MessageTemplate, userId: "id" },
   Briefing: legacyColumns.Briefing,
   SavedSearch: { ...legacyColumns.SavedSearch, userId: "id", searchUrl: "text?" },
-  Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?", personId: "id?" },
+  Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?", personId: "id?", importBatchId: "discard" },
   OutreachLog: legacyColumns.OutreachLog,
+  PersonNote: { id: "id", personId: "id", candidateId: "id?", body: "text", createdAt: "date", updatedAt: "date" },
   Screening: {
     id: "id", candidateId: "id", status: "text", transcript: "text?", transcriptSource: "text?",
     transcriptDeleteAfter: "date?", summaryJson: "text?", summaryModel: "text?", generatedAt: "date?",
@@ -44,14 +46,18 @@ export const accountColumns = {
   Suppression: { userId: "id", keyHash: "text", createdAt: "date" },
 };
 // Tables a source may not have yet: it was written before they existed.
-const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot"]);
-// Accepted in a source but never copied. Calendar tokens are encrypted with
-// the source deployment's key and must be reconnected; monthly AI counters
-// start again; booked-slot locks are rebuilt from the bookings themselves.
+const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch"]);
+// Accepted in a source but never copied. Calendar and integration tokens are
+// encrypted with the source deployment's key and must be reconnected; monthly
+// AI counters start again; booked-slot locks are rebuilt from the bookings;
+// a People import can be undone only where it ran, so its batch (and the
+// importBatchId that points at it) stays behind.
 const notImportedColumns = {
   CalendarConnection: { userId: "id", provider: "text", tokenCipher: "text", scope: "text", connectedAt: "date", lastErrorAt: "date?" },
+  IntegrationConnection: { userId: "id", provider: "text", tokenCipher: "text", label: "text", connectedAt: "date", lastErrorAt: "date?" },
   AiUsage: { userId: "id", month: "text", generations: "int" },
   BookedSlot: { userId: "id", startsAt: "date", bookingId: "id" },
+  ImportBatch: { id: "id", userId: "id", fileName: "text", createdCount: "int", roleCount: "int", fills: "text", createdAt: "date", completedAt: "date?", undoneAt: "date?" },
 };
 const ephemeralColumns = {
   Session: { tokenHash: "text", userId: "id", viewUserId: "id?", authVersion: "int", expiresAt: "date", createdAt: "date" },
@@ -62,7 +68,7 @@ const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
 const allTables = [...Object.keys(accountColumns), ...Object.keys(ephemeralColumns), ...Object.keys(notImportedColumns)];
 const allModels = allTables.map(modelFor);
 const primaryKeys = {
-  ExtensionAccess: ["userId"], Suppression: ["userId", "keyHash"], CalendarConnection: ["userId"],
+  ExtensionAccess: ["userId"], Suppression: ["userId", "keyHash"], CalendarConnection: ["userId"], IntegrationConnection: ["userId", "provider"],
   AiUsage: ["userId", "month"], BookedSlot: ["userId", "startsAt"], LoginThrottle: ["key"],
   Session: ["tokenHash"], ActivationToken: ["tokenHash"],
 };
@@ -78,9 +84,10 @@ const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", 
 // selects in place of a column that is not there.
 const lateColumns = {
   User: [{ accountTier: { value: "basic", sql: "'basic'" }, trialExpiresAt: { value: null, sql: "NULL" } }],
-  Role: [{ budgetMin: { value: null, sql: "NULL" }, budgetMax: { value: null, sql: "NULL" }, budgetCurrency: { value: null, sql: "NULL" } }],
+  Role: [{ budgetMin: { value: null, sql: "NULL" }, budgetMax: { value: null, sql: "NULL" }, budgetCurrency: { value: null, sql: "NULL" } }, { importBatchId: { value: null, sql: "NULL" } }],
+  Person: [{ importBatchId: { value: null, sql: "NULL" } }],
   SavedSearch: [{ searchUrl: { value: null, sql: "NULL" } }],
-  Candidate: [{ memberId: { value: null, sql: "NULL" } }, { personId: { value: null, sql: "NULL" } }],
+  Candidate: [{ memberId: { value: null, sql: "NULL" } }, { personId: { value: null, sql: "NULL" } }, { importBatchId: { value: null, sql: "NULL" } }],
   Settings: [
     { seenRelease: { value: null, sql: "NULL" } },
     {
@@ -178,6 +185,10 @@ export function validateAccounts(source, adminEmail) {
   }
   for (const candidate of data.candidate) {
     if (candidate.personId !== null && get("Person", candidate.personId).userId !== get("Role", candidate.roleId).userId) invalid("candidate belongs to a different account than its person");
+  }
+  for (const note of data.personNote) {
+    const person = get("Person", note.personId);
+    if (note.candidateId !== null && get("Role", get("Candidate", note.candidateId).roleId).userId !== person.userId) invalid("note belongs to a different account than its candidate");
   }
   for (const screening of data.screening) get("Candidate", screening.candidateId);
   const heldSlots = new Set();
@@ -289,7 +300,7 @@ async function verifyData(db, validated) {
     }
     if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "AiUsage"]) {
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch"]) {
     if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar or usage-counter state in target.");
   }
   const expectedSlots = validated.data.booking.filter((booking) => booking.status === "booked").map((booking) => `${booking.userId}|${booking.startsAt.toISOString()}|${booking.id}`).sort();

@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireWritableFeature } from "@/lib/feature-access";
+import { saveCandidateNote } from "@/lib/notes";
 import type { FormState } from "@/lib/formState";
 import { ensureCandidatePerson, personSearchText } from "@/lib/people";
 import { purgeExpiredTranscripts } from "@/lib/retention";
@@ -104,6 +105,16 @@ async function readCv(formData: FormData): Promise<{ base64?: string; error?: st
   return { base64: Buffer.from(bytes).toString("base64") };
 }
 
+// The note kept as it is, with no summary and no model call, on the person's
+// record for good (lib/notes.ts) rather than as a transcript with 30 days. It
+// is refused while the recruiter has asked for the text not to be kept.
+async function saveAsNote(ownerId: string, candidate: { id: string; personId: string | null }, text: string, formData: FormData): Promise<FormState> {
+  if (formData.get("discardTranscript") === "on") {
+    return { error: "Untick \"Don't keep the transcript in Capture\" to save it, or summarise it instead." };
+  }
+  return saveCandidateNote(ownerId, candidate, text);
+}
+
 // Paste, upload or type notes, then one click sends them for a summary. The
 // CV, if attached, goes with that one request and is not kept.
 export async function summariseScreening(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -119,6 +130,7 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
   if (transcript.length > MAX_TRANSCRIPT_CHARS) {
     return { error: `That transcript is ${transcript.length.toLocaleString("en-GB")} characters; the limit is ${MAX_TRANSCRIPT_CHARS.toLocaleString("en-GB")}. Remove the small talk at the start or end and try again.` };
   }
+  if (formData.get("intent") === "save") return saveAsNote(user.id, candidate, transcript, formData);
   const cv = await readCv(formData);
   if (cv.error) return { error: cv.error };
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -135,8 +147,14 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
     return { error: "This candidate already has a summary waiting to be confirmed. Confirm it, or discard it to start again." };
   }
   // A new transcript starts its own 30 days; an old draft's date may already
-  // have passed, and would delete this one at once.
-  const fresh = { transcript, transcriptSource: source, transcriptDeleteAfter: new Date(now.getTime() + TRANSCRIPT_RETENTION_DAYS * DAY_MS) };
+  // have passed, and would delete this one at once. A recruiter who asked for
+  // it not to be kept has it held in this request only: it is never written,
+  // and a failed summary leaves nothing behind to try again with.
+  const discard = formData.get("discardTranscript") === "on";
+  const fresh = discard
+    ? { transcript: null, transcriptSource: source, transcriptDeleteAfter: null }
+    : { transcript, transcriptSource: source, transcriptDeleteAfter: new Date(now.getTime() + TRANSCRIPT_RETENTION_DAYS * DAY_MS) };
+  const kept = discard ? "Nothing was kept; paste it again to try again" : "Your transcript is saved; try again";
   let screeningId: string;
   if (open) {
     // Claiming and saving the transcript are one conditional write, so a
@@ -156,9 +174,18 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
   }
   const screening = { id: screeningId };
 
+  // Back to a draft to try again, or gone when there is no transcript to keep.
+  const release = () =>
+    discard
+      ? db.screening.delete({ where: { id: screening.id } })
+      : db.screening.update({ where: { id: screening.id }, data: { status: "draft" } });
+
   if (!(await claimGeneration(user.id, now))) {
-    await db.screening.update({ where: { id: screening.id }, data: { status: "draft" } });
-    return { error: `You have used this month's ${screeningMonthlyCap()} screening summaries. Your transcript is saved; it can be summarised next month, or the limit raised by your administrator.` };
+    await release();
+    revalidateScreening(candidate.id, candidate.roleId, candidate.personId);
+    return { error: discard
+      ? `You have used this month's ${screeningMonthlyCap()} screening summaries. Nothing was kept. The limit resets next month, or your administrator can raise it.`
+      : `You have used this month's ${screeningMonthlyCap()} screening summaries. Your transcript is saved; it can be summarised next month, or the limit raised by your administrator.` };
   }
 
   const keySkills = parseObjectArray<{ skill: string }>(candidate.role.briefing?.keySkills ?? "[]").map((item) => item.skill);
@@ -183,11 +210,19 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
     });
   } catch (error) {
     await refundGeneration(user.id, now);
-    await db.screening.update({ where: { id: screening.id }, data: { status: "draft" } });
+    await release();
     revalidateScreening(candidate.id, candidate.roleId, candidate.personId);
     if (error instanceof ScreeningRefusedError) return { error: "The summary service declined this transcript. Check it is the right file, or fill the four facts in by hand." };
-    if (error instanceof ScreeningShapeError) return { error: "The summary came back in a shape that could not be read. Your transcript is saved; try again." };
-    if (error instanceof Anthropic.APIError) return { error: "The summary service could not be reached. Your transcript is saved; try again in a moment." };
+    if (error instanceof ScreeningShapeError) return { error: `The summary came back in a shape that could not be read. ${kept}.` };
+    if (error instanceof Anthropic.APIError) {
+      // The status and the service's own message say why; they never contain
+      // the transcript. A 4xx other than a timeout, conflict or rate limit is
+      // a request the service refused, which waiting will not fix.
+      console.error("Screening summary failed:", error.status ?? "no response", error.message);
+      const refused = error.status !== undefined && error.status >= 400 && error.status < 500 && ![408, 409, 429].includes(error.status);
+      if (refused) return { error: `The summary service refused this request, so trying again will not help. ${kept.replace("; try again", "")}. Tell support if it keeps happening.` };
+      return { error: `The summary service could not be reached. ${kept} in a moment.` };
+    }
     throw error;
   }
   revalidateScreening(candidate.id, candidate.roleId, candidate.personId);

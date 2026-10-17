@@ -12,6 +12,7 @@ import { setRevisit } from "@/app/actions/talent";
 import { ActionForm } from "@/components/ActionForm";
 import { REVISIT_SOON_DAYS } from "@/lib/talent.mjs";
 import { factDate } from "@/lib/fact-labels";
+import { ResumeRun } from "@/components/FollowUpRun";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ function Bucket({
   rows,
   actions,
   readOnly,
+  run,
 }: {
   title: string;
   number: string;
@@ -49,10 +51,17 @@ function Bucket({
   rows: FollowUpRow[];
   readOnly: boolean;
   actions: (row: FollowUpRow) => React.ReactNode;
+  // The follow-up run for just this group, when it has anyone in it.
+  run?: string;
 }) {
   return (
     <section aria-label={title} className="workspace-section">
-      <h2 className="section-heading"><span className="section-number" aria-hidden="true">{number}</span>{title}</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="section-heading"><span className="section-number" aria-hidden="true">{number}</span>{title}</h2>
+        {run && rows.length > 0 && (
+          <Link href={run} className="btn-quiet">Go through these one by one</Link>
+        )}
+      </div>
       <p className="section-caption mb-4">{description}</p>
       {rows.length === 0 ? (
         <p className="text-ink/60">Nothing here. All clear.</p>
@@ -121,6 +130,7 @@ export default async function FollowUpsPage() {
         })
       : Promise.resolve([]),
   ]);
+  const due = features.followUpRuns ? buckets.repliedWaiting.length + buckets.saidYesNeverBooked.length + buckets.wentQuiet.length : 0;
   const callTime = new Intl.DateTimeFormat("en-GB", { timeZone: settings.bookingTimezone, weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
   return (
@@ -131,7 +141,13 @@ export default async function FollowUpsPage() {
           <h1>Follow-ups today</h1>
           <p className="page-description">Keep the conversation moving. Built from your own notes and timestamps.</p>
         </div>
-        <p className="chip">Work top to bottom</p>
+        {due > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <ResumeRun />
+            {/* The whole list, ticked with reasons, to change before starting. */}
+            <Link href="/followups/run" className="btn-primary">Follow up in batches ({due})</Link>
+          </div>
+        )}
       </header>
 
       {calls.length > 0 && (
@@ -159,6 +175,7 @@ export default async function FollowUpsPage() {
         title="Replied, waiting on you"
         description="They answered and you have not responded yet."
         rows={buckets.repliedWaiting}
+        run={features.followUpRuns ? "/followups/run?only=r" : undefined}
         actions={(row) => (
           <>
             <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
@@ -176,6 +193,7 @@ export default async function FollowUpsPage() {
         title="Said yes, never booked"
         description={`Keen but no booking after ${settings.bookingChaseDays} ${settings.bookingChaseDays === 1 ? "day" : "days"}.`}
         rows={buckets.saidYesNeverBooked}
+        run={features.followUpRuns ? "/followups/run?only=b" : undefined}
         actions={(row) => (
           <>
             <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
@@ -193,6 +211,7 @@ export default async function FollowUpsPage() {
         title="Went quiet"
         description={`Contacted, no reply, and more than ${settings.quietNudgeDays} days have passed.`}
         rows={buckets.wentQuiet}
+        run={features.followUpRuns ? "/followups/run?only=q" : undefined}
         actions={(row) => (
           <>
             <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">

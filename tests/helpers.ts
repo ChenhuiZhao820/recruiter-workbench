@@ -36,6 +36,14 @@ export async function backdateCandidate(fullName: string, fields: { lastActivity
   const candidate = await db.candidate.findFirst({ where: { fullName, role: { userId: TEST_ADMIN_ID } } });
   if (!candidate) throw new Error(`No candidate named ${fullName}`);
   await db.candidate.update({ where: { id: candidate.id }, data: fields });
+  if (fields.lastActivityAt) await backdateMessages(candidate.id, fields.lastActivityAt);
+}
+
+// Days passing in a test move the messages already logged too: the same text
+// logged again on the same day is one message, so a nudge "three days later"
+// needs the first message to be three days old.
+export async function backdateMessages(candidateId: string, to: Date) {
+  await db.outreachLog.updateMany({ where: { candidateId, sentAt: { gt: to } }, data: { sentAt: to } });
 }
 
 // Adding a candidate is a button until it is wanted, so a test that fills the

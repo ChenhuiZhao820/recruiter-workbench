@@ -4,6 +4,9 @@ export type FactField = "salary" | "notice" | "location" | "right_to_work";
 
 export const FIELDS = FACT_FIELDS as FactField[];
 
+// What the "Screening call" button on a candidate leads to, for its tooltip.
+export const SCREENING_HINT = "Paste the call transcript or your notes. Capture pulls out salary, notice, location and right to work for you to check and save.";
+
 export function isFactField(value: string): value is FactField {
   return (FIELDS as string[]).includes(value);
 }

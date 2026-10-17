@@ -74,7 +74,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `MarketingHome`/`ProductPreview` use explicitly illustrative, static data only.
   Never feed real recruiting data into a public preview or invent customer claims.
 - Dashboard search/sort in `RoleDirectory` works only on server-authorized records
-  and does not write data. Keep all mutation labels, owner checks and read-only
+  and does not write data. The four summary cards above it are links to what
+  they count: the role list below (`#role-directory`), People, Follow-ups and
+  Searches. Keep all mutation labels, owner checks and read-only
   protections intact when restyling pages.
 - `tests/06-design.spec.ts` covers public/private routing, mobile overflow, keyboard
   navigation, tabs, FAQ, password visibility and role filtering. Screenshots use
@@ -142,6 +144,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `app/actions/outreach.ts`, so "contacted", the nudge counters and the log
   cannot differ by route. `markSentAndAdvance` only redirects to a path matching
   this app's own queue route.
+- The same text marked as sent to the same candidate on the same UTC day is one
+  message: `recordSend` records nothing for the repeat and does not count it as
+  another nudge. The person page, the candidate's past outreach and the pace
+  counts read through `oncePerDay` (`lib/outreach-log.ts`), so repeats logged
+  before this rule also count once. Rows are never deleted for it.
 - `components/OutreachStep.tsx` holds the one message on screen. It is editable,
   so personalising someone's line does not mean a trip into LinkedIn and back,
   and what is copied is what `markSentAndAdvance` records. The length count and
@@ -177,6 +184,48 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   line as the weekly invitation count climbs. It is advisory and never blocks a
   send: the real limit is LinkedIn's, unpublished and per account. Keep the
   counting honest and the thresholds conservative rather than precise.
+
+## Follow-up run
+
+- `/followups/run` (`followUpRuns`, every plan) is the outreach queue for
+  everyone due a follow-up, across roles, under the same rules: it never
+  sends, opens LinkedIn by itself, advances without a click, or offers a
+  control that acts on more than the person on screen. "Mark as sent" records
+  and moves to the next person; the arrow at the corner goes back.
+- The list comes from the follow-up buckets through `planRun`
+  (`lib/followup-run.mjs`): replied first, then said-yes-not-booked, then
+  went quiet, longest wait first, each with a reason. Do not contact and
+  anyone already written to today cannot be ticked; nudged twice starts
+  unticked with a suggestion to mark them rejected. It is advisory, not a cap:
+  there is no pace limit on a run. Entry points are "Follow up in batches" and
+  "Go through these one by one" on Follow-ups (`?only=r|b|q`).
+- The address is the whole run: `c=<group>.<candidateId>` in order, `tb`/`tq`
+  the template per group, `i` the position. Ids are scoped to the owner before
+  anything renders; foreign, unknown and do-not-contact ids are dropped, and a
+  run with nobody left goes back to the list. Said-yes and quiet use the
+  chosen template or Capture's built-in follow-up (`BUILT_IN_TEMPLATES`), which
+  asks for times instead of a link when booking is not set up. A template
+  change on the list re-reads the page with `review=1`, ticks kept.
+- Without a message, a person can be settled from the card - they replied,
+  said yes, booked, or rejected - through `setStageAndAdvance`, which then
+  moves on. `markSentAndAdvance` and it redirect only to this app's own queue
+  paths (`isQueuePath`). The latest run is remembered in the browser so
+  Follow-ups can offer "Continue your run".
+- Replies (`replySuggestions`, every plan): on someone who replied, the
+  recruiter pastes what they said and `POST /api/followups/suggest` returns a
+  suggested answer, shown in grey behind the reply box; Tab takes it, typing
+  the same opening keeps the rest offered, "Use suggestion" does the same by
+  click. Nothing is read from LinkedIn. The request (`lib/reply-model.mjs`) is
+  `claude-haiku-4-5` by default (`CAPTURE_REPLY_MODEL`), plain text, 400 output
+  tokens, their message delimited and called data. The route checks the
+  origin, refuses read-only views and other accounts' candidates and do not
+  contact, and caps suggestions per account per UTC month by counting
+  `reply_suggested` usage events (`CAPTURE_REPLY_MONTHLY_CAP`, default 300).
+  Neither their message nor the suggestion is stored; the browser keeps a
+  suggestion for the tab only, so going back does not pay twice.
+- `tests/19-followup-run.spec.ts` plays it on a Basic account;
+  `tests/followup-run.test.mjs` covers the list rules, the address and the
+  request.
 
 ## Telling people what changed
 
@@ -241,7 +290,21 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   at sign-in, on every screening action, and by `scripts/purge-transcripts.mjs`
   (dry run by default, `--apply` needs `PURGE TRANSCRIPTS` typed). Screens treat
   an expired transcript as gone even before it is purged, and the recruiter can
-  delete one early. Summaries and confirmed facts stay.
+  delete one early. Summaries and confirmed facts stay. "Don't keep the
+  transcript in Capture" on the form means it is never written: the request
+  carries it, the summary keeps its quotes, and a failed or capped summary
+  leaves no draft behind rather than a saved copy.
+- The form opens on "Add meeting note or transcript" (or an upload, or a saved
+  draft) rather than showing an empty box. "Fold away" closes it again and
+  keeps the text in the form, and the button then says a note is there.
+  "Save to their record" (`intent=save` on `summariseScreening`) keeps the
+  text as a `PersonNote` on the person, with the role it was written for,
+  for good - no model call, no cap claim, no screening row, no 30 days. It is
+  refused while "Don't keep" is ticked and when the candidate has no person
+  yet; the box then empties and folds. While the summary runs, a bar paced
+  to the usual time names the stage and stays full until the facts appear. Its
+  ticking writes to the page through refs: setting React state while the form
+  is pending ends `useFormStatus` early in this React version.
 - `UsageEvent` (`lib/usage.ts`) records counts and timings only, in our own
   database: `quote_missing` per field at summary time, `ai_field_edited` per
   field the recruiter changed, `screening_confirmed` with the seconds from
@@ -318,8 +381,31 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   on the role page and under Calls this week in Follow-ups, an Add to Google
   Calendar link, an authenticated `.ics` from `/api/bookings/[id]/ics` (own
   workspace only), and Cancel call, which frees the time and puts the candidate
-  back to booking pending. Rescheduling, buffers, calendar writes and reading the
-  recruiter's own calendar are not here; free/busy is planned separately.
+  back to booking pending. Rescheduling, buffers and calendar writes are not here.
+- `{{privacy_notice}}` in a template is one short line (`privacyNoticeLine`):
+  a record is kept, and how to see it or have it deleted, by the privacy contact
+  or the account email. It fits a LinkedIn message; the booking page carries the
+  full notice.
+- Calendar free/busy (`calendarFreeBusy`, every plan): on `/settings/booking`
+  a recruiter may connect Google or Microsoft, offered only when the server has
+  that provider's `*_CLIENT_ID`/`*_CLIENT_SECRET` and a `CALENDAR_TOKEN_KEY`.
+  The scopes are the narrowest each provider documents for this - Google's
+  `calendar.events.freebusy`, Microsoft's `Calendars.ReadBasic` with
+  `offline_access` - and only busy start/end times are read, never what the
+  events are. `/api/calendar/connect/[provider]` sends the signed-in account
+  (never a read-only view) to the provider with a signed, ten-minute state;
+  `/api/calendar/callback/[provider]` keeps the connection only when that state
+  names the same account and provider, and stores the refresh token encrypted
+  with AES-256-GCM (`lib/calendar-core.mjs`). Access tokens live in memory.
+- `freeSlots` subtracts the calendar's busy periods from the weekly hours.
+  Every provider request is server side with a three-second limit; a failure
+  is recorded as `lastErrorAt`, the page carries on with the weekly hours, and
+  the recruiter is warned on the booking settings until a read succeeds.
+  Disconnecting revokes Google's grant and deletes the token either way.
+  `CalendarConnection` is never exported or imported. `tests/18-calendar.spec.ts`
+  plays both providers through the local stub (`CAPTURE_TEST_CALENDAR_BASE_URL`,
+  honoured outside production only); `tests/calendar.test.mjs` covers the
+  encryption, the state, the requested scopes and reading busy replies.
 - `tests/14-booking.spec.ts` plays the candidate in a second browser context
   with no session: booking, two people taking one time at once, forged, altered
   and expired links, closed roles, do not contact, cancelling, a Basic account,
@@ -341,6 +427,17 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   confirmed for a filter is left out of it. Without the feature the search
   stays on name and headline, as before. Facts confirmed more than six months
   ago are marked "May be out of date" wherever they are listed.
+- The People search box suggests as the recruiter types (`PeopleSearchBox`,
+  `GET /api/people/suggest`): the top six by `rankSuggestions` - every word
+  found, a name before a headline before anything else, the start of a word
+  before the middle - with the filters already set applied. Both the page and
+  the endpoint build their query with `peopleWhere` (`lib/people-search.ts`),
+  so a suggestion is always something Search would list, and Basic stays on
+  name and headline in both. The endpoint reads the workspace on screen (a
+  read-only Admin view suggests that workspace's people), returns only what a
+  row shows, and writes nothing. A suggestion opens the person; Enter with
+  none chosen still runs the full search. The filter panel's label says
+  "Filter by" and then the filters in use, as they are set.
 - Talent matches (`talentMatches`, Pro): the role's briefing key skills and
   search titles are scored against people not on the role and not do not
   contact: three points a whole phrase, one a significant word. People whose
@@ -354,6 +451,109 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   on the person page (`setRevisit`). Follow-ups lists "Due to revisit" within a
   week or overdue, excluding do not contact. Computed on page load; no
   scheduler, no email.
+- Notes (`people`, every plan): a person's page lists their `PersonNote`s,
+  newest first, with the role a note was saved from, and takes new ones
+  (`addPersonNote`). Notes are the recruiter's own record and have no expiry:
+  they go when deleted (`deletePersonNote`, with a confirmation) or when the
+  person is erased (cascade). The same text saved to the same person within a
+  minute is one save. Shared rules are in `lib/notes.ts` (server only, never a
+  "use server" export, because it takes an owner id). Notes are exported as
+  their own table and imported by `scripts/import-accounts.mjs`; a note on
+  another account's candidate is refused. Read-only views show notes but
+  cannot add or delete them.
+- Import from Notion (part of `screening`): Notion is offered only when the
+  server has `NOTION_CLIENT_ID`/`NOTION_CLIENT_SECRET` and a
+  `CALENDAR_TOKEN_KEY`, and shown by Notion's own logo (`NotionLogo`, inline
+  SVG). `/api/notion/connect` sends the signed-in account (never a read-only
+  view) to Notion's sign-in and page picker with a signed ten-minute state;
+  where to come back to is a short-lived cookie limited by `safeReturn` to a
+  screening page or Settings. `/api/notion/callback` keeps the connection only
+  when the state names the same account, storing access and refresh tokens
+  encrypted in `IntegrationConnection`. Search (`/api/notion/pages`) and one
+  page as text (`/api/notion/pages/[id]`) are server-side, read-only, on a
+  click, Notion-Version `2026-03-11`; an expired token is refreshed once, and
+  failures ask to reconnect. `lib/notion-core.mjs` turns blocks into lines,
+  including a `meeting_notes` block's summary, notes and transcript; images and
+  unsupported blocks are skipped and text past 60,000 characters is cut with a
+  warning. The text lands in the box for the recruiter to read first; nothing
+  from Notion is stored until they summarise or save. Settings > Connected
+  apps shows the connection and Disconnect, which deletes the tokens (Notion
+  has no revoke endpoint). `IntegrationConnection` is never exported or
+  imported. `tests/20-notes-notion.spec.ts` plays Notion through the local stub
+  (`CAPTURE_TEST_NOTION_BASE_URL`, outside production only);
+  `tests/notion.test.mjs` covers the state, the return path and the blocks.
+- `20261006000000_person_notes_integrations` adds both tables (additive); see
+  Hosting for when it was applied.
+- Import from a spreadsheet (`peopleImport`, every plan) at `/people/import`, from the Import people
+  button on People: an `.xlsx`, a `.csv` or Excel's UTF-16 "Unicode Text", 4 MB and 2,000 people at
+  most. The reader is `lib/sheet-read.mjs`, a small zip-and-XML reader with no dependency
+  (SheetJS on npm is unpatched and vulnerable; do not swap it in): every size is capped before it is
+  expanded, formulas are never evaluated (the saved value is used), and unclosed XML ends a linear scan
+  rather than a regular expression. The rules are in `lib/people-import.mjs`; `lib/people-import-server.ts`
+  looks up who exists and writes. Do not give the server module the same base name as the `.mjs` one:
+  the bundler resolves `@/lib/people-import` to whichever extension it tries first.
+- Files arrive in every shape, so the layout is read, not assumed (`prepareTable`, shared with
+  `tests/people-import-dirty.test.mjs`, which holds the odd files it was tuned on): the visible sheet whose
+  headings name the most known columns (hidden sheets are skipped); the heading row among the first ten,
+  or none when the first row is a person; columns by heading and then by contents (a column of LinkedIn
+  addresses or emails is one whatever it is called, and contents outvote a heading such as "Contact"
+  full of emails); several columns into one location, skills or note; title plus company as the
+  headline; the link behind a cell or a `HYPERLINK` formula; merged cells filled the way Excel shows
+  them; a one-cell row above each group read as the group's role; "SMITH, Jane" turned round and
+  capitals written normally only when the whole column is like that; a name from the start of a cell
+  that holds everything, or from the email when there is no name column; placeholders, a repeated
+  heading row and a totals row refused as "Not a name". Each reading is one line on the page with one
+  button that reads it the other way; whatever is left over is kept in the person's note unless the
+  recruiter says not to. Nothing is guessed silently.
+- A column that may hold roles (`classifyRoleColumn`) is read as roles without asking only when most of
+  its values are the account's existing roles, or its heading says so ("Applied for", "Vacancy") and it
+  would create no more than ten new roles or 30% of the rows, whichever is fewer. Otherwise - and always
+  for "Role", "Position" or "Job" in a new account - the recruiter is asked what it means, with nothing
+  pre-chosen, before Import is possible. Each role named (`resolveRoleValues`) goes to the one open role
+  of that exact title; two of that title, a closed one, a close spelling or a new name default to no role
+  and offer the choices in one list, so no role is created or attached on a guess. A person on several
+  rows is one person on each of their roles; nobody is put on a role twice. Role ids from the page are
+  checked against the account again when writing.
+- Undo (`undoImport`, `ImportBatch`): every person, role and candidacy an import creates carries its
+  `importBatchId`, and the empty fields it filled are listed on the batch. For 7 days the done screen and
+  People offer Undo import, asked in place. It removes what the import made except people worked on since
+  (moved on from sourced, contacted, screened, booked, given a note, edited or put on a role by hand),
+  who stay and are named; roles go only when nothing else holds them; filled fields are emptied only if
+  unchanged; do-not-contact stays. Undo is not erasure and adds nothing to `Suppression`. The batch is
+  never exported or carried by `scripts/import-accounts.mjs`; it belongs to the database it ran on.
+  `20261015000000_import_batches` adds the table and the three nullable columns (additive); see Hosting
+  for when it was applied.
+- Two steps over one upload. Preview (`previewPeopleImport`) reads the file and reports what would happen,
+  writing nothing; Import (`runPeopleImport`) re-reads the same file and trusts nothing the preview said:
+  every choice goes through `parseOptions`, and every lookup is repeated. The file is never stored. Rows
+  are matched by member id, then canonical profile link, and by email only for a row with neither - never
+  by name. Anyone in `Suppression` (on any of their identifiers) is skipped, so an erasure cannot be
+  undone by re-importing the list; a repeat within the file is combined with the first row, and any row
+  can be left out from "Check every row".
+  Someone already in People is never overwritten: a row can only add do-not-contact (the safe direction;
+  any value but a plain no counts) and, if ticked, fill an empty headline, location, skills or email.
+- The page is three steps with one decision each (Choose file, Review, Done), not a long form. Choosing a
+  file reads it and moves straight to Review, which answers one question - "N people will be added" -
+  with the first five names, what else happens (only non-zero lines) and one commit card: the
+  legitimate-reason box, the button and, when it is off, a visible reason beside it. The columns are not
+  shown unless no column looks like a name or the recruiter presses Change columns; "fill empty fields"
+  appears only when someone in the file already exists. Each new screen takes focus at its heading and
+  results are announced through a status region; the lists are lists, not tables, so a phone needs no
+  sideways scroll, and the commit card sticks to the bottom of a small screen. The disabled state of
+  `.btn-primary`, `.btn-secondary` and `.btn-quiet` is now at least 4.5:1 (it was 1.5:1 for the primary).
+- Imported people carry identity and description only. Salary, notice and right to work are not
+  imported: they count in search only once confirmed on a screening, and a cell is not a confirmation.
+  An imported email has `emailSource: "import"` and no consent date; Capture never sends email anyway.
+  Every new person gets a `PersonNote` saying which file and day they came from (and their notes cell as a
+  second note); that also keeps `dropIfOrphan` from removing them when their only role goes. The import
+  needs the recruiter to tick that they have a legitimate reason to hold these records. The audit event
+  `people.imported` and the `people_imported` usage event carry counts only, never names or a file name.
+- `tests/people-import.test.mjs` (reader limits, hostile files, rules), `tests/people-import-dirty.test.mjs`
+  (odd files, each ten fictional people at most, and the role rules; workbooks with sheets, links, merges
+  and formulas are built in memory by `tests/xlsx-fixture.mjs`) and `tests/22-people-import.spec.ts`
+  (preview writes nothing, notes, suppression, other accounts, mapping by hand, the role question, role
+  matching, readings turned off, rows left out, undo and what it keeps, another account's undo refused,
+  refused files, orphan guard, read-only view, phone width).
 - Review list (`privacy`, every plan) at `/people/review`: people with no
   update, contact or candidacy activity for 12 months. "Keep for another year"
   (`keepPerson`) touches the record and writes a nameless `person.kept` audit
@@ -436,6 +636,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Capture uses a per-user hashed key, independent of website cookies. Its API
   returns the connected account and only its open roles. Password changes and
   account disabling revoke sessions and capture keys; no raw stored capture keys.
+- Admin can permanently delete a recruiter account from `/admin/[id]` (`deleteAccount`): never an administrator or oneself, never from a read-only view, and only after the account's email is typed. Business tables use `onDelete: Restrict` on the user, so the action removes bookings, searches, roles, people, templates and settings explicitly in one transaction before the user (the rest cascades). Audit events are kept and a nameless `account_deleted` event is written. `tests/21-delete-account.spec.ts`.
 - Public signup is disabled. Activation links use URL fragments and expire after
   24 hours; the raw link is shown only at creation. No default admin password.
 
@@ -692,6 +893,31 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   than Prisma's SQLite table rebuild, rehearsed on a copy first; Prisma then
   reports no difference from the schema. The SQL, the backup copy, the dump
   and the reports are in ignored `prisma/private-local/`.
+- On 2026-10-05, `20261006000000_person_notes_integrations` (`PersonNote`,
+  `IntegrationConnection`) was applied and registered on the hosted database
+  the same way: preflight identity/TLS and migration-state check, a
+  custom-format dump restored into a disposable container and the migration
+  rehearsed there, then one transaction checked against the reviewed file's
+  SHA-256. Every existing table came out unchanged and both new tables empty;
+  Prisma reports 8 migrations and no difference. The local account database
+  received the same two `CREATE TABLE`s in place after a backup copy and a
+  rehearsal on another copy, with every existing table's content unchanged.
+  The scripts, dump, copies and reports are in ignored `prisma/private-local/`.
+- On 2026-10-14, `20261015000000_import_batches` (`ImportBatch`, nullable
+  `importBatchId` on Person, Role and Candidate) was applied and registered on
+  the hosted database the same way, checked against the reviewed file's
+  SHA-256. Docker Desktop would not start on this Windows build, so the
+  PostgreSQL 17 tools and the disposable rehearsal database ran in WSL Ubuntu
+  from the official PGDG packages instead (`prisma/private-local/verify-db.sh`:
+  a fresh /tmp directory, a Unix socket and no network address, deleted
+  afterwards). The first attempt lost its connection before the backup and
+  committed nothing; the second committed. Every existing table came out
+  unchanged, the new table empty and no row with a batch; Prisma reports 9
+  migrations and no difference. Prisma's connection to the hosted database
+  needed `connect_timeout=30` from this machine. The local account database
+  received the table and the three columns in place (`ADD COLUMN`, not Prisma's
+  SQLite rebuild) after a backup copy and a rehearsal, every existing table's
+  content unchanged and Prisma reporting no difference.
 
 ## Searches and LinkedIn industry filters
 

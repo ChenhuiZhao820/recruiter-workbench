@@ -29,11 +29,12 @@ export const dynamic = "force-dynamic";
 // worked out from the follow-up buckets, ticked with reasons, and the
 // recruiter changes it before starting. The address is the whole run.
 
-type Params = { c?: string | string[]; i?: string; tb?: string; tq?: string; review?: string; only?: string };
-type Group = "r" | "b" | "q";
+type Params = { c?: string | string[]; i?: string; tm?: string; tb?: string; tq?: string; review?: string; only?: string };
+type Group = "r" | "m" | "b" | "q";
 
 const OUTCOMES: Record<Group, { stage: string; label: string }[]> = {
   r: [{ stage: "booking_pending", label: "They said yes" }, { stage: "rejected", label: "Mark rejected" }],
+  m: [{ stage: "rejected", label: "Mark rejected" }],
   b: [{ stage: "booked", label: "Mark booked" }, { stage: "rejected", label: "Mark rejected" }],
   q: [{ stage: "replied", label: "They replied" }, { stage: "rejected", label: "Mark rejected" }],
 };
@@ -44,7 +45,8 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
     getSettings(),
     db.messageTemplate.findMany({ where: { userId: owner.id }, orderBy: { updatedAt: "desc" } }),
   ]);
-  const chosen: Record<"b" | "q", string> = {
+  const chosen: Record<"m" | "b" | "q", string> = {
+    m: templates.some((t) => t.id === searchParams.tm) ? searchParams.tm! : "",
     b: templates.some((t) => t.id === searchParams.tb) ? searchParams.tb! : "",
     q: templates.some((t) => t.id === searchParams.tq) ? searchParams.tq! : "",
   };
@@ -210,7 +212,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
   // again from the list rather than claim a run happened.
   if (run.length === 0) redirect("/followups/run");
   const kept = run.map((step) => ({ group: step.group, candidateId: step.candidate.id }));
-  const templateIds = { b: chosen.b, q: chosen.q };
+  const templateIds = { m: chosen.m, b: chosen.b, q: chosen.q };
   const requested = Number.parseInt(searchParams.i ?? "0", 10);
   const index = Number.isFinite(requested) && requested > 0 ? requested : 0;
   const here = runHref(kept, { templates: templateIds, index });

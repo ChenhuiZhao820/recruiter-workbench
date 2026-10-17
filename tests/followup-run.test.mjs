@@ -52,6 +52,24 @@ test("the run in the address keeps its order and drops anything malformed, repea
   assert.deepEqual(readRunEntries(new URL(href, "http://x").searchParams.getAll("c")), entries);
 });
 
+test("people a client asked to meet come straight after replies, name the client, and travel in the address", () => {
+  const plan = planRun({
+    repliedWaiting: [row("r1")],
+    clientWantsToMeet: [row("m1", { lastEventAt: daysAgo(1), client: "Halden Systems" }), row("m2", { lastEventAt: daysAgo(5), client: null })],
+    saidYesNeverBooked: [row("b1")],
+    wentQuiet: [row("q1")],
+  }, { now });
+  assert.deepEqual(plan.map((p) => p.row.candidateId), ["r1", "m2", "m1", "b1", "q1"]);
+  assert.deepEqual(plan.filter((p) => p.group === "m").map((p) => p.reason), ["The client asked to meet them 5 days ago", "Halden Systems asked to meet them 1 day ago"]);
+  // Older buckets without the group still plan.
+  assert.equal(planRun({ repliedWaiting: [], saidYesNeverBooked: [row("b1")], wentQuiet: [] }, { now }).length, 1);
+  assert.deepEqual(planRun({ repliedWaiting: [row("r1")], clientWantsToMeet: [row("m1")], saidYesNeverBooked: [], wentQuiet: [] }, { now, only: "m" }).filter((p) => p.checked).map((p) => p.row.candidateId), ["m1"]);
+  const entries = readRunEntries(["m.abcdefgh1", "q.abcdefgh2"]);
+  assert.deepEqual(entries, [{ group: "m", candidateId: "abcdefgh1" }, { group: "q", candidateId: "abcdefgh2" }]);
+  assert.equal(runHref(entries, { templates: { m: "tmpl9" } }), "/followups/run?c=m.abcdefgh1&c=q.abcdefgh2&tm=tmpl9&i=0");
+  assert.doesNotMatch(BUILT_IN_TEMPLATES.m, /booking_link/);
+});
+
 test("the built-in follow-ups ask only for what the app can fill", () => {
   for (const body of Object.values(BUILT_IN_TEMPLATES)) {
     for (const [, name] of body.matchAll(/\{\{(\w+)\}\}/g)) assert.ok(["first_name", "role_title", "recruiter_name", "booking_link"].includes(name), name);

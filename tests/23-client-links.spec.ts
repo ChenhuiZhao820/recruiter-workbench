@@ -34,6 +34,13 @@ async function personOn(role: string, fullName: string, options: { consent?: boo
   return { person, candidate };
 }
 
+// The person behind a name on this role: other specs use the same fictional
+// names for the same account, so a lookup by name alone can find theirs.
+async function personOnRole(role: string, fullName: string) {
+  const candidate = await db.candidate.findFirstOrThrow({ where: { roleId: role, fullName } });
+  return db.person.findUniqueOrThrow({ where: { id: candidate.personId! } });
+}
+
 function row(page: Page, name: string) {
   return page.locator("li.card", { hasText: name });
 }
@@ -118,7 +125,7 @@ test("L2 without known consent the recruiter confirms it, and consent for the sa
   await sam.getByText("Put forward to Halden Systems Ltd", { exact: true }).click();
   await sam.getByRole("button", { name: "Put forward", exact: true }).click();
   // The browser refuses an unticked required box; nothing is written.
-  expect(await db.shortlistItem.count({ where: { person: { fullName: "Sam Okafor" } } })).toBe(0);
+  expect(await db.shortlistItem.count({ where: { personId: (await personOnRole(roleId, "Sam Okafor")).id } })).toBe(0);
   await sam.getByLabel("Sam Okafor agreed to be put forward to Halden Systems Ltd.").check();
   await sam.getByRole("button", { name: "Put forward", exact: true }).click();
   await expect(sam.getByText("On the client link")).toBeVisible();
@@ -127,7 +134,7 @@ test("L2 without known consent the recruiter confirms it, and consent for the sa
   // The same person on another role for the same client (spelt differently)
   // is one click: they already agreed to Halden.
   const other = await db.role.create({ data: { userId: TEST_ADMIN_ID, title: "Client Link Second Role", client: "halden systems" } });
-  const person = await db.person.findFirstOrThrow({ where: { fullName: "Sam Okafor", userId: TEST_ADMIN_ID } });
+  const person = await personOnRole(roleId, "Sam Okafor");
   await db.candidate.create({ data: { roleId: other.id, fullName: "Sam Okafor", personId: person.id, stage: "contacted" } });
   await page.goto(`/roles/${other.id}`);
   await row(page, "Sam Okafor").getByRole("button", { name: "Put forward to halden systems" }).click();
@@ -154,7 +161,7 @@ test("L3 the page reads live: taking someone off, do not contact and rejection a
     await client.page.reload();
     await expect(client.page.locator(".client-entry")).toHaveCount(1);
 
-    const imogen = await db.person.findFirstOrThrow({ where: { fullName: "Imogen Achterberg", userId: TEST_ADMIN_ID } });
+    const imogen = await personOnRole(roleId, "Imogen Achterberg");
     await db.person.update({ where: { id: imogen.id }, data: { doNotContact: true } });
     await client.page.reload();
     await expect(client.page.getByRole("heading", { name: "No one here yet" })).toBeVisible();
@@ -262,6 +269,106 @@ test("L7 the client's page fits a phone without sideways scrolling", async ({ br
     await expect(client.page.locator(".client-entry").first()).toBeVisible();
     expect(await client.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     await client.page.screenshot({ path: testInfo.outputPath("client-page-phone.png"), fullPage: true });
+  } finally {
+    await client.close();
+  }
+});
+
+test("L8 the client answers on the page - interview, or not for us with a reason - and can change it; the role page shows it", async ({ browser, page }, testInfo) => {
+  await page.goto(`/roles/${roleId}`);
+  const link = await linkOf(page);
+  const client = await guest(browser);
+  try {
+    await client.page.goto(link);
+    const imogen = client.page.locator(".client-entry", { hasText: "Imogen Achterberg" });
+    await imogen.getByRole("button", { name: "Interview Imogen" }).click();
+    await expect(imogen.getByText("You asked to meet Imogen. The recruiter will arrange it.")).toBeVisible();
+
+    const priya = client.page.locator(".client-entry", { hasText: "Priya Raman" });
+    await priya.getByRole("button", { name: "Not for us" }).click();
+    await priya.getByRole("radio", { name: "Salary" }).check();
+    await priya.getByLabel(/Anything else the recruiter should know/).fill("  Above   our band  ");
+    await priya.getByRole("button", { name: "Send" }).click();
+    await expect(priya.getByText(/Not for you · Salary: Above our band/)).toBeVisible();
+    await client.page.screenshot({ path: testInfo.outputPath("client-page-answered.png"), fullPage: true });
+
+    // Changing an answer replaces it.
+    await priya.getByRole("button", { name: "Change your answer" }).click();
+    await priya.getByRole("button", { name: "Not for us" }).click();
+    await priya.getByRole("radio", { name: "Experience" }).check();
+    await priya.getByRole("button", { name: "Send" }).click();
+    await expect(priya.getByText(/Not for you · Experience/)).toBeVisible();
+  } finally {
+    await client.close();
+  }
+  const items = await db.shortlistItem.findMany({ where: { shortlist: { roleId } }, include: { person: { select: { fullName: true } } } });
+  const by = Object.fromEntries(items.map((item) => [item.person.fullName, item]));
+  expect([by["Imogen Achterberg"].decision, by["Imogen Achterberg"].decisionAccessId]).toEqual(["interview", expect.any(String)]);
+  expect([by["Priya Raman"].decision, by["Priya Raman"].decisionReason, by["Priya Raman"].decisionNote]).toEqual(["declined", "experience", null]);
+  expect(await db.usageEvent.count({ where: { userId: TEST_ADMIN_ID, kind: "client_decision" } })).toBe(3);
+  expect(await db.auditEvent.count({ where: { action: "shortlist.decision" } })).toBe(3);
+
+  await page.goto(`/roles/${roleId}`);
+  await expect(row(page, "Imogen Achterberg").getByText("Halden Systems Ltd wants to meet")).toBeVisible();
+  await expect(row(page, "Priya Raman").getByText("Not for Halden Systems Ltd · Experience")).toBeVisible();
+  await expect(row(page, "Priya Raman").getByRole("button", { name: "Mark rejected" })).toBeVisible();
+  await expect((await openPanel(page)).getByText(/Halden Systems Ltd wants to meet/)).toBeVisible();
+
+  // The preview shows the answers and offers nothing to press.
+  await (await openPanel(page)).getByRole("link", { name: "See what Halden Systems Ltd sees" }).click();
+  await expect(page.getByText("You asked to meet Imogen. The recruiter will arrange it.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Interview|Not for us|Change your answer/ })).toHaveCount(0);
+});
+
+test("L9 'Client wants to meet' is a follow-up and a run of its own, and leaves once the candidate is written to", async ({ page }) => {
+  await page.goto("/followups");
+  const bucket = page.getByRole("region", { name: "Client wants to meet" });
+  await expect(bucket.getByText("Imogen Achterberg")).toBeVisible();
+  await expect(bucket.getByText(/Halden Systems Ltd wants to meet them/)).toBeVisible();
+  await expect(bucket.getByText("Priya Raman")).toHaveCount(0);
+
+  await bucket.getByRole("link", { name: "Go through these one by one" }).click();
+  await expect(page.getByRole("heading", { name: /Client wants to meet/ })).toBeVisible();
+  await expect(page.getByText(/Halden Systems Ltd asked to meet them today/)).toBeVisible();
+  await page.getByRole("button", { name: /^Start \(1\)$/ }).click();
+  await expect(page.getByLabel("Message")).toHaveValue(/Good news on the Client Link Test Platform Lead role - they would like to meet you\./);
+  // Pressed before the page has hydrated, the form posts natively, and the
+  // site-wide no-referrer policy makes that post carry Origin: null, which
+  // Next.js cannot parse. Wait until the page has settled.
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("button", { name: "Mark as sent", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "That is everyone." })).toBeVisible();
+
+  await page.goto("/followups");
+  await expect(page.getByRole("region", { name: "Client wants to meet" })).toHaveCount(0);
+});
+
+test("L10 a forged person, and a link closed while the page was open, take no answer", async ({ browser, page }) => {
+  await page.goto(`/roles/${roleId}`);
+  const link = await linkOf(page);
+  const other = await db.user.findFirstOrThrow({ where: { name: "Other Recruiter", email: { startsWith: "links-other-" } } });
+  const theirs = await db.shortlist.findFirstOrThrow({ where: { userId: other.id } });
+  const theirPerson = await db.person.create({ data: { userId: other.id, fullName: "Not Yours", searchText: "not yours" } });
+  const theirItem = await db.shortlistItem.create({ data: { shortlistId: theirs.id, personId: theirPerson.id, consentAt: new Date() } });
+
+  const client = await guest(browser);
+  try {
+    await client.page.goto(link);
+    const priya = client.page.locator(".client-entry", { hasText: "Priya Raman" });
+    await priya.getByRole("button", { name: "Change your answer" }).click();
+    await priya.locator('input[name="itemId"]').first().evaluate((input, id) => { (input as HTMLInputElement).value = id; }, theirItem.id);
+    await priya.getByRole("button", { name: "Interview Priya" }).click();
+    await expect(priya.getByRole("alert")).toContainText("That person is no longer on this page.");
+    expect((await db.shortlistItem.findUniqueOrThrow({ where: { id: theirItem.id } })).decision).toBeNull();
+
+    await client.page.reload();
+    await priya.getByRole("button", { name: "Change your answer" }).click();
+    page.on("dialog", (dialog) => dialog.accept());
+    await (await openPanel(page)).getByRole("button", { name: "Close the link" }).click();
+    await expect((await openPanel(page)).getByText(/You closed this link/)).toBeVisible();
+    await priya.getByRole("button", { name: "Interview Priya" }).click();
+    await expect(priya.getByRole("alert")).toContainText("This link is no longer active.");
+    expect((await db.shortlistItem.findFirstOrThrow({ where: { shortlist: { roleId }, person: { fullName: "Priya Raman" } } })).decision).toBe("declined");
   } finally {
     await client.close();
   }

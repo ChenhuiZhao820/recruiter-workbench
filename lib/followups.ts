@@ -2,8 +2,8 @@ import { db } from "./db";
 import { getSettings } from "./settings";
 import { getWorkspace } from "./workspace";
 
-// The three follow-up buckets. Computed from stages and timestamps we store
-// ourselves. Nothing here is read from LinkedIn.
+// The follow-up buckets. Computed from stages, timestamps and client answers
+// we store ourselves. Nothing here is read from LinkedIn.
 
 export type FollowUpRow = {
   candidateId: string;
@@ -18,10 +18,15 @@ export type FollowUpRow = {
   lastSentAt: Date | null;
   nudgeCount: number;
   doNotContact: boolean;
+  // The client who asked to meet them, for that bucket only.
+  client?: string | null;
 };
 
 export type FollowUpBuckets = {
   repliedWaiting: FollowUpRow[];
+  // A client pressed Interview on their link and nobody has written to the
+  // candidate since. Leaves once a message is logged or an interview booked.
+  clientWantsToMeet: FollowUpRow[];
   saidYesNeverBooked: FollowUpRow[];
   wentQuiet: FollowUpRow[];
 };
@@ -47,6 +52,7 @@ export async function getFollowUpBuckets(): Promise<FollowUpBuckets> {
 
   const buckets: FollowUpBuckets = {
     repliedWaiting: [],
+    clientWantsToMeet: [],
     saidYesNeverBooked: [],
     wentQuiet: [],
   };
@@ -86,6 +92,44 @@ export async function getFollowUpBuckets(): Promise<FollowUpBuckets> {
         );
       }
     }
+  }
+
+  const wanted = await db.shortlistItem.findMany({
+    where: {
+      decision: "interview",
+      shortlist: { userId: owner.id, kind: "role", revokedAt: null },
+      person: { doNotContact: false },
+      candidate: {
+        stage: { notIn: ["rejected", "placed"] },
+        role: { status: "open", userId: owner.id },
+        bookings: { none: { kind: "interview", status: "booked" } },
+      },
+    },
+    include: {
+      shortlist: { select: { client: true, roleId: true } },
+      candidate: { include: { role: { select: { id: true, title: true } }, outreach: { orderBy: { sentAt: "desc" }, take: 1 } } },
+    },
+  });
+  for (const item of wanted) {
+    const c = item.candidate!;
+    const at = item.decisionAt ?? item.addedAt;
+    // Only the candidacy on the link's own role counts, and only until the
+    // recruiter has written to them since the client answered.
+    if (c.roleId !== item.shortlist.roleId || (c.outreach[0] && c.outreach[0].sentAt > at)) continue;
+    buckets.clientWantsToMeet.push({
+      candidateId: c.id,
+      candidateName: c.fullName,
+      profileUrl: c.profileUrl,
+      roleId: c.role.id,
+      roleTitle: c.role.title,
+      lastEvent: `${item.shortlist.client || "The client"} wants to meet them`,
+      lastEventAt: at,
+      lastOutreachKind: c.outreach[0]?.kind ?? null,
+      lastSentAt: c.outreach[0]?.sentAt ?? null,
+      nudgeCount: c.nudgeCount,
+      doNotContact: false,
+      client: item.shortlist.client,
+    });
   }
 
   for (const bucket of Object.values(buckets)) {

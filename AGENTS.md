@@ -194,19 +194,22 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   control that acts on more than the person on screen. "Mark as sent" records
   and moves to the next person; the arrow at the corner goes back.
 - The list comes from the follow-up buckets through `planRun`
-  (`lib/followup-run.mjs`): replied first, then said-yes-not-booked, then
-  went quiet, longest wait first, each with a reason. Do not contact and
+  (`lib/followup-run.mjs`): replied first, then client-wants-to-meet, then
+  said-yes-not-booked, then went quiet, longest wait first, each with a
+  reason. Do not contact and
   anyone already written to today cannot be ticked; nudged twice starts
   unticked with a suggestion to mark them rejected. It is advisory, not a cap:
   there is no pace limit on a run. Entry points are "Follow up in batches" and
-  "Go through these one by one" on Follow-ups (`?only=r|b|q`).
-- The address is the whole run: `c=<group>.<candidateId>` in order, `tb`/`tq`
-  the template per group, `i` the position. Ids are scoped to the owner before
-  anything renders; foreign, unknown and do-not-contact ids are dropped, and a
-  run with nobody left goes back to the list. Said-yes and quiet use the
-  chosen template or Capture's built-in follow-up (`BUILT_IN_TEMPLATES`), which
-  asks for times instead of a link when booking is not set up. A template
-  change on the list re-reads the page with `review=1`, ticks kept.
+  "Go through these one by one" on Follow-ups (`?only=r|m|b|q`).
+- The address is the whole run: `c=<group>.<candidateId>` in order,
+  `tm`/`tb`/`tq` the template per group, `i` the position. Ids are scoped to
+  the owner before anything renders; foreign, unknown and do-not-contact ids
+  are dropped, and a run with nobody left goes back to the list. Client-wants-
+  to-meet, said-yes and quiet use the chosen template or Capture's built-in
+  follow-up (`BUILT_IN_TEMPLATES`), which asks for times instead of a link
+  when booking is not set up, and for client interviews until those can be
+  booked. A template change on the list re-reads the page with `review=1`,
+  ticks kept.
 - Without a message, a person can be settled from the card - they replied,
   said yes, booked, or rejected - through `setStageAndAdvance`, which then
   moves on. `markSentAndAdvance` and it redirect only to this app's own queue
@@ -351,8 +354,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Every plan (`clientShortlists` in `FEATURE_TIERS`). A role has one client
   link: a `Shortlist` of kind `role`, made the first time someone is put
   forward, listing everyone put forward on one page the client opens without
-  signing in. Custom shortlists, named recipients, client decisions and
-  interview booking are planned in `docs/plans/client-shortlist.en.md`; Basic
+  signing in. Custom shortlists, named recipients and interview booking are
+  planned in `docs/plans/client-shortlist.en.md`; Basic
   will have at most `SHORTLIST_LIMITS.basic` active custom shortlists, and a
   role's own link never counts.
 - What a client sees is `clientProfile` in `lib/client-profile.ts` and nothing
@@ -384,6 +387,19 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   component inside the app and is never counted.
 - Capture sends nothing to the client: "Open in email" is a `mailto:` built
   like the client email's, from a recipient field with no form name.
+- The client answers per person: "Interview <name>", or "Not for us" with an
+  optional reason chip and a line of at most 280 characters
+  (`decideShortlistItem`, constants in `lib/shortlist-decisions.mjs`, which the
+  browser can load; `lib/shortlist-core.mjs` cannot, it uses `node:crypto`).
+  The action has no session: it checks the origin, re-reads the link, refuses
+  anyone no longer visible on it, throttles per link, and writes the answer
+  with the link it came from, a nameless `shortlist.decision` audit event and
+  a `client_decision` usage event. An answer can be changed until an interview
+  is booked. Capture never changes a stage on a client's answer: the role
+  page shows it, with "Mark rejected" beside a "not for us".
+- Follow-ups lists "Client wants to meet" (only when it has anyone) for an
+  Interview answer on a role link with no message logged since and no
+  interview booked; it is its own group, `m`, in the follow-up run.
 - `tests/23-client-links.spec.ts` plays the client in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
 

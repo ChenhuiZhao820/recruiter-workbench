@@ -1,8 +1,10 @@
 import type { ClientShortlistView } from "@/lib/shortlists";
+import { ClientDecision } from "@/components/ClientDecision";
 
 // The page a client reads: the people a recruiter has put forward, as
 // ClientProfile allows and nothing more. Shared by /s/<token> and the
 // recruiter's preview, so the preview cannot drift from what the client sees.
+// The token is null in the preview, where the answers are shown but inert.
 
 const addedOn = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
@@ -10,7 +12,7 @@ function count(n: number) {
   return `${n} ${n === 1 ? "candidate" : "candidates"}`;
 }
 
-export function ClientShortlist({ view }: { view: ClientShortlistView }) {
+export function ClientShortlist({ view, token }: { view: ClientShortlistView; token: string | null }) {
   const heading = view.roleTitle ?? view.title;
   return (
     <article className="client-page" aria-labelledby="client-heading">
@@ -35,8 +37,8 @@ export function ClientShortlist({ view }: { view: ClientShortlistView }) {
         </div>
       ) : (
         <ol className="client-list">
-          {view.entries.map(({ itemId, profile, addedAt }) => (
-            <li key={itemId} className="client-entry">
+          {view.entries.map(({ itemId, profile, addedAt, decision, canDecide }) => (
+            <li key={itemId} id={`entry-${itemId}`} className="client-entry">
               <div className="client-entry-head">
                 <div className="min-w-0">
                   <h2 className="client-name">{profile.fullName}</h2>
@@ -76,13 +78,16 @@ export function ClientShortlist({ view }: { view: ClientShortlistView }) {
                   {profile.factsMayBeOutOfDate && <span className="chip person-stale">May be out of date</span>}
                 </p>
               )}
+
+              {/* Keyed by the answer, so a saved change starts the control afresh. */}
+              <ClientDecision key={`${itemId}-${decision?.decision ?? "none"}-${decision?.at.toISOString() ?? ""}`} token={token} itemId={itemId} firstName={profile.fullName.trim().split(/\s+/)[0] || profile.fullName} decision={decision} canDecide={canDecide} />
             </li>
           ))}
         </ol>
       )}
 
       <footer className="client-footer">
-        <p>To meet anyone here, or to ask about them, reply to {view.recruiterName}.</p>
+        <p>Your answers go straight to {view.recruiterName}. To ask about anyone here, reply to them.</p>
         <p>This page is private to you. Please do not forward it.</p>
       </footer>
     </article>

@@ -26,5 +26,5 @@ export default async function ClientShortlistPage({ params }: { params: { token:
   if (session?.user.id !== page.ownerId && (await recordClientView(page.accessId, now))) {
     await recordUsage(db, page.ownerId, "shortlist_viewed");
   }
-  return <ClientShortlist view={page.view} />;
+  return <ClientShortlist view={page.view} token={params.token} />;
 }

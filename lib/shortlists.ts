@@ -4,6 +4,7 @@ import { appOrigin } from "./auth";
 import { clientProfile, type ClientProfile } from "./client-profile";
 import {
   accessOpens,
+  canDecide,
   hasPriorConsent,
   itemVisible,
   newNonce,
@@ -136,7 +137,11 @@ const personForClient = {
   factsConfirmedAt: true,
 } as const;
 
-export type ClientShortlistEntry = { itemId: string; profile: ClientProfile; addedAt: Date };
+// What the client said about one person, shown back to them so they can see
+// and change it. It is theirs: the recruiter's notes never come this way.
+export type ClientDecision = { decision: "interview" | "declined"; reason: string | null; note: string | null; at: Date } | null;
+
+export type ClientShortlistEntry = { itemId: string; profile: ClientProfile; addedAt: Date; decision: ClientDecision; canDecide: boolean };
 
 export type ClientShortlistView = {
   title: string;
@@ -154,12 +159,25 @@ async function visibleEntries(shortlist: { id: string; kind: string; roleId: str
     orderBy: [{ position: "asc" }, { addedAt: "asc" }],
     include: {
       person: { select: personForClient },
-      candidate: { select: { id: true, roleId: true, personId: true, stage: true, fullName: true, headline: true } },
+      candidate: {
+        select: {
+          id: true, roleId: true, personId: true, stage: true, fullName: true, headline: true,
+          bookings: { where: { kind: "interview", status: "booked" }, select: { id: true }, take: 1 },
+        },
+      },
     },
   });
   return items
     .filter((item) => itemVisible({ shortlist, item, person: item.person, candidate: item.candidate }))
-    .map((item) => ({ itemId: item.id, addedAt: item.addedAt, profile: clientProfile({ person: item.person, candidate: item.candidate, pitch: item.pitch, now }) }));
+    .map((item) => ({
+      itemId: item.id,
+      addedAt: item.addedAt,
+      profile: clientProfile({ person: item.person, candidate: item.candidate, pitch: item.pitch, now }),
+      decision: item.decision === "interview" || item.decision === "declined"
+        ? { decision: item.decision, reason: item.decisionReason, note: item.decisionNote, at: item.decisionAt ?? item.addedAt }
+        : null,
+      canDecide: canDecide({ interviewBooked: Boolean(item.candidate?.bookings.length) }),
+    }));
 }
 
 function recruiterName(settings: { recruiterName: string } | null, owner: { name: string }) {
@@ -167,7 +185,7 @@ function recruiterName(settings: { recruiterName: string } | null, owner: { name
 }
 
 export type ClientPage =
-  | { state: "active"; accessId: string; ownerId: string; view: ClientShortlistView }
+  | { state: "active"; accessId: string; ownerId: string; shortlistId: string; roleId: string | null; view: ClientShortlistView }
   | { state: "inactive"; recruiterName: string | null };
 
 // Everything /s/<token> shows, from the link alone. Any doubt reads as an
@@ -204,6 +222,8 @@ export async function loadClientPage(token: string, now = new Date()): Promise<C
     state: "active",
     accessId: access.id,
     ownerId: shortlist.userId,
+    shortlistId: shortlist.id,
+    roleId: shortlist.roleId,
     view: {
       title: shortlist.title,
       client: shortlist.client,

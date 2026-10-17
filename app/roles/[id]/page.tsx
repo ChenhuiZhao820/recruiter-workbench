@@ -28,7 +28,7 @@ import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { ActionForm } from "@/components/ActionForm";
 import { OUTREACH_KIND_SUMMARY, isTemplateKind } from "@/lib/templates";
 import { CLOSED_STAGES, consentPersonSelect, knownConsentAt, shortlistLink } from "@/lib/shortlists";
-import { shortlistStatus } from "@/lib/shortlist-core.mjs";
+import { DECISION_REASON_LABELS, shortlistStatus } from "@/lib/shortlist-core.mjs";
 import { newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
 import { ClientLinkShare } from "@/components/ClientLinkShare";
 
@@ -70,7 +70,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
       shortlist: {
         include: {
           accesses: { where: { email: null, revokedAt: null }, take: 1 },
-          items: { select: { id: true, candidateId: true } },
+          items: { select: { id: true, candidateId: true, decision: true, decisionReason: true, decisionNote: true, decisionAt: true } },
         },
       },
     },
@@ -80,13 +80,16 @@ export default async function RolePage({ params }: { params: { id: string } }) {
   // The role's client link: who is on it, and its address when the server can
   // sign one. Nothing is created by reading the page.
   const clientList = role.shortlist && role.shortlist.userId === owner.id ? role.shortlist : null;
-  const onLink = new Map((clientList?.items ?? []).filter((item) => item.candidateId).map((item) => [item.candidateId!, item.id]));
+  const onLink = new Map((clientList?.items ?? []).filter((item) => item.candidateId).map((item) => [item.candidateId!, item]));
   const linkStatus = clientList ? shortlistStatus(clientList, role, now) : null;
   const linkAccess = clientList?.accesses[0] ?? null;
   const clientLink = linkAccess && linkStatus === "active" && !readOnly ? shortlistLink(linkAccess.id, linkAccess.nonce) : null;
   const onLinkCount = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).length;
   const clientName = role.client || "the client";
   const lastViewed = linkAccess?.lastViewedAt ?? null;
+  const visibleItems = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).map((c) => onLink.get(c.id)!);
+  const wantToMeet = visibleItems.filter((item) => item.decision === "interview").length;
+  const notForThem = visibleItems.filter((item) => item.decision === "declined").length;
 
   const briefing = role.briefing;
   const hasJobDesc = Boolean(role.jobDesc && role.jobDesc.trim());
@@ -353,6 +356,8 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   <p className="client-link-stats">
                     <span><strong className="tabular">{onLinkCount}</strong> on the page</span>
                     <span>{lastViewed ? <>Last opened <strong>{formatWhen(lastViewed)}</strong></> : "Not opened yet"}</span>
+                    {wantToMeet > 0 && <span><strong className="tabular">{wantToMeet}</strong> {clientName} wants to meet</span>}
+                    {notForThem > 0 && <span><strong className="tabular">{notForThem}</strong> not for them</span>}
                   </p>
                 )}
                 {clientList && (
@@ -436,8 +441,25 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                         onLink.has(c.id) ? (
                           <div className="put-forward">
                             <span className="chip screening-chip-done">On the client link</span>
+                            {onLink.get(c.id)!.decision === "interview" && (
+                              <span className="chip client-said-yes">{clientName} wants to meet</span>
+                            )}
+                            {onLink.get(c.id)!.decision === "declined" && (
+                              <>
+                                <span className="chip">
+                                  Not for {clientName}
+                                  {onLink.get(c.id)!.decisionReason ? ` · ${DECISION_REASON_LABELS[onLink.get(c.id)!.decisionReason as keyof typeof DECISION_REASON_LABELS] ?? onLink.get(c.id)!.decisionReason}` : ""}
+                                </span>
+                                {onLink.get(c.id)!.decisionNote && <span className="client-said-note">&ldquo;{onLink.get(c.id)!.decisionNote}&rdquo;</span>}
+                                <form action={setCandidateStage}>
+                                  <input type="hidden" name="id" value={c.id} />
+                                  <input type="hidden" name="stage" value="rejected" />
+                                  <button type="submit" className="btn-quiet">Mark rejected</button>
+                                </form>
+                              </>
+                            )}
                             <form action={takeOffClientLink}>
-                              <input type="hidden" name="itemId" value={onLink.get(c.id)} />
+                              <input type="hidden" name="itemId" value={onLink.get(c.id)!.id} />
                               <ConfirmSubmitButton label="Take off" confirmText={`Take ${c.fullName} off the client link? ${clientName} stops seeing them at once.`} />
                             </form>
                           </div>

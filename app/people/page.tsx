@@ -88,10 +88,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             Everyone you have saved, once each, with every role you considered them for.
           </p>
         </div>
-        {!readOnly && (features.peopleImport || toReview > 0) && (
+        {((!readOnly && (features.peopleImport || toReview > 0)) || features.instantMatch) && (
           <div className="flex flex-wrap gap-2">
-            {features.peopleImport && <Link href="/people/import" className="btn-secondary">Import people</Link>}
-            {toReview > 0 && <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>}
+            {!readOnly && features.peopleImport && <Link href="/people/import" className="btn-secondary">Import people</Link>}
+            {!readOnly && toReview > 0 && <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>}
+            {features.instantMatch && <Link href="/people/match" className="btn-primary"><Icon name="spark" size={16} />Instant Match</Link>}
           </div>
         )}
       </header>

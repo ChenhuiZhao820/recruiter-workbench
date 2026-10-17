@@ -175,14 +175,15 @@ export default async function RolePage({ params }: { params: { id: string } }) {
         ) : (
           <div className="card space-y-5">
             <div className="space-y-2">
-              <BriefingSection title="What they do all day">
+              {/* A briefing saved from Instant Match starts with skills and titles only. */}
+              {briefing.dayToDay && <BriefingSection title="What they do all day">
                 <p>{briefing.dayToDay}</p>
-              </BriefingSection>
+              </BriefingSection>}
               <BriefingSection title="Skills that matter">
                 <ul className="space-y-2">
                   {skills.map((s, i) => (
                     <li key={i}>
-                      <span className="font-medium">{s.skill}.</span>{" "}
+                      <span className="font-medium">{s.skill}{s.real_vs_buzzword ? "." : ""}</span>{" "}
                       <span className="text-ink/80">{s.real_vs_buzzword}</span>
                     </li>
                   ))}
@@ -197,7 +198,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   ))}
                 </ul>
               </BriefingSection>
-              <BriefingSection title="Where they tend to work">
+              {targetCompanies.length > 0 && <BriefingSection title="Where they tend to work">
                 <ul className="flex flex-wrap gap-2">
                   {targetCompanies.map((t, i) => (
                     <li key={i} className="chip">
@@ -205,11 +206,11 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                     </li>
                   ))}
                 </ul>
-              </BriefingSection>
-              <BriefingSection title="Typical pay">
+              </BriefingSection>}
+              {briefing.salaryRange && <BriefingSection title="Typical pay">
                 <p>{briefing.salaryRange}</p>
-              </BriefingSection>
-              <BriefingSection title="First-call questions">
+              </BriefingSection>}
+              {questions.length > 0 && <BriefingSection title="First-call questions">
                 <ul className="space-y-3">
                   {questions.map((q, i) => (
                     <li key={i} className="rounded border border-line bg-sunken p-3">
@@ -217,7 +218,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                     </li>
                   ))}
                 </ul>
-              </BriefingSection>
+              </BriefingSection>}
             </div>
             <p className="text-sm text-ink/60">
               Pay and skills are estimates to sanity check, not facts.
@@ -507,6 +508,12 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               <span className="font-mono text-sm uppercase tracking-wide text-ink/70">From your database ({matches.length})</span>
               <Icon name="down" size={14} className="text-ink/40" />
             </summary>
+            {features.instantMatch && (
+              <p className="section-caption">
+                Want to match on the client&rsquo;s own words instead?{" "}
+                <Link href={`/people/match?role=${role.id}`} className="underline">Open Instant Match with this role</Link>
+              </p>
+            )}
             {!briefing ? (
               <p className="section-caption">Generate the briefing first: people are matched on its key skills and job titles.</p>
             ) : matches.length === 0 ? (

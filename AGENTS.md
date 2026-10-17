@@ -562,6 +562,64 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   matches (budget, labels, add), reminders from the person page and from a
   screening, the review list, Basic accounts and the read-only view.
 
+## Instant Match
+
+- A Pro feature (`instantMatch` in `FEATURE_TIERS`) at `/people/match`,
+  reached from People and from a role's "From your database" group
+  (`?role=` puts that role's description in the box). The recruiter pastes a
+  job description and the client's needs; Capture reads it once into criteria
+  and matches them against this account's own people.
+- The model does one thing: words in, criteria out (`lib/match-model.mjs`,
+  `claude-haiku-5-5` by default, `CAPTURE_MATCH_MODEL`, effort low, a
+  structured-output schema, one retry). It gets the brief, or the current
+  criteria and one sentence of change - never a person from the database.
+  Neither the brief nor the sentence is stored; the browser keeps the brief
+  for its tab so "Edit brief" can bring it back. Matching, ranking, loosening
+  and "not a fit" are plain code in `lib/match-core.mjs`, shared with
+  `tests/match.test.mjs`. There is deliberately no AI explanation per person:
+  recruiters do not want more to read at that point.
+- Criteria are chips the recruiter can change: must-haves (every one
+  required, each with up to four other spellings), nice-to-haves (rank only),
+  other titles, and requirements checked against confirmed facts (salary,
+  notice, working pattern, location, right to work) and against the headline
+  (seniority). A fact not confirmed is a miss marked as such unless the
+  recruiter counts unconfirmed as a fit for that requirement. What the records
+  cannot answer (a degree, an industry) is listed as "Check these yourself" and
+  never used to match. Do not contact is never shown.
+- The address is the whole state: `c` the criteria (base64url, cleaned on
+  every read), `x` the people set aside. Every change is a navigation, so Back
+  and the toast's Undo restore the previous match.
+- When the match disappoints: "One thing off" lists people missing exactly one
+  requirement, with which; the loosening offers come from them, and when there
+  are none, from pairs of requirements. Every offer's number is a recount of
+  everyone close under the loosened criteria, so it is the number that
+  appears. "Not a fit" sets a person aside and, given a reason (too junior,
+  too senior, too expensive, notice too long), tightens the criteria past them
+  so people like them go too. "Look outside your database" turns the criteria
+  into a LinkedIn keyword string, opened on a click, copied for Recruiter, or
+  saved as a search (`saveMatchSearch`). Nothing is sent to LinkedIn.
+- Saving to a role's briefing is the recruiter's explicit choice
+  (`saveCriteriaToBriefing`): skills and titles are added, never replaced, and
+  the budget changes only if ticked. A briefing created this way has only
+  skills, titles and pay, and the role page hides its empty sections.
+- `POST /api/match/criteria` checks the origin, the feature for both accounts
+  and refuses read-only views; it caps briefs plus adjustments per account per
+  UTC month by counting `match_brief_read`/`match_adjusted` usage events
+  (`CAPTURE_MATCH_MONTHLY_CAP`, default 300), and counts only successes.
+  `POST /api/match/event` records which way out was taken (`match_loosened`,
+  `match_not_fit` with the reason's index, `match_handoff`): counts only.
+- `scripts/eval-match.mjs` scores that call against fictional briefs with
+  known answers in `tests/fixtures/match/briefs.json` (a messy note, a day
+  rate, a brief in Chinese, a prompt injection, adjustments), through the
+  paid-run guard; `--again-today` allows a second run the same day to check
+  a fix the first found, and is logged as a repeat. Habits the model keeps
+  whatever the prompt says are put right in `criteriaFromModel` (a sector or
+  industry background moved to the checks, "not required" notes dropped).
+- `tests/21-instant-match.spec.ts` plays it against the local stub (only the
+  brief is sent, chips, Back/Undo, exact loosening, not a fit, adjusting,
+  briefing, add to role, handoff, refusal, outage, cap, forged origin, Basic,
+  read-only view, phone width).
+
 ## Accounts and authorization
 
 - `lib/auth.ts`: opaque hashed database sessions, HttpOnly/SameSite cookies,
@@ -680,6 +738,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `APP_ORIGIN` must equal the actual browser origin, including the port. It is
   required in production and must be HTTPS except for loopback development.
 - `ANTHROPIC_API_KEY` is server-side and only needed for briefing generation.
+  A key not scoped to a workspace also needs `ANTHROPIC_WORKSPACE_ID`, sent as
+  the `anthropic-workspace-id` header by every client through
+  `lib/anthropic-client.mjs`; create any new Anthropic client with it.
   Hosted users share the deployment's AI service; no external calls in tests.
 - Prisma remains v6. The source schema is SQLite; the generated PostgreSQL schema
   and its migrations are under `prisma/postgresql`. Do not run the old SQLite

@@ -20,6 +20,7 @@ export const FEATURE_TIERS = {
   talentMatches: "pro",     // "From your database" on a role
   revisitReminders: "pro",
   instantMatch: "pro",      // a brief in, people from your own database out
+  clientShortlists: "basic", // client links and shortlists; Basic has a limit below
 } as const satisfies Record<string, "basic" | "pro">;
 
 export type Feature = keyof typeof FEATURE_TIERS;
@@ -33,4 +34,14 @@ export function isFeature(value: string): value is Feature {
 export function canUseFeature(account: TierAccount & { active: boolean }, feature: Feature, now = new Date()): boolean {
   if (!account.active) return false;
   return FEATURE_TIERS[feature] === "basic" || canUseProFeatures(account, now);
+}
+
+// How many custom shortlists an account may have active at once, by whether it
+// has Pro features; null means no limit. A role's own client link never
+// counts, and reaching the limit only refuses a new one: links already sent
+// keep working after a downgrade or the end of a trial.
+export const SHORTLIST_LIMITS = { basic: 3, pro: null } as const;
+
+export function activeShortlistLimit(account: TierAccount & { active: boolean }, now = new Date()): number | null {
+  return canUseProFeatures(account, now) ? SHORTLIST_LIMITS.pro : SHORTLIST_LIMITS.basic;
 }

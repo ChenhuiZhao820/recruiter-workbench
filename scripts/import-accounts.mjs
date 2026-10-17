@@ -6,12 +6,14 @@ import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { legacyColumns, legacyDate } from "./import-legacy.mjs";
 import { normalizeEmail, parseArgs, SafeError, targetProvider } from "./bootstrap-admin.mjs";
+import { clientKey } from "../lib/shortlist-core.mjs";
 
 const settingsColumns = Object.fromEntries(Object.entries(legacyColumns.Settings).filter(([column]) => column !== "captureToken"));
 export const accountColumns = {
   User: { id: "id", email: "email", name: "text", role: "userRole", accountTier: "accountTier", trialExpiresAt: "date?", active: "bool", passwordHash: "password?", authVersion: "int", createdAt: "date", updatedAt: "date" },
   ExtensionAccess: { userId: "id", codeHash: "discard", expiresAt: "date?", activatedAt: "date?", createdAt: "date", updatedAt: "date" },
-  Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus", budgetMin: "int?", budgetMax: "int?", budgetCurrency: "text?", importBatchId: "discard" },
+  Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus", budgetMin: "int?", budgetMax: "int?", budgetCurrency: "text?", importBatchId: "discard",
+    clientReviewFirst: "bool", interviewWindows: "text", interviewTimezone: "text?", interviewDurationMins: "int?", interviewLocation: "text?" },
   Person: {
     id: "id", userId: "id", fullName: "text", profileUrl: "text?", memberId: "text?", headline: "text?",
     email: "text?", emailSource: "text?", emailConsentAt: "date?", salaryMin: "int?", salaryMax: "int?",
@@ -24,7 +26,7 @@ export const accountColumns = {
   MessageTemplate: { ...legacyColumns.MessageTemplate, userId: "id" },
   Briefing: legacyColumns.Briefing,
   SavedSearch: { ...legacyColumns.SavedSearch, userId: "id", searchUrl: "text?" },
-  Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?", personId: "id?", importBatchId: "discard" },
+  Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?", submittedAt: "date?", personId: "id?", importBatchId: "discard" },
   OutreachLog: legacyColumns.OutreachLog,
   PersonNote: { id: "id", personId: "id", candidateId: "id?", body: "text", createdAt: "date", updatedAt: "date" },
   Screening: {
@@ -34,7 +36,15 @@ export const accountColumns = {
   },
   Booking: {
     id: "id", candidateId: "id", userId: "id", startsAt: "date", endsAt: "date", mode: "text", meetingUrl: "text?",
-    phone: "text?", email: "text", consentAt: "date", noticeVersion: "text", status: "text", createdAt: "date",
+    phone: "text?", email: "text", consentAt: "date", noticeVersion: "text", status: "text", kind: "bookingKind", createdAt: "date",
+  },
+  Shortlist: {
+    id: "id", userId: "id", kind: "shortlistKind", roleId: "id?", title: "text", client: "text?", access: "shortlistAccess",
+    expiresAt: "date?", revokedAt: "date?", createdAt: "date", updatedAt: "date",
+  },
+  ShortlistItem: {
+    id: "id", shortlistId: "id", personId: "id", candidateId: "id?", consentAt: "date", pitch: "text?", position: "int",
+    decision: "decision?", decisionReason: "text?", decisionNote: "text?", decisionAt: "date?", decisionAccessId: "id?", addedAt: "date",
   },
   Settings: {
     ...settingsColumns, userId: "id", captureTokenHash: "discard", seenRelease: "text?",
@@ -46,11 +56,12 @@ export const accountColumns = {
   Suppression: { userId: "id", keyHash: "text", createdAt: "date" },
 };
 // Tables a source may not have yet: it was written before they existed.
-const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch"]);
+const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot"]);
 // Accepted in a source but never copied. Calendar and integration tokens are
 // encrypted with the source deployment's key and must be reconnected; monthly
-// AI counters start again; booked-slot locks are rebuilt from the bookings;
-// a People import can be undone only where it ran, so its batch (and the
+// AI counters start again; booked-slot and interview-slot locks are rebuilt
+// from the bookings; shortlist links are issued again, like capture keys; a
+// People import can be undone only where it ran, so its batch (and the
 // importBatchId that points at it) stays behind.
 const notImportedColumns = {
   CalendarConnection: { userId: "id", provider: "text", tokenCipher: "text", scope: "text", connectedAt: "date", lastErrorAt: "date?" },
@@ -58,6 +69,8 @@ const notImportedColumns = {
   AiUsage: { userId: "id", month: "text", generations: "int" },
   BookedSlot: { userId: "id", startsAt: "date", bookingId: "id" },
   ImportBatch: { id: "id", userId: "id", fileName: "text", createdCount: "int", roleCount: "int", fills: "text", createdAt: "date", completedAt: "date?", undoneAt: "date?" },
+  InterviewSlot: { userId: "id", clientKey: "text", startsAt: "date", bookingId: "id" },
+  ShortlistAccess: { id: "id", shortlistId: "id", email: "text?", nonce: "text", lastViewedAt: "date?", viewCount: "int", revokedAt: "date?", createdAt: "date" },
 };
 const ephemeralColumns = {
   Session: { tokenHash: "text", userId: "id", viewUserId: "id?", authVersion: "int", expiresAt: "date", createdAt: "date" },
@@ -69,7 +82,7 @@ const allTables = [...Object.keys(accountColumns), ...Object.keys(ephemeralColum
 const allModels = allTables.map(modelFor);
 const primaryKeys = {
   ExtensionAccess: ["userId"], Suppression: ["userId", "keyHash"], CalendarConnection: ["userId"], IntegrationConnection: ["userId", "provider"],
-  AiUsage: ["userId", "month"], BookedSlot: ["userId", "startsAt"], LoginThrottle: ["key"],
+  AiUsage: ["userId", "month"], BookedSlot: ["userId", "startsAt"], InterviewSlot: ["userId", "clientKey", "startsAt"], LoginThrottle: ["key"],
   Session: ["tokenHash"], ActivationToken: ["tokenHash"],
 };
 const primaryFor = (table) => primaryKeys[table] ?? ["id"];
@@ -84,10 +97,18 @@ const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", 
 // selects in place of a column that is not there.
 const lateColumns = {
   User: [{ accountTier: { value: "basic", sql: "'basic'" }, trialExpiresAt: { value: null, sql: "NULL" } }],
-  Role: [{ budgetMin: { value: null, sql: "NULL" }, budgetMax: { value: null, sql: "NULL" }, budgetCurrency: { value: null, sql: "NULL" } }, { importBatchId: { value: null, sql: "NULL" } }],
+  Role: [
+    { budgetMin: { value: null, sql: "NULL" }, budgetMax: { value: null, sql: "NULL" }, budgetCurrency: { value: null, sql: "NULL" } },
+    { importBatchId: { value: null, sql: "NULL" } },
+    {
+      clientReviewFirst: { value: true, sql: "1" }, interviewWindows: { value: "[]", sql: "'[]'" }, interviewTimezone: { value: null, sql: "NULL" },
+      interviewDurationMins: { value: null, sql: "NULL" }, interviewLocation: { value: null, sql: "NULL" },
+    },
+  ],
   Person: [{ importBatchId: { value: null, sql: "NULL" } }],
   SavedSearch: [{ searchUrl: { value: null, sql: "NULL" } }],
-  Candidate: [{ memberId: { value: null, sql: "NULL" } }, { personId: { value: null, sql: "NULL" } }, { importBatchId: { value: null, sql: "NULL" } }],
+  Candidate: [{ memberId: { value: null, sql: "NULL" } }, { personId: { value: null, sql: "NULL" } }, { importBatchId: { value: null, sql: "NULL" } }, { submittedAt: { value: null, sql: "NULL" } }],
+  Booking: [{ kind: { value: "screening", sql: "'screening'" } }],
   Settings: [
     { seenRelease: { value: null, sql: "NULL" } },
     {
@@ -104,6 +125,16 @@ const lateDefault = (table, column) => lateFor(table).find((group) => Object.has
 // present is refused by the column checks rather than guessed at.
 const absentLate = (table, hasColumn) => new Set(lateFor(table).filter((group) => Object.keys(group).every((column) => !hasColumn(column))).flatMap(Object.keys));
 const invalid = (detail) => { throw new SafeError(`Invalid multi-account source: ${detail}. No data values are printed.`); };
+// The lock a held booking takes: the recruiter's own time for a screening
+// call, the client's for an interview, across all of that client's roles.
+function interviewKey(booking, byId) {
+  const role = byId.Role.get(byId.Candidate.get(booking.candidateId)?.roleId);
+  if (!role) invalid("missing Role relationship");
+  return clientKey(role.client, role.id);
+}
+const slotKey = (booking, byId) => booking.kind === "interview"
+  ? `interview|${booking.userId}|${interviewKey(booking, byId)}|${booking.startsAt.toISOString()}`
+  : `screening|${booking.userId}|${booking.startsAt.toISOString()}`;
 const countsFor = (data) => Object.fromEntries(Object.entries(data).map(([model, rows]) => [model, rows.length]));
 
 function convert(value, descriptor) {
@@ -128,6 +159,10 @@ function convert(value, descriptor) {
   if (type === "roleStatus" && !["open", "closed"].includes(value)) invalid("unknown role status");
   if (type === "stage" && !stages.includes(value)) invalid("unknown candidate stage");
   if (type === "kind" && !["message", "connection_note"].includes(value)) invalid("unknown outreach kind");
+  if (type === "bookingKind" && !["screening", "interview"].includes(value)) invalid("unknown booking kind");
+  if (type === "shortlistKind" && !["role", "custom"].includes(value)) invalid("unknown shortlist kind");
+  if (type === "shortlistAccess" && !["link", "people"].includes(value)) invalid("unknown shortlist access");
+  if (type === "decision" && !["interview", "declined"].includes(value)) invalid("unknown client decision");
   return value;
 }
 
@@ -174,7 +209,7 @@ export function validateAccounts(source, adminEmail) {
     if (!row) invalid(`missing ${table} relationship`);
     return row;
   };
-  for (const model of ["role", "messageTemplate", "savedSearch", "settings", "extensionAccess", "person", "usageEvent", "suppression"]) {
+  for (const model of ["role", "messageTemplate", "savedSearch", "settings", "extensionAccess", "person", "usageEvent", "suppression", "shortlist"]) {
     for (const row of data[model]) get("User", row.userId);
   }
   if (new Set(data.settings.map((row) => row.userId)).size !== data.settings.length) invalid("multiple settings rows for one account");
@@ -195,16 +230,31 @@ export function validateAccounts(source, adminEmail) {
   for (const booking of data.booking) {
     if (get("Role", get("Candidate", booking.candidateId).roleId).userId !== booking.userId) invalid("booking belongs to a different account than its candidate");
     if (booking.status === "booked") {
-      const slot = `${booking.userId}|${booking.startsAt.toISOString()}`;
+      const slot = slotKey(booking, byId);
       if (heldSlots.has(slot)) invalid("two bookings hold the same time");
       heldSlots.add(slot);
     }
   }
+  const roleLinks = new Set();
+  for (const shortlist of data.shortlist) {
+    if (shortlist.kind === "role") {
+      if (shortlist.roleId === null || get("Role", shortlist.roleId).userId !== shortlist.userId) invalid("client link belongs to a different account than its role");
+      if (roleLinks.has(shortlist.roleId)) invalid("two client links for one role");
+      roleLinks.add(shortlist.roleId);
+    } else if (shortlist.roleId !== null) invalid("custom shortlist names a role");
+  }
+  for (const item of data.shortlistItem) {
+    const owner = get("Shortlist", item.shortlistId).userId;
+    if (get("Person", item.personId).userId !== owner) invalid("shortlist holds another account's person");
+    if (item.candidateId !== null && get("Role", get("Candidate", item.candidateId).roleId).userId !== owner) invalid("shortlist holds another account's candidate");
+  }
+  if (new Set(data.shortlistItem.map((item) => `${item.shortlistId}|${item.personId}`)).size !== data.shortlistItem.length) invalid("one person twice on a shortlist");
   for (const outreach of data.outreachLog) {
     const candidate = get("Candidate", outreach.candidateId);
     if (outreach.templateId !== null && get("MessageTemplate", outreach.templateId).userId !== get("Role", candidate.roleId).userId) invalid("outreach uses another account's template");
   }
-  return { data, adminId: admin.id, counts: countsFor(data) };
+  const interviewKeys = new Map(data.booking.filter((booking) => booking.kind === "interview").map((booking) => [booking.id, interviewKey(booking, byId)]));
+  return { data, adminId: admin.id, counts: countsFor(data), interviewKeys };
 }
 
 export async function readAccounts(sourcePath) {
@@ -300,12 +350,16 @@ async function verifyData(db, validated) {
     }
     if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch"]) {
-    if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar or usage-counter state in target.");
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess"]) {
+    if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar, usage-counter or shortlist-link state in target.");
   }
-  const expectedSlots = validated.data.booking.filter((booking) => booking.status === "booked").map((booking) => `${booking.userId}|${booking.startsAt.toISOString()}|${booking.id}`).sort();
+  const held = validated.data.booking.filter((booking) => booking.status === "booked");
+  const expectedSlots = held.filter((booking) => booking.kind !== "interview").map((booking) => `${booking.userId}|${booking.startsAt.toISOString()}|${booking.id}`).sort();
   const actualSlots = (await db.bookedSlot.findMany()).map((slot) => `${slot.userId}|${slot.startsAt.toISOString()}|${slot.bookingId}`).sort();
   if (JSON.stringify(expectedSlots) !== JSON.stringify(actualSlots)) throw new SafeError("Booked-slot verification failed.");
+  const expectedInterviews = held.filter((booking) => booking.kind === "interview").map((booking) => `${booking.userId}|${validated.interviewKeys.get(booking.id)}|${booking.startsAt.toISOString()}|${booking.id}`).sort();
+  const actualInterviews = (await db.interviewSlot.findMany()).map((slot) => `${slot.userId}|${slot.clientKey}|${slot.startsAt.toISOString()}|${slot.bookingId}`).sort();
+  if (JSON.stringify(expectedInterviews) !== JSON.stringify(actualInterviews)) throw new SafeError("Interview-slot verification failed.");
   return { verified: true, counts: validated.counts };
 }
 
@@ -320,7 +374,9 @@ export async function importAccounts(db, source, adminEmail, { provider = "postg
       for (const row of rows) await tx[model].create({ data: row });
     }
     for (const booking of validated.data.booking) {
-      if (booking.status === "booked") await tx.bookedSlot.create({ data: { userId: booking.userId, startsAt: booking.startsAt, bookingId: booking.id } });
+      if (booking.status !== "booked") continue;
+      if (booking.kind === "interview") await tx.interviewSlot.create({ data: { userId: booking.userId, clientKey: validated.interviewKeys.get(booking.id), startsAt: booking.startsAt, bookingId: booking.id } });
+      else await tx.bookedSlot.create({ data: { userId: booking.userId, startsAt: booking.startsAt, bookingId: booking.id } });
     }
     if (provider === "postgresql" && validated.data.settings.length) {
       const next = Math.max(...validated.data.settings.map((row) => row.id)) + 1;

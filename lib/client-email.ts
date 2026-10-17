@@ -1,7 +1,7 @@
-import { FIELD_LABELS } from "./screening-core.mjs";
-import { factDate, factSummary } from "./fact-labels";
+import { screeningFacts } from "./client-profile";
+import { factDate } from "./fact-labels";
 import { firstName, normalizeMessage } from "./render";
-import { FIELDS, type ScreeningSummary } from "./screening";
+import type { ScreeningSummary } from "./screening";
 
 // The email that puts a screened candidate forward to the client. Built from
 // what the recruiter confirmed, with no model call, and only ever handed to
@@ -28,12 +28,9 @@ export function clientEmailSubject({ candidateName, roleTitle }: Pick<ClientEmai
 
 export function clientEmailBody(input: ClientEmailInput): string {
   const first = firstName(input.candidateName) || input.candidateName;
-  const facts = FIELDS.map((field) => {
-    const fact = input.summary.fields[field];
-    if (fact.not_discussed) return `- ${FIELD_LABELS[field]}: not discussed yet`;
-    const shown = factSummary(field, fact);
-    return `- ${FIELD_LABELS[field]}: ${shown.value}${shown.note ? ` (${shown.note})` : ""}`;
-  });
+  const facts = screeningFacts(input.summary).map((fact) =>
+    fact.notDiscussed ? `- ${fact.label}: not discussed yet` : `- ${fact.label}: ${fact.value}${fact.note ? ` (${fact.note})` : ""}`
+  );
   const lines = [
     "Hi,",
     "",

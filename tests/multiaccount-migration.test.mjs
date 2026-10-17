@@ -21,13 +21,14 @@ const activationHash = "64".repeat(32);
 const throttleKey = "fixture-private-throttle-key";
 const createdAt = new Date("2023-01-02T03:04:05.006Z");
 const updatedAt = new Date("2024-02-03T04:05:06.007Z");
-const tables = ["User", "ExtensionAccess", "Role", "Person", "MessageTemplate", "Briefing", "SavedSearch", "Candidate", "OutreachLog", "PersonNote", "Screening", "Booking", "Settings", "AuditEvent", "UsageEvent", "Suppression"];
+const tables = ["User", "ExtensionAccess", "Role", "Person", "MessageTemplate", "Briefing", "SavedSearch", "Candidate", "OutreachLog", "PersonNote", "Screening", "Booking", "Settings", "AuditEvent", "UsageEvent", "Suppression", "Shortlist", "ShortlistItem"];
 const ephemeralTables = ["Session", "ActivationToken", "LoginThrottle"];
-// Accepted in a source, never copied: calendar tokens, AI counters and
-// booked-slot locks (rebuilt from bookings).
-const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch"];
+// Accepted in a source, never copied: calendar tokens, AI counters, slot
+// locks (rebuilt from bookings), shortlist links (issued again) and import
+// batches (undone only where they ran).
+const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch", "InterviewSlot", "ShortlistAccess"];
 // Tables a source written before them may lack.
-const optionalTables = ["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "PersonNote"];
+const optionalTables = ["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "PersonNote", "Shortlist", "ShortlistItem"];
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
 const models = [...tables, ...ephemeralTables, ...notImportedTables].map(modelFor);
 const fileUrl = (path) => `file:${path.replaceAll("\\", "/")}`;
@@ -59,7 +60,7 @@ async function seedSource(db) {
     await db.screening.create({ data: { id: `fixture-screening-${label}`, candidateId, status: "confirmed", transcript: `${label} private transcript`, transcriptSource: "paste", transcriptDeleteAfter: new Date("2035-01-01T00:00:00Z"), summaryJson: '{"fixture":true}', summaryModel: "fixture-model", generatedAt: updatedAt, confirmedAt: updatedAt, representConsentAt: updatedAt, clientEmailSentAt: index ? updatedAt : null, createdAt, updatedAt } });
     const bookingId = `fixture-booking-${label}`;
     const startsAt = new Date(`2025-0${index + 3}-04T09:30:00.000Z`);
-    await db.booking.create({ data: { id: bookingId, candidateId, userId, startsAt, endsAt: new Date(startsAt.getTime() + 1800000), mode: index ? "phone" : "video", meetingUrl: index ? null : "https://meet.fixture.invalid/x", phone: index ? "+440000000000" : null, email: `${label}@person.fixture.invalid`, consentAt: createdAt, noticeVersion: "fixture-1", status: index ? "cancelled" : "booked", createdAt } });
+    await db.booking.create({ data: { id: bookingId, candidateId, userId, startsAt, endsAt: new Date(startsAt.getTime() + 1800000), mode: index ? "phone" : "video", meetingUrl: index ? null : "https://meet.fixture.invalid/x", phone: index ? "+440000000000" : null, email: `${label}@person.fixture.invalid`, consentAt: createdAt, noticeVersion: "fixture-1", status: index ? "cancelled" : "booked", kind: index ? "interview" : "screening", createdAt } });
     if (!index) await db.bookedSlot.create({ data: { userId, startsAt, bookingId } });
     await db.outreachLog.create({ data: { id: `fixture-outreach-${label}`, candidateId, templateId, renderedBody: `${label} private rendered outreach`, kind: index ? "connection_note" : "message", sentAt: updatedAt } });
     await db.settings.create({ data: { id: index + 7, userId, recruiterName: `${label} custom name`, calendarLink: `https://calendar.fixture.invalid/${label}`, bookingChaseDays: index + 3, quietNudgeDays: index + 8, captureTokenHash: captureHashes[index], bookingWindows: '[{"day":0,"startMin":540,"endMin":720}]', bookingTimezone: "Europe/London", bookingDurationMins: 45, bookingMinNoticeHours: 24, bookingHorizonDays: 21, meetingLink: `https://meet.fixture.invalid/${label}`, offerPhone: true, privacyNotice: `${label} privacy notice`, privacyContactEmail: `privacy-${label}@fixture.invalid` } });
@@ -69,6 +70,10 @@ async function seedSource(db) {
     await db.aiUsage.create({ data: { userId, month: "2025-01", generations: 3 + index } });
     await db.personNote.create({ data: { id: `fixture-note-${label}`, personId, candidateId, body: `${label} private kept note`, createdAt, updatedAt } });
     await db.integrationConnection.create({ data: { userId, provider: "notion", tokenCipher: `fixture-private-notion-${label}`, label: `${label} workspace`, connectedAt: createdAt } });
+    const shortlistId = `fixture-shortlist-${label}`;
+    await db.shortlist.create({ data: { id: shortlistId, userId, kind: index ? "custom" : "role", roleId: index ? null : roleId, title: `${label} shortlist`, client: `${label} client`, access: index ? "people" : "link", expiresAt: index ? new Date("2035-01-01T00:00:00Z") : null, createdAt, updatedAt } });
+    await db.shortlistItem.create({ data: { id: `fixture-item-${label}`, shortlistId, personId, candidateId: index ? null : candidateId, consentAt: updatedAt, pitch: `${label} pitch`, position: index, decision: index ? "declined" : "interview", decisionReason: index ? "salary" : null, decisionNote: index ? `${label} decision note` : null, decisionAt: updatedAt, decisionAccessId: `fixture-access-${label}`, addedAt: createdAt } });
+    await db.shortlistAccess.create({ data: { id: `fixture-access-${label}`, shortlistId, email: index ? `client-${label}@fixture.invalid` : null, nonce: `fixture-private-nonce-${label}`, lastViewedAt: updatedAt, viewCount: 3, createdAt } });
     await db.auditEvent.create({ data: { id: `fixture-audit-${label}`, actorId: "fixture-user-admin", targetUserId: userId, action: index ? "admin.workspace.view" : "admin.bootstrap", createdAt } });
   }
   await db.session.create({ data: { tokenHash: sessionHash, userId: "fixture-user-admin", viewUserId: "fixture-user-recruiter", authVersion: 4, expiresAt: new Date("2035-01-01T00:00:00Z"), createdAt } });
@@ -484,6 +489,15 @@ test("validation rejects orphaned references and cross-owner relationships", asy
       data.PersonNote[0].candidateId = data.Candidate.find((row) => data.Role.find((role) => role.id === row.roleId).userId !== person.userId).id;
     }],
     ["outreach template", (data) => { data.OutreachLog[0].templateId = "fixture-missing-template"; }],
+    ["shortlist owner", (data) => { data.Shortlist[0].userId = "fixture-missing-user"; }],
+    ["shortlist item on another account's person", (data) => {
+      const item = data.ShortlistItem.find((row) => row.id === "fixture-item-admin");
+      item.personId = "fixture-person-recruiter";
+      item.candidateId = null;
+    }],
+    ["shortlist item on another account's candidate", (data) => { data.ShortlistItem.find((row) => row.id === "fixture-item-recruiter").candidateId = "fixture-candidate-admin"; }],
+    ["client link on another account's role", (data) => { data.Shortlist.find((row) => row.kind === "role").roleId = "fixture-role-recruiter"; }],
+    ["custom shortlist naming a role", (data) => { data.Shortlist.find((row) => row.kind === "custom").roleId = "fixture-role-recruiter"; }],
     ["cross-owner search role", (data) => { data.SavedSearch[0].roleId = data.Role.find((row) => row.userId !== data.SavedSearch[0].userId).id; }],
     ["cross-owner outreach template", (data) => {
       const roleId = data.Candidate.find((row) => row.id === data.OutreachLog[0].candidateId).roleId;
@@ -557,6 +571,8 @@ test("import preserves two workspaces, password hashes, exact dates and audits w
     assert.equal(await db.integrationConnection.count(), 0);
     assert.equal(await db.aiUsage.count(), 0);
     assert.deepEqual((await db.bookedSlot.findMany()).map((slot) => slot.bookingId), ["fixture-booking-admin"]);
+    assert.equal(await db.interviewSlot.count(), 0);
+    assert.equal(await db.shortlistAccess.count(), 0);
     await verifyAccounts(db, source, adminEmail);
     const beforeRepeat = await allRows(db);
     await assert.rejects(importAccounts(db, source, adminEmail, { provider: "sqlite", confirmed: true }));
@@ -587,6 +603,8 @@ test("every nonempty target model is refused without modifying existing rows", a
     AiUsage: { userId: "fixture-user-admin", month: "2025-01", generations: 1 },
     BookedSlot: { userId: "fixture-user-admin", startsAt: updatedAt.getTime(), bookingId: "fixture-booking-admin" },
     ImportBatch: { id: "fixture-import-batch", userId: "fixture-user-admin", fileName: "fixture.xlsx", createdCount: 0, roleCount: 0, fills: "[]", createdAt: createdAt.getTime() },
+    InterviewSlot: { userId: "fixture-user-admin", clientKey: "admin client", startsAt: updatedAt.getTime(), bookingId: "fixture-booking-admin" },
+    ShortlistAccess: { id: "fixture-access-x", shortlistId: "fixture-shortlist-admin", email: null, nonce: "x", viewCount: 0, createdAt: createdAt.getTime() },
   };
   for (const table of [...tables, ...ephemeralTables, ...notImportedTables]) await t.test(table, async () => {
     await withTarget(async (db) => {
@@ -768,7 +786,7 @@ test("CLI snapshot reports counts and fingerprints without printing private cont
 
 test("sources from before the talent database import with no people, budgets or booking settings", async () => {
   const old = structuredClone(source);
-  for (const table of ["Person", "PersonNote", "Screening", "Booking", "UsageEvent", "Suppression"]) delete old[table];
+  for (const table of ["Person", "PersonNote", "Screening", "Booking", "UsageEvent", "Suppression", "Shortlist", "ShortlistItem"]) delete old[table];
   for (const row of old.Role) { delete row.budgetMin; delete row.budgetMax; delete row.budgetCurrency; }
   for (const row of old.Candidate) delete row.personId;
   for (const row of old.Settings) {
@@ -790,6 +808,8 @@ test("sources from before the talent database import with no people, budgets or 
   for (const row of between.Candidate) delete row.personId;
   delete between.Person;
   delete between.PersonNote;
+  delete between.Shortlist;
+  delete between.ShortlistItem;
   assert.deepEqual(validateAccounts(between, adminEmail).data.candidate.map((row) => row.memberId).sort(), source.Candidate.map((row) => row.memberId).sort());
   await withTarget(async (db) => {
     await importAccounts(db, old, adminEmail, { provider: "sqlite", confirmed: true });
@@ -799,9 +819,57 @@ test("sources from before the talent database import with no people, budgets or 
   });
 });
 
+test("sources from before client shortlists import with review first, no interview hours and screening bookings", async () => {
+  const old = structuredClone(source);
+  delete old.Shortlist;
+  delete old.ShortlistItem;
+  for (const row of old.Role) for (const column of ["clientReviewFirst", "interviewWindows", "interviewTimezone", "interviewDurationMins", "interviewLocation"]) delete row[column];
+  for (const row of old.Candidate) delete row.submittedAt;
+  for (const row of old.Booking) delete row.kind;
+  const result = validateAccounts(old, adminEmail);
+  assert.deepEqual([result.data.shortlist, result.data.shortlistItem], [[], []]);
+  for (const row of result.data.role) assert.deepEqual([row.clientReviewFirst, row.interviewWindows, row.interviewTimezone, row.interviewDurationMins, row.interviewLocation], [true, "[]", null, null, null]);
+  for (const row of result.data.candidate) assert.equal(row.submittedAt, null);
+  for (const row of result.data.booking) assert.equal(row.kind, "screening");
+  await withTarget(async (db) => {
+    await importAccounts(db, old, adminEmail, { provider: "sqlite", confirmed: true });
+    assert.equal(await db.shortlist.count(), 0);
+    assert.equal(await db.interviewSlot.count(), 0);
+    assert.deepEqual((await db.bookedSlot.findMany()).map((slot) => slot.bookingId), ["fixture-booking-admin"]);
+    await verifyAccounts(db, old, adminEmail);
+  });
+});
+
+test("a held interview takes the client's time, not the recruiter's, and two cannot share it", async () => {
+  const held = structuredClone(source);
+  const interview = held.Booking.find((row) => row.kind === "interview");
+  interview.status = "booked";
+  await withTarget(async (db) => {
+    await importAccounts(db, held, adminEmail, { provider: "sqlite", confirmed: true });
+    assert.deepEqual((await db.interviewSlot.findMany()).map((slot) => [slot.userId, slot.clientKey, slot.bookingId]), [["fixture-user-recruiter", "recruiter client", interview.id]]);
+    assert.deepEqual((await db.bookedSlot.findMany()).map((slot) => slot.bookingId), ["fixture-booking-admin"]);
+    await verifyAccounts(db, held, adminEmail);
+    await db.interviewSlot.deleteMany();
+    await assert.rejects(verifyAccounts(db, held, adminEmail), /Interview-slot verification failed/);
+  });
+  // A screening call and a client interview at the same time hold different locks.
+  const sameTime = structuredClone(held);
+  const screening = sameTime.Booking.find((row) => row.kind === "screening");
+  const other = sameTime.Booking.find((row) => row.kind === "interview");
+  other.userId = screening.userId;
+  other.candidateId = screening.candidateId;
+  other.startsAt = screening.startsAt;
+  assert.equal(validateAccounts(sameTime, adminEmail).data.booking.length, 2);
+  // Two interviews with one client at once are refused.
+  const twice = structuredClone(sameTime);
+  twice.Booking.push({ ...twice.Booking.find((row) => row.kind === "interview"), id: "fixture-interview-twice" });
+  assert.throws(() => validateAccounts(twice, adminEmail), /two bookings hold the same time/);
+});
+
 test("a source with only part of a late column group is refused, not guessed at", async (t) => {
   const partial = [
     ["role budget", (data) => { for (const row of data.Role) delete row.budgetMax; }],
+    ["interview hours", (data) => { for (const row of data.Role) delete row.interviewTimezone; }],
     ["booking settings", (data) => { for (const row of data.Settings) delete row.meetingLink; }],
   ];
   for (const [name, mutate] of partial) await t.test(name, () => {
@@ -825,7 +893,7 @@ test("ownership across people, candidates and bookings must agree", async (t) =>
   const cases = [
     ["candidate linked to another account's person", (data) => { data.Candidate[0].personId = data.Person.find((row) => row.userId !== data.Role.find((role) => role.id === data.Candidate[0].roleId).userId).id; }],
     ["booking owned by another account", (data) => { data.Booking[0].userId = data.User.find((user) => user.id !== data.Booking[0].userId).id; }],
-    ["two bookings holding one time", (data) => { data.Booking[1].status = "booked"; data.Booking[1].userId = data.Booking[0].userId; data.Booking[1].candidateId = data.Booking[0].candidateId; data.Booking[1].startsAt = data.Booking[0].startsAt; }],
+    ["two bookings holding one time", (data) => { data.Booking[1].status = "booked"; data.Booking[1].kind = data.Booking[0].kind; data.Booking[1].userId = data.Booking[0].userId; data.Booking[1].candidateId = data.Booking[0].candidateId; data.Booking[1].startsAt = data.Booking[0].startsAt; }],
     ["screening for a missing candidate", (data) => { data.Screening[0].candidateId = "missing-candidate"; }],
     ["person for a missing account", (data) => { data.Person[0].userId = "missing-user"; }],
   ];

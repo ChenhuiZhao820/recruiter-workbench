@@ -96,9 +96,14 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             Everyone you have saved, once each, with every role you considered them for.
           </p>
         </div>
-        {toReview > 0 && !readOnly && (
-          <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {toReview > 0 && !readOnly && (
+            <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>
+          )}
+          {features.instantMatch && (
+            <Link href="/people/match" className="btn-primary"><Icon name="spark" size={16} />Instant Match</Link>
+          )}
+        </div>
       </header>
 
       {searchParams.deleted === "1" && (

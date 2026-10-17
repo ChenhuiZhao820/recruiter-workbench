@@ -16,6 +16,7 @@ export const FEATURE_TIERS = {
   peopleSearch: "pro",      // filters and keyword search across people
   talentMatches: "pro",     // "From your database" on a role
   revisitReminders: "pro",
+  instantMatch: "pro",      // a brief in, people from your own database out
 } as const satisfies Record<string, "basic" | "pro">;
 
 export type Feature = keyof typeof FEATURE_TIERS;

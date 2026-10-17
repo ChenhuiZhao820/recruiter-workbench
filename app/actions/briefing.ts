@@ -1,6 +1,7 @@
 "use server";
 
 import Anthropic from "@anthropic-ai/sdk";
+import { anthropicHeaders } from "@/lib/anthropic-client.mjs";
 import { db } from "@/lib/db";
 import { requireWritableWorkspace } from "@/lib/workspace";
 import { revalidatePath } from "next/cache";
@@ -73,7 +74,7 @@ function parseBriefing(text: string): BriefingJson | null {
 }
 
 async function callModel(title: string, jobDesc: string): Promise<string> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, defaultHeaders: anthropicHeaders() });
   const response = await client.messages.create({
     model: "claude-sonnet-4-5",
     max_tokens: 2048,

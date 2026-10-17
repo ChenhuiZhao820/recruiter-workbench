@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
+import { anthropicHeaders } from "../lib/anthropic-client.mjs";
 import { parseArgs, SafeError } from "./bootstrap-admin.mjs";
 import { costUsd, guardPaidRun, logPaidRun } from "./paid-run.mjs";
 
@@ -161,7 +162,7 @@ async function main() {
   const reason = guardPaidRun({ script: "make-synthetic-screenings", estimateUsd: estimate, args });
   if (!process.env.ANTHROPIC_API_KEY) throw new SafeError("Set ANTHROPIC_API_KEY for this terminal.");
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, defaultHeaders: anthropicHeaders() });
   mkdirSync(OUT, { recursive: true });
   const answers = [];
   let input = 0;

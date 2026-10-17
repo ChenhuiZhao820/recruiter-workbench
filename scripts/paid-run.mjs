@@ -16,6 +16,7 @@ export const RUN_LOG = join(root, "prisma", "private-local", "paid-model-runs.js
 // price list before relying on an estimate.
 export const PRICES = {
   "claude-haiku-4-5": [1, 5],
+  "claude-haiku-5-5": [0.1, 0.5],
   "claude-sonnet-5": [2, 10],
   "claude-sonnet-5-5": [2, 10],
   "claude-opus-5": [5, 25],
@@ -43,7 +44,9 @@ export function guardPaidRun({ script, estimateUsd, args }) {
   const reason = String(args["--reason"] ?? "").trim();
   if (!reason) throw new SafeError("Give the --reason for this run (for example: choose the model, prompt changed, model retired, pre-release).");
   const today = new Date().toISOString().slice(0, 10);
-  if (runsToday(script, today) > 0) throw new SafeError(`${script} already ran today; one paid run a day. See ${RUN_LOG}.`);
+  // A second run the same day is for checking a fix the first run found, and
+  // only when asked for by name; it is logged as a repeat like any other run.
+  if (runsToday(script, today) > 0 && !args["--again-today"]) throw new SafeError(`${script} already ran today; one paid run a day. See ${RUN_LOG}.`);
   return reason;
 }
 

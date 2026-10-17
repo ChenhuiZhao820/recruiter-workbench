@@ -16,6 +16,8 @@ type Suggestion = {
 
 const FILTER_FIELDS = ["salary", "notice", "remote", "rtw", "fresh"];
 const WAIT_MS = 120;
+// Longer than any search anyone types; about two lines of a description.
+export const LONG_PASTE = 150;
 
 // The typed words, marked where they occur in a line of text.
 function highlight(text: string, query: string): ReactNode {
@@ -30,7 +32,15 @@ function highlight(text: string, query: string): ReactNode {
 // below applied; a suggestion opens that person, and Enter on the field still
 // runs the full search. Suggestions are read from this workspace only, through
 // /api/people/suggest, and never change anything.
-export function PeopleSearchBox({ defaultValue, label, placeholder }: { defaultValue: string; label: string; placeholder: string }) {
+// onLongPaste, when given, takes a paste that reads like a job description
+// rather than a search (the People box hands it to Match).
+export function PeopleSearchBox({ defaultValue, label, placeholder, autoFocus = false, onLongPaste }: {
+  defaultValue: string;
+  label: string;
+  placeholder: string;
+  autoFocus?: boolean;
+  onLongPaste?: (text: string) => void;
+}) {
   const router = useRouter();
   const listId = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -145,6 +155,14 @@ export function PeopleSearchBox({ defaultValue, label, placeholder }: { defaultV
           onChange={(event) => {
             setQuery(event.target.value);
             setOpen(true);
+          }}
+          autoFocus={autoFocus}
+          onPaste={(event) => {
+            const pasted = event.clipboardData.getData("text");
+            if (onLongPaste && (pasted.length > LONG_PASTE || pasted.includes("\n"))) {
+              event.preventDefault();
+              onLongPaste(`${query}${query && !query.endsWith(" ") ? " " : ""}${pasted}`.trim());
+            }
           }}
           onFocus={() => setOpen(true)}
           onBlur={() => setOpen(false)}

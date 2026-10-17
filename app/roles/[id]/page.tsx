@@ -511,7 +511,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
             {features.instantMatch && (
               <p className="section-caption">
                 Want to match on the client&rsquo;s own words instead?{" "}
-                <Link href={`/people/match?role=${role.id}`} className="underline">Open Instant Match with this role</Link>
+                <Link href={`/people?role=${role.id}`} className="underline">Match this role on People</Link>
               </p>
             )}
             {!briefing ? (

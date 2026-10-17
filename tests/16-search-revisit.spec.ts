@@ -69,19 +69,23 @@ test("T2 people search filters on confirmed details, shows the facts, and flags 
   await expect(imogen.getByText("£85,000 to £95,000 a year / 4 weeks notice / Manchester, Hybrid / Has the right to work")).toBeVisible();
 
   await page.goto("/people");
-  const summary = page.locator(".people-filters > summary");
-  await expect(summary).toHaveText("Filter by");
-  await summary.click();
+  // Pro accounts start in Match; Search is chosen by hand.
+  await page.getByRole("button", { name: "Match", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: /^Search/ }).click();
+  // Filters are chips under the box: each says its value once set, and its
+  // cross clears it without opening anything.
+  const filters = page.getByRole("group", { name: "Filters" });
+  await filters.getByRole("button", { name: "Salary" }).click();
   await page.getByLabel("Salary up to (a year)").fill("90k");
-  // The label names the filters in use as they are set, joined by commas.
-  await expect(summary).toHaveText("Filter by salary");
-  await page.getByLabel("Right to work").selectOption("has_right");
-  await expect(summary).toHaveText("Filter by salary, right to work");
-  await page.getByLabel("Right to work").selectOption("");
-  await expect(summary).toHaveText("Filter by salary");
-  await page.getByRole("button", { name: "Apply filters" }).click();
-  await expect(page).toHaveURL(/salary=90k/);
-  await expect(summary).toHaveText("Filter by salary");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page).toHaveURL(/salary=90000/);
+  await expect(filters.getByRole("button", { name: "Salary up to £90k" })).toBeVisible();
+  await filters.getByRole("button", { name: "Right to work" }).click();
+  await page.getByRole("menuitemradio", { name: "Has the right to work" }).click();
+  await expect(page).toHaveURL(/rtw=has_right/);
+  await page.getByRole("button", { name: "Clear right to work" }).click();
+  await expect(page).not.toHaveURL(/rtw=/);
+  await expect(page).toHaveURL(/salary=90000/);
   await expect(page.locator(".person-row", { hasText: "Ilse Vandermeer" })).toBeVisible();
   await expect(page.locator(".person-row", { hasText: "Rosalind Achebe-Moss" })).toHaveCount(0);
   // Nothing confirmed means left out of a fact filter.

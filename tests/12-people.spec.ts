@@ -203,6 +203,9 @@ test("P8 typing suggests people ranked by where the words were found, opens one 
   await db.person.create({ data: { userId: other.id, fullName: "Marrowby Stranger", searchText: "marrowby stranger" } });
 
   await page.goto("/people");
+  // Pro accounts start in Match; Search is chosen by hand.
+  await page.getByRole("button", { name: "Match", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: /^Search/ }).click();
   const box = page.getByRole("combobox", { name: "Search people" });
   await box.fill("marrow");
   const list = page.getByRole("listbox", { name: "Suggested people" });
@@ -220,6 +223,8 @@ test("P8 typing suggests people ranked by where the words were found, opens one 
 
   // Escape closes the list; Enter with nothing chosen runs the full search.
   await page.goto("/people");
+  await page.getByRole("button", { name: "Match", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: /^Search/ }).click();
   await box.fill("marrowby");
   await expect(options.first()).toHaveText(/Thaddeus Marrowby/);
   await box.press("Escape");

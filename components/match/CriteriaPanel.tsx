@@ -26,30 +26,23 @@ const REQUIREMENT_NAMES: Record<ReqKey, string> = {
 export function CriteriaPanel({
   criteria,
   encoded,
-  requirements,
   roles,
   defaultRoleId,
   readOnly,
   readsLeft,
-  briefOpen,
-  onEditBrief,
   onChange,
   onAdjusted,
 }: {
   criteria: Criteria;
   encoded: string;
-  requirements: { key: string; text: string; unknownOk: boolean }[];
   roles: RoleOption[];
   defaultRoleId: string | null;
   readOnly: boolean;
   readsLeft: number;
-  briefOpen: boolean;
-  onEditBrief: () => void;
   onChange: Change;
   onAdjusted: (encoded: string, lines: string[]) => void;
 }) {
   const set = (patch: Partial<Criteria>, line: string) => onChange({ ...criteria, ...patch }, [line]);
-  const missing = (Object.keys(REQUIREMENT_NAMES) as ReqKey[]).filter((key) => !requirements.some((item) => item.key === key));
 
   return (
     <section className="im-criteria" aria-labelledby="criteria-heading">
@@ -60,11 +53,7 @@ export function CriteriaPanel({
           <p className="im-criteria-hint">Click a skill to move it between must-have and nice-to-have. Every change re-runs the match.</p>
         </div>
         <div className="im-criteria-actions">
-          {!briefOpen && (
-            <button type="button" className="btn-quiet" onClick={onEditBrief}>
-              <Icon name="file" size={14} />Edit brief
-            </button>
-          )}
+          <Link href="/people" className="btn-quiet"><Icon name="people" size={14} />All people</Link>
           <SaveToBriefing criteria={criteria} encoded={encoded} roles={roles} defaultRoleId={defaultRoleId} readOnly={readOnly} />
         </div>
       </header>
@@ -102,31 +91,6 @@ export function CriteriaPanel({
             <li><AddInline label="Add a title" onAdd={(title) => set({ titles: [...criteria.titles, title] }, `Also looking for ${title}`)} /></li>
           </ul>
         </div>
-        <div className="im-group">
-          <h3 className="im-group-label">Requirements</h3>
-          <ul className="im-chips">
-            {requirements.map((item) => (
-              <li key={item.key}>
-                <Popover
-                  name={`Edit ${REQUIREMENT_NAMES[item.key as ReqKey].toLowerCase()}`}
-                  align="start"
-                  className={`im-chip im-chip--req ${item.unknownOk ? "is-lenient" : ""}`}
-                  label={<>{item.text}{item.unknownOk && <span className="im-chip-note">+ unconfirmed</span>}<Icon name="down" size={12} /></>}
-                >
-                  {(close) => <RequirementEditor reqKey={item.key as ReqKey} criteria={criteria} onChange={onChange} close={close} />}
-                </Popover>
-              </li>
-            ))}
-            {missing.length > 0 && (
-              <li>
-                <Popover name="Add a requirement" align="start" className="im-add" label={<><Icon name="plus" size={13} />Requirement</>}>
-                  {(close) => <AddRequirement missing={missing} criteria={criteria} onChange={onChange} close={close} />}
-                </Popover>
-              </li>
-            )}
-          </ul>
-          <p className="im-group-help">Checked against facts confirmed on a call. Unconfirmed facts put someone in &ldquo;one thing off&rdquo; unless you count them.</p>
-        </div>
       </div>
 
       {criteria.unchecked.length > 0 && (
@@ -138,6 +102,38 @@ export function CriteriaPanel({
 
       <AdjustBar encoded={encoded} readOnly={readOnly} readsLeft={readsLeft} onAdjusted={onAdjusted} />
     </section>
+  );
+}
+
+// The requirements of a match, as the row of chips under the People box, the
+// way filters sit there in Search. Each opens its own editor; the plus adds
+// one the brief did not mention.
+export function RequirementChips({ criteria, requirements, onChange }: {
+  criteria: Criteria;
+  requirements: { key: string; text: string; unknownOk: boolean }[];
+  onChange: Change;
+}) {
+  const missing = (Object.keys(REQUIREMENT_NAMES) as ReqKey[]).filter((key) => !requirements.some((item) => item.key === key));
+  return (
+    <div className="people-chips" role="group" aria-label="Requirements">
+      {requirements.map((item) => (
+        <Popover
+          key={item.key}
+          name={`Edit ${REQUIREMENT_NAMES[item.key as ReqKey].toLowerCase()}`}
+          align="start"
+          className={`people-chip is-set ${item.unknownOk ? "is-lenient" : ""}`}
+          label={<>{item.text}{item.unknownOk && <span className="im-chip-note">+ unconfirmed</span>}<Icon name="down" size={12} /></>}
+        >
+          {(close) => <RequirementEditor reqKey={item.key as ReqKey} criteria={criteria} onChange={onChange} close={close} />}
+        </Popover>
+      ))}
+      {missing.length > 0 && (
+        <Popover name="Add a requirement" align="start" className="people-chip is-add" label={<><Icon name="plus" size={13} />Requirement</>}>
+          {(close) => <AddRequirement missing={missing} criteria={criteria} onChange={onChange} close={close} />}
+        </Popover>
+      )}
+      <span className="people-chips-note">Checked against facts confirmed on a call; unconfirmed facts put someone in &ldquo;one thing off&rdquo; unless you count them.</span>
+    </div>
   );
 }
 

@@ -4,11 +4,12 @@ import { requireFeature, featureAvailability } from "@/lib/feature-access";
 import { formatWhen } from "@/lib/dates";
 import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
-import { locationText, noticeText, rightToWorkText, salaryText, REMOTE_LABELS, RIGHT_TO_WORK_LABELS } from "@/lib/fact-labels";
-import { FRESH_MONTHS, REMOTE_FILTERS, RTW_FILTERS, factsAreStale, hasFactFilters, parsePeopleFilters, reviewCutoff } from "@/lib/talent.mjs";
+import { locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
+import { factsAreStale, hasFactFilters, parsePeopleFilters, reviewCutoff } from "@/lib/talent.mjs";
 import { peopleWhere } from "@/lib/people-search";
-import { PeopleSearchBox } from "@/components/PeopleSearchBox";
-import { FilterSummary } from "@/components/FilterSummary";
+import { loadMatchPage } from "@/lib/match-page";
+import { PeopleBox } from "@/components/PeopleBox";
+import { InstantMatch } from "@/components/match/InstantMatch";
 import { ImportUndo } from "@/components/ImportUndo";
 import { recentBatch } from "@/lib/people-import-server";
 import { undoUntil } from "@/lib/people-import-fields.mjs";
@@ -16,12 +17,14 @@ import { undoUntil } from "@/lib/people-import-fields.mjs";
 export const dynamic = "force-dynamic";
 
 // Everyone this workspace has recorded, once each, however many roles they
-// were considered for. On every plan the search is by name and headline; with
-// people search it reaches everything recorded about a person and can filter
-// on the four facts they confirmed.
+// were considered for, under one box. With Instant Match the box starts in
+// Match: a brief is read into criteria and the match replaces the list, with
+// its criteria (c) and the people set aside (x) in the address. Search finds
+// people as before: on every plan by name and headline, and with people search
+// across everything recorded about them, filtered on the facts they confirmed.
 const PAGE_SIZE = 200;
 
-type Params = { q?: string; deleted?: string; salary?: string; notice?: string; remote?: string; rtw?: string; fresh?: string };
+type Params = { q?: string; deleted?: string; salary?: string; notice?: string; remote?: string; rtw?: string; fresh?: string; c?: string; x?: string; role?: string; all?: string };
 
 function factsLine(person: { salaryMin: number | null; salaryMax: number | null; salaryCurrency: string | null; noticeWeeks: number | null; location: string | null; remotePreference: string | null; rightToWork: string | null }) {
   return [
@@ -40,6 +43,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
   const now = new Date();
 
   const where = peopleWhere(owner.id, filters, features.peopleSearch, now);
+  const match = features.instantMatch ? await loadMatchPage(owner, readOnly, searchParams) : null;
+  const matching = Boolean(match?.criteria);
+  // Match is where a Pro account starts; a search in the address, or a
+  // read-only view (which cannot read a brief), starts in Search.
+  const initialMode = matching || match?.startRole ? "match" : searching || readOnly ? "search" : "match";
 
   const cutoff = reviewCutoff(now);
   const lastImport = features.peopleImport && !readOnly ? await recentBatch(owner.id) : null;
@@ -76,7 +84,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
   const people = filters.q && !features.peopleSearch
     ? found.filter((person) => `${person.fullName} ${person.headline ?? ""}`.toLowerCase().includes(needle))
     : found;
-  const filtersOpen = features.peopleSearch && hasFactFilters(filters);
 
   return (
     <div className="min-w-0">
@@ -85,14 +92,15 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
           <p className="page-eyebrow">Pipeline / People</p>
           <h1>People</h1>
           <p className="page-description">
-            Everyone you have saved, once each, with every role you considered them for.
+            {features.instantMatch
+              ? "Paste a job description to find who you already know who fits, or switch to Search to look someone up."
+              : "Everyone you have saved, once each, with every role you considered them for."}
           </p>
         </div>
-        {((!readOnly && (features.peopleImport || toReview > 0)) || features.instantMatch) && (
+        {!readOnly && (features.peopleImport || toReview > 0) && (
           <div className="flex flex-wrap gap-2">
-            {!readOnly && features.peopleImport && <Link href="/people/import" className="btn-secondary">Import people</Link>}
-            {!readOnly && toReview > 0 && <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>}
-            {features.instantMatch && <Link href="/people/match" className="btn-primary"><Icon name="spark" size={16} />Instant Match</Link>}
+            {features.peopleImport && <Link href="/people/import" className="btn-secondary">Import people</Link>}
+            {toReview > 0 && <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>}
           </div>
         )}
       </header>
@@ -107,69 +115,22 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
         </p>
       )}
 
-      <form method="get" className="people-search" role="search">
-        <div className="directory-toolbar">
-          <PeopleSearchBox
-            defaultValue={filters.q}
-            label={features.peopleSearch ? "Search people" : "Search people by name"}
-            placeholder={features.peopleSearch ? "Name, skill, place or a confirmed detail" : "Search by name or headline"}
-          />
-          <button type="submit" className="btn-secondary">Search</button>
-        </div>
-        {features.peopleSearch && (
-          <details className="people-filters" open={filtersOpen}>
-            <summary>
-              <FilterSummary
-                initial={[
-                  filters.maxSalary !== null && "salary",
-                  filters.maxNotice !== null && "notice",
-                  filters.remote && "remote",
-                  filters.rightToWork && "rtw",
-                  filters.freshMonths && "fresh",
-                ].filter((field): field is string => Boolean(field))}
-              />
-            </summary>
-            <div className="people-filter-grid">
-              <div>
-                <label htmlFor="filter-salary" className="field-label">Salary up to (a year)</label>
-                <input id="filter-salary" name="salary" inputMode="numeric" defaultValue={filters.maxSalary ?? ""} placeholder="e.g. 90k" className="field-input tabular" />
-              </div>
-              <div>
-                <label htmlFor="filter-notice" className="field-label">Notice up to (weeks)</label>
-                <input id="filter-notice" name="notice" type="number" min={0} max={104} defaultValue={filters.maxNotice ?? ""} className="field-input tabular" />
-              </div>
-              <div>
-                <label htmlFor="filter-remote" className="field-label">Working pattern</label>
-                <select id="filter-remote" name="remote" defaultValue={filters.remote ?? ""} className="field-input">
-                  <option value="">Any</option>
-                  {REMOTE_FILTERS.map((value: string) => <option key={value} value={value}>{REMOTE_LABELS[value]}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="filter-rtw" className="field-label">Right to work</label>
-                <select id="filter-rtw" name="rtw" defaultValue={filters.rightToWork ?? ""} className="field-input">
-                  <option value="">Any</option>
-                  {RTW_FILTERS.map((value: string) => <option key={value} value={value}>{RIGHT_TO_WORK_LABELS[value]}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="filter-fresh" className="field-label">Confirmed within</label>
-                <select id="filter-fresh" name="fresh" defaultValue={filters.freshMonths ?? ""} className="field-input">
-                  <option value="">Any time</option>
-                  {FRESH_MONTHS.map((months: number) => <option key={months} value={months}>{months} months</option>)}
-                </select>
-              </div>
-            </div>
-            <p className="section-caption">
-              Filters use only facts confirmed on a screening; someone with nothing confirmed for a filter is left out of it.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button type="submit" className="btn-secondary">Apply filters</button>
-              <Link href="/people" className="btn-quiet">Clear</Link>
-            </div>
-          </details>
-        )}
-      </form>
+      <PeopleBox
+        canMatch={features.instantMatch}
+        canFilter={features.peopleSearch}
+        readOnly={readOnly}
+        readsLeft={match?.readsLeft ?? 0}
+        initialMode={initialMode}
+        query={filters.q}
+        filters={{ maxSalary: filters.maxSalary, maxNotice: filters.maxNotice, remote: filters.remote, rightToWork: filters.rightToWork, freshMonths: filters.freshMonths }}
+        roles={(match?.roles ?? []).filter((role) => role.hasJobDesc).map((role) => ({ id: role.id, title: role.title, client: role.client }))}
+        startRole={match?.startRole ?? null}
+        hasMatch={matching}
+        searchLabel={features.peopleSearch ? "Search people" : "Search people by name"}
+        searchPlaceholder={features.peopleSearch ? "Name, skill, place or a confirmed detail" : "Search by name or headline"}
+      />
+
+      {matching && match ? <InstantMatch data={match} /> : (<>
 
       <div className="directory-label">
         <h2>
@@ -239,6 +200,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
       {!searching && total > PAGE_SIZE && (
         <p className="section-caption mt-4">Showing the {PAGE_SIZE} most recently updated of {total}. Search to find anyone else.</p>
       )}
+      </>)}
     </div>
   );
 }

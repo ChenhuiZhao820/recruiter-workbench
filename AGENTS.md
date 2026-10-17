@@ -436,8 +436,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   name and headline in both. The endpoint reads the workspace on screen (a
   read-only Admin view suggests that workspace's people), returns only what a
   row shows, and writes nothing. A suggestion opens the person; Enter with
-  none chosen still runs the full search. The filter panel's label says
-  "Filter by" and then the filters in use, as they are set.
+  none chosen still runs the full search. The filters are chips under the
+  People box (`PeopleBox`): each shows its value once set, opens a small
+  editor, and its cross clears it; they navigate, so the address still holds
+  them.
 - Talent matches (`talentMatches`, Pro): the role's briefing key skills and
   search titles are scored against people not on the role and not do not
   contact: three points a whole phrase, one a significant word. People whose
@@ -564,11 +566,22 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 ## Instant Match
 
-- A Pro feature (`instantMatch` in `FEATURE_TIERS`) at `/people/match`,
-  reached from People and from a role's "From your database" group
-  (`?role=` puts that role's description in the box). The recruiter pastes a
-  job description and the client's needs; Capture reads it once into criteria
-  and matches them against this account's own people.
+- A Pro feature (`instantMatch` in `FEATURE_TIERS`) on the People page
+  itself. One box (`components/PeopleBox.tsx`) replaces the search bar: Match
+  is where a Pro account starts, and Search is chosen by hand from the mode
+  menu. Pasting into Search something longer than `LONG_PASTE` (150
+  characters) or with a line break moves it to Match and says so, with
+  "search instead". Match calls the model only on Enter or the arrow, never on
+  a paste or a mode change; Search never calls it. A read-only view, or an
+  address that already holds a search, starts in Search; Basic gets Search
+  only, with no mode menu and no filters.
+- Under the box sits one row of chips: in Search the filters, before a match
+  the open roles that have a description ("Match <role>", `?role=` puts the
+  description in the box), and during a match its requirements. The match
+  replaces the people list on the same page (`/people?c=…`); "All people"
+  clears it. `/people/match` only redirects to People with the same address
+  state, so links already sent keep working. The page data comes from
+  `loadMatchPage` (`lib/match-page.ts`).
 - The model does one thing: words in, criteria out (`lib/match-model.mjs`,
   `claude-haiku-5-5` by default, `CAPTURE_MATCH_MODEL`, effort low, a
   structured-output schema, one retry). It gets the brief, or the current
@@ -618,7 +631,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `tests/21-instant-match.spec.ts` plays it against the local stub (only the
   brief is sent, chips, Back/Undo, exact loosening, not a fit, adjusting,
   briefing, add to role, handoff, refusal, outage, cap, forged origin, Basic,
-  read-only view, phone width).
+  read-only view, phone width, the long paste that switches to Match without
+  reading anything, and starting from a role).
 
 ## Accounts and authorization
 

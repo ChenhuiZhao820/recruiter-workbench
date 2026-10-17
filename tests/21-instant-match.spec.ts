@@ -37,11 +37,9 @@ async function person(fullName: string, facts: Facts, userId = TEST_ADMIN_ID) {
 }
 
 async function readBrief(page: Page, brief = BRIEF) {
-  await page.goto("/people/match");
-  const box = page.getByLabel("The job description, and anything the client told you");
-  // The composer focuses itself once it has restored any earlier brief, so
-  // typing waits for that rather than racing it.
-  await expect(box).toBeFocused();
+  await page.goto("/people");
+  const box = page.getByLabel("Paste a job description, or describe who you need");
+  await expect(box).toBeEnabled();
   await box.fill(brief);
   await page.getByRole("button", { name: "Find matches" }).click();
 }
@@ -70,11 +68,12 @@ test.beforeAll(async () => {
 
 test("IM1 a brief becomes chips, people and one-thing-off, and only the brief goes to the model", async ({ page }) => {
   const before = await db.usageEvent.count({ where: { userId: TEST_ADMIN_ID, kind: "match_brief_read" } });
+  // People opens in Match for a Pro account: no extra page, no extra click.
   await page.goto("/people");
-  await page.getByRole("link", { name: "Instant Match" }).click();
-  await expect(page).toHaveURL(/\/people\/match$/);
+  await expect(page.getByRole("button", { name: "Match", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Find matches" })).toBeDisabled();
   await readBrief(page);
+  await expect(page).toHaveURL(/\/people\?c=/);
 
   await expect(page.getByRole("heading", { name: "Zephyr Platform Engineer" })).toBeVisible();
   await expect(page).toHaveURL(/\?c=[A-Za-z0-9_-]+$/);
@@ -201,8 +200,9 @@ test("IM6 criteria join a role's briefing only when saved there, with the budget
   await page.goto(`/roles/${role.id}`);
   await expect(page.getByText("What they do all day")).toHaveCount(0);
   await page.getByText(/From your database/).click();
-  await page.getByRole("link", { name: "Open Instant Match with this role" }).click();
-  await expect(page.getByLabel("The job description, and anything the client told you")).toHaveValue(/MUST: zephlang/);
+  await page.getByRole("link", { name: "Match this role on People" }).click();
+  await expect(page).toHaveURL(/\/people\?role=/);
+  await expect(page.getByLabel("Paste a job description, or describe who you need")).toHaveValue(/MUST: zephlang/);
 });
 
 test("IM7 a match is added to a role from its row, and the search can go to LinkedIn or Searches", async ({ page }) => {
@@ -234,9 +234,8 @@ test("IM7 a match is added to a role from its row, and the search can go to Link
 });
 
 test("IM8 a refused, failed, capped or forged request says so and charges nothing", async ({ page }) => {
-  await page.goto("/people/match");
-  const box = page.getByLabel("The job description, and anything the client told you");
-  await expect(box).toBeFocused();
+  await page.goto("/people");
+  const box = page.getByLabel("Paste a job description, or describe who you need");
   await box.fill("too short");
   await expect(page.getByRole("button", { name: "Find matches" })).toBeDisabled();
 
@@ -265,7 +264,9 @@ test("IM8 a refused, failed, capped or forged request says so and charges nothin
     await db.usageEvent.deleteMany({ where: { id: { in: ids } } });
   }
 
+  // Old links to the Instant Match page land on People with the same state.
   await page.goto("/people/match?c=not-criteria");
+  await expect(page).toHaveURL(/\/people\?c=not-criteria$/);
   await expect(page.getByRole("button", { name: "Find matches" })).toBeVisible();
 });
 
@@ -274,7 +275,11 @@ test("IM9 Basic accounts do not get Instant Match at all", async ({ browser }) =
   try {
     await basic.page.goto("/people");
     await expect(basic.page.getByRole("heading", { level: 1, name: "People" })).toBeVisible();
-    await expect(basic.page.getByRole("link", { name: "Instant Match" })).toHaveCount(0);
+    // Search only: no mode to choose, no brief box, no filters.
+    await expect(basic.page.getByRole("combobox", { name: "Search people by name" })).toBeVisible();
+    await expect(basic.page.getByRole("button", { name: "Match", exact: true })).toHaveCount(0);
+    await expect(basic.page.getByLabel("Paste a job description, or describe who you need")).toHaveCount(0);
+    await expect(basic.page.getByRole("group", { name: "Filters" })).toHaveCount(0);
     const response = await basic.page.goto("/people/match");
     expect(response?.status()).toBe(404);
     const api = await basic.page.request.post("/api/match/criteria", { headers: { origin: BASE }, data: { brief: BRIEF } });
@@ -302,8 +307,12 @@ test("IM10 a read-only view shows the match but reads no brief and changes nothi
     await expect(page.getByRole("button", { name: "Save to a role" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Save as a search" })).toBeDisabled();
     await expect(page.getByLabel("Adjust the criteria in your own words")).toBeDisabled();
-    await page.getByRole("button", { name: "Edit brief" }).click();
-    await expect(page.getByLabel("The job description, and anything the client told you")).toBeDisabled();
+    await expect(page.getByLabel("Paste a job description, or describe who you need")).toBeDisabled();
+    await page.goto("/people");
+    // Without a match on screen a read-only view starts in Search.
+    await expect(page.getByRole("combobox", { name: "Search people" })).toBeVisible();
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByRole("menuitemradio", { name: /^Match/ }).click();
     await expect(page.getByText("This is a read-only view.")).toBeVisible();
     const api = await page.request.post("/api/match/criteria", { headers: { origin: BASE }, data: { brief: BRIEF } });
     expect(api.status()).toBe(403);
@@ -325,4 +334,50 @@ test("IM11 Instant Match fits a phone without sideways scrolling", async ({ page
   expect(box!.x + box!.width).toBeLessThanOrEqual(390);
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
+});
+
+test("IM12 a long paste in Search switches to Match and reads nothing until Enter; a role starts a match in one click", async ({ page }) => {
+  const before = await db.usageEvent.count({ where: { userId: TEST_ADMIN_ID, kind: "match_brief_read" } });
+  await page.goto("/people");
+  await page.getByRole("button", { name: "Match", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: /^Search/ }).click();
+  const search = page.getByRole("combobox", { name: "Search people" });
+  await search.focus();
+  await page.evaluate((text) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    document.querySelector("#people-search")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, BRIEF);
+  const box = page.getByLabel("Paste a job description, or describe who you need");
+  await expect(box).toHaveValue(BRIEF);
+  await expect(page.getByText("That looks like a job description, so the box switched to Match.")).toBeVisible();
+  expect(await db.usageEvent.count({ where: { userId: TEST_ADMIN_ID, kind: "match_brief_read" } })).toBe(before);
+
+  // A short paste stays a search.
+  await page.getByRole("button", { name: "search instead" }).click();
+  await expect(search).toHaveValue("");
+  await search.focus();
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData("text/plain", "zephlang");
+    document.querySelector("#people-search")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  await expect(box).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: /^Match/ }).click();
+  // Choosing Search did not throw the brief away.
+  await expect(box).toHaveValue(BRIEF);
+  await box.fill("");
+  await box.press("Enter");
+  await expect(page.locator(".im-error")).toHaveText(/Paste the job description/);
+
+  const role = await db.role.create({ data: { userId: TEST_ADMIN_ID, title: "Zephyr Quick Start", jobDesc: "TITLE: Zephyr Quick Start\nMUST: zephlang\nNICE: quorvex" } });
+  await page.goto("/people");
+  await page.getByRole("group", { name: "Match from a role" }).getByRole("button", { name: "Match Zephyr Quick Start" }).click();
+  await expect(page).toHaveURL(`${BASE}/people?role=${role.id}`);
+  await expect(box).toHaveValue(/^Zephyr Quick Start\n\nTITLE: Zephyr Quick Start\nMUST: zephlang/);
+  await box.press("Enter");
+  await expect(page.getByRole("heading", { name: "Zephyr Quick Start" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Requirements" })).toBeVisible();
 });

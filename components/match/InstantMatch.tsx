@@ -4,8 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Icon } from "@/components/Icon";
 import { encodeCriteria } from "@/lib/match-core.mjs";
-import { BriefComposer } from "./BriefComposer";
-import { CriteriaPanel } from "./CriteriaPanel";
+import { CriteriaPanel, RequirementChips } from "./CriteriaPanel";
 import { MatchResults } from "./MatchResults";
 import { Handoff } from "./Handoff";
 
@@ -79,7 +78,7 @@ type PendingToast = { lines: string[]; undo: boolean; before: number };
 export function matchHref(encoded: string, hidden: string[] = []) {
   const params = new URLSearchParams({ c: encoded });
   if (hidden.length) params.set("x", hidden.join(","));
-  return `/people/match?${params.toString()}`;
+  return `/people?${params.toString()}`;
 }
 
 // Counts only, and only of the ways out of a disappointing match. Never waits
@@ -88,10 +87,12 @@ export function recordMatchEvent(kind: "match_loosened" | "match_not_fit" | "mat
   fetch("/api/match/event", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, reason }), keepalive: true }).catch(() => {});
 }
 
+// A match on the People page, under the box that read its brief: the
+// requirements as the row of chips under the box, what Capture is looking
+// for, the people, and the way out to LinkedIn.
 export function InstantMatch({ data }: { data: MatchPageData }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [editingBrief, setEditingBrief] = useState(!data.criteria);
   const [toast, setToast] = useState<Toast | null>(null);
   const pendingToast = useRef<PendingToast | null>(null);
   const resultsHeading = useRef<HTMLHeadingElement>(null);
@@ -117,48 +118,23 @@ export function InstantMatch({ data }: { data: MatchPageData }) {
   }, [data.encoded, hiddenKey, data.results?.total]);
 
   useEffect(() => {
-    if (!data.criteria) setEditingBrief(true);
-  }, [data.criteria]);
-
-  useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 8000);
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const showComposer = editingBrief || !data.criteria;
-
   return (
     <div className="im-page">
-      {showComposer && (
-        <BriefComposer
-          key={data.startRole?.id ?? "brief"}
-          readOnly={data.readOnly}
-          readsLeft={data.readsLeft}
-          roles={data.roles}
-          startRole={data.startRole}
-          canCancel={Boolean(data.criteria)}
-          onCancel={() => setEditingBrief(false)}
-          onRead={(encoded) => {
-            setEditingBrief(false);
-            go(matchHref(encoded), []);
-            setTimeout(() => resultsHeading.current?.focus(), 600);
-          }}
-        />
-      )}
-
       {data.criteria && data.encoded && (
         <>
+          <RequirementChips criteria={data.criteria} requirements={data.requirements} onChange={change} />
           <CriteriaPanel
             criteria={data.criteria}
             encoded={data.encoded}
-            requirements={data.requirements}
             roles={data.roles}
             defaultRoleId={data.startRole?.id ?? null}
             readOnly={data.readOnly}
             readsLeft={data.readsLeft}
-            briefOpen={showComposer}
-            onEditBrief={() => setEditingBrief(true)}
             onChange={change}
             onAdjusted={(encoded, lines) => go(matchHref(encoded, data.hidden), lines.length ? lines : ["Nothing needed changing"], lines.length > 0)}
           />

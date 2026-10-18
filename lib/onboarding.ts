@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { canUseExtension } from "@/lib/extension-access";
 import { getWorkspace } from "@/lib/workspace";
+import { hasSeenCurrentRelease } from "@/lib/release";
 
 // Setup steps a new account works through after its password is set. State is
 // derived from what the account already has, so nothing here is a second copy
@@ -33,6 +34,13 @@ export async function getOnboardingStatus(): Promise<OnboardingStatus> {
 // account is identified directly rather than through the request.
 export async function isNewAccount(userId: string, role: string): Promise<boolean> {
   return (await statusFor(userId, role)).untouched;
+}
+
+// The current release is news to an account that has not read it and used an
+// earlier version. Same rule as sign-in and the top bar link; the bell counts it.
+export async function releaseIsNews(user: { id: string; role: string }): Promise<boolean> {
+  if (await hasSeenCurrentRelease(user.id)) return false;
+  return !(await isNewAccount(user.id, user.role));
 }
 
 async function statusFor(userId: string, ownerRole: string): Promise<OnboardingStatus> {

@@ -42,8 +42,8 @@ export function UnreadBadge({ count }: { count: number }) {
 }
 
 export function ActivityBell({ unread }: { unread: number }) {
-  const label = unread ? `Activity: ${unread} new` : "Activity";
-  return <Link href="/activity" className={unread ? "activity-bell has-unread" : "activity-bell"} aria-label={label} title={label} data-unread={unread}>
+  const label = unread ? `Notifications: ${unread} new` : "Notifications";
+  return <Link href="/notifications" className={unread ? "activity-bell has-unread" : "activity-bell"} aria-label={label} title={label} data-unread={unread}>
     <Icon name="bell" size={17} />
     <UnreadBadge count={unread} />
   </Link>;

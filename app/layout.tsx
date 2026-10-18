@@ -45,7 +45,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // A brand new account is still setting up; what changed since a version they
   // never used is not news to them.
   const unreadRelease = Boolean(setup && !setup.untouched && !(await hasSeenCurrentRelease(workspace!.owner.id)));
-  const unreadActivity = workspace ? await unreadCount(workspace.owner.id) : 0;
+  // The release is one more notification on the bell until it is read.
+  const unreadActivity = (workspace ? await unreadCount(workspace.owner.id) : 0) + (unreadRelease ? 1 : 0);
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body style={{

@@ -32,9 +32,9 @@ export async function bookInterview(_prev: FormState, formData: FormData): Promi
   const now = new Date();
   const context = await loadBookingContext(token, now);
   if (!context || context.read.kind !== "interview") return { error: "This interview link has expired or is not valid. Ask for a new one." };
-  const { candidate, owner, settings } = context;
+  const { candidate, owner, settings, offer } = context;
   const who = settings.recruiterName || owner.name;
-  const state = interviewLinkState({ role: candidate.role, candidate: { ...candidate, roleId: candidate.role.id }, person: candidate.person, item: candidate.shortlistItems[0] ?? null });
+  const state = interviewLinkState({ role: candidate.role, candidate: { ...candidate, roleId: candidate.role.id }, person: candidate.person, item: candidate.shortlistItems[0] ?? null, offered: Boolean(offer) });
   if (!state.ok) return { error: `This interview link is no longer active. Reply to ${who} to arrange a time.` };
   if (context.booking) return { error: "You already have an interview booked." };
   if (!(await takeAuthAttempt(`interview:${candidate.id}`, 10, 3600)) || !(await takeAuthAttempt(`interview-owner:${owner.id}`, 120, 3600))) {
@@ -44,15 +44,18 @@ export async function bookInterview(_prev: FormState, formData: FormData): Promi
   if (!validEmail(email)) return { error: "Enter your email address, so the interview can be confirmed." };
   if (formData.get("consent") !== "on") return { error: "Tick the box to confirm you have read how your details are used." };
 
+  // Times the recruiter offered by hand, when there are any; otherwise the
+  // role's weekly hours. Either way only a time still offered is booked.
   const startsAt = Number(formData.get("slot"));
-  const free = await interviewSlots(owner.id, candidate.role, now);
+  const free = offer ? offer.open : await interviewSlots(owner.id, candidate.role, now);
   if (!Number.isInteger(startsAt) || !free.includes(startsAt)) return { error: "That time is no longer free. Choose another." };
+  const durationMins = offer ? offer.offer.durationMins : candidate.role.interviewDurationMins!;
   const start = new Date(startsAt);
-  const end = new Date(startsAt + candidate.role.interviewDurationMins! * 60_000);
+  const end = new Date(startsAt + durationMins * 60_000);
   const personId = await ensureCandidatePerson(candidate.id, owner.id);
   if (!personId) return { error: "This interview link is no longer active." };
   const key = clientKey(candidate.role.client, candidate.role.id);
-  const place = interviewPlace(candidate.role.interviewLocation);
+  const place = interviewPlace(offer ? offer.offer.location : candidate.role.interviewLocation);
   const notice = privacyNoticeText(settings, owner.email);
 
   try {
@@ -72,6 +75,9 @@ export async function bookInterview(_prev: FormState, formData: FormData): Promi
           endsAt: end,
           mode: place.url ? "video" : "in_person",
           meetingUrl: place.url,
+          // An offer's address and zone travel with the booking; one from the
+          // role's hours reads the role, as before.
+          ...(offer ? { place: place.text, timeZone: offer.offer.timeZone } : {}),
           phone: null,
           email,
           consentAt: now,
@@ -81,6 +87,12 @@ export async function bookInterview(_prev: FormState, formData: FormData): Promi
       // The key on (owner, client, start) refuses a second interview with
       // this client at the same time even if two requests pass the check above.
       await tx.interviewSlot.create({ data: { userId: owner.id, clientKey: key, startsAt: start, bookingId: booking.id } });
+      // The offer is used: its other times stop being offered. Claimed by its
+      // state, so the same offer cannot be booked twice.
+      if (offer) {
+        const { count } = await tx.interviewOffer.updateMany({ where: { id: offer.offer.id, withdrawnAt: null, bookingId: null }, data: { bookingId: booking.id } });
+        if (count !== 1) throw new SlotTakenError();
+      }
       await tx.person.update({ where: { id: personId }, data: { email, emailSource: "booking", lastContactAt: now } });
       await tx.candidate.update({
         where: { id: candidate.id },

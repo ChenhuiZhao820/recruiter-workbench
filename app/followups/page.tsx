@@ -231,13 +231,13 @@ export default async function FollowUpsPage() {
           readOnly={readOnly}
           number="02"
           title="Client wants to meet"
-          description="A client pressed Interview on your client link. Let the candidate know and find a time."
+          description="A client pressed Interview on your client link. Set the time, or offer a few, and let the candidate know."
           rows={buckets.clientWantsToMeet}
           run={features.followUpRuns ? "/followups/run?only=m" : undefined}
           actions={(row) => (
             <>
-              <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
-                Draft message
+              <Link href={`/candidates/${row.candidateId}/interview`} className="btn-quiet btn-arrange">
+                Arrange interview
               </Link>
               <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
             </>
@@ -248,7 +248,7 @@ export default async function FollowUpsPage() {
       {shortlistAnswers.length > 0 && (
         <section aria-label="Wants to meet, from a shortlist" className="workspace-section">
           <h2 className="section-heading">Wants to meet, from a shortlist</h2>
-          <p className="section-caption mb-4">A client pressed Interview on a shortlist you sent. Bring the answer onto the role for that client, then let the candidate know.</p>
+          <p className="section-caption mb-4">A client pressed Interview on a shortlist you sent. Arranging the interview also puts them on the role&rsquo;s client link.</p>
           <ul className="space-y-2">
             {shortlistAnswers.map((answer) => (
               <li key={answer.id} className="card flex flex-wrap items-center justify-between gap-2">
@@ -259,7 +259,7 @@ export default async function FollowUpsPage() {
                 <span className="flex flex-wrap items-center gap-2">
                   {answer.roles.length > 0
                     ? answer.roles.map((candidate) => (
-                        <Link key={candidate.id} href={`/roles/${candidate.role.id}#candidate-${candidate.id}`} className="btn-quiet">Open on {candidate.role.title}</Link>
+                        <Link key={candidate.id} href={`/candidates/${candidate.id}/interview`} className="btn-quiet btn-arrange">{answer.roles.length > 1 ? `Arrange interview · ${candidate.role.title}` : "Arrange interview"}</Link>
                       ))
                     : <>
                         <span className="text-sm text-ink-soft">Not on an open role for {answer.shortlist.client}</span>

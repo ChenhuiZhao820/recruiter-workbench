@@ -42,7 +42,9 @@ export async function unreadCount(ownerId: string) {
 
 // A role the answer can be brought onto, from the activity line itself.
 export type AdoptTarget = { candidateId: string; itemId: string; roleTitle: string };
-export type ActivityEntry = { id: string; at: Date; unread: boolean; text: string; href: string; tone: "yes" | "no" | "neutral"; adopt: AdoptTarget[] };
+// A candidacy whose interview can be arranged from the line itself.
+export type ArrangeTarget = { candidateId: string; roleTitle: string };
+export type ActivityEntry = { id: string; at: Date; unread: boolean; text: string; href: string; tone: "yes" | "no" | "neutral"; adopt: AdoptTarget[]; arrange: ArrangeTarget[] };
 
 const placeOf = (shortlist: { id: string; kind: string; roleId: string | null } | null, roleId: string | null) =>
   roleId ? `/roles/${roleId}` : shortlist ? `/shortlists?open=${shortlist.id}#shortlist-${shortlist.id}` : "/shortlists";
@@ -65,6 +67,7 @@ export async function listActivity(ownerId: string, limit = 60): Promise<Activit
     : [];
   const emailOf = new Map(accesses.map((access) => [access.id, access.email]));
   const adoptable = await adoptTargets(ownerId, rows);
+  const arrangeable = await arrangeTargets(ownerId, rows, adoptable);
   const when = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/London" });
 
   return rows.map((row) => {
@@ -72,7 +75,7 @@ export async function listActivity(ownerId: string, limit = 60): Promise<Activit
     const who = (row.accessId && emailOf.get(row.accessId)) || client;
     const where = row.shortlist ? (row.shortlist.kind === "role" ? row.role?.title ?? row.shortlist.title : row.shortlist.title) : row.role?.title ?? "";
     const person = row.item?.person.fullName ?? row.booking?.candidate.fullName ?? "Someone";
-    const base = { id: row.id, at: row.createdAt, unread: !row.readAt, adopt: (row.item && adoptable.get(row.item.id)) || [] };
+    const base = { id: row.id, at: row.createdAt, unread: !row.readAt, adopt: (row.item && adoptable.get(row.item.id)) || [], arrange: arrangeable.get(row.id) ?? [] };
     const href = row.roleId && (row.item?.candidateId || row.booking?.candidate.id)
       ? `/roles/${row.roleId}#candidate-${row.item?.candidateId ?? row.booking?.candidate.id}`
       : placeOf(row.shortlist, row.roleId);
@@ -117,6 +120,42 @@ async function adoptTargets(ownerId: string, rows: { kind: string; shortlist: { 
       .filter((candidate) => !candidate.role.shortlist?.items.some((own) => own.personId === item.personId && own.decision && own.decisionAt && item.decisionAt && own.decisionAt >= item.decisionAt))
       .map((candidate) => ({ candidateId: candidate.id, itemId: item.id, roleTitle: candidate.role.title }));
     if (found.length) targets.set(item.id, found);
+  }
+  return targets;
+}
+
+// The candidacies an interview can still be arranged for, per line: the
+// client wants to meet them (on a role's link, or on a custom shortlist for a
+// role's client) or could not make the time booked, and nothing is booked now.
+async function arrangeTargets(
+  ownerId: string,
+  rows: { id: string; kind: string; shortlist: { kind: string } | null; item: { id: string; candidateId: string | null; decision: string | null } | null; booking: { candidate: { id: string } } | null }[],
+  adoptable: Map<string, AdoptTarget[]>,
+) {
+  const wanted = new Map<string, string[]>();
+  for (const row of rows) {
+    if (row.kind === "client_answered" && row.item?.decision === "interview") {
+      if (row.shortlist?.kind === "role" && row.item.candidateId) wanted.set(row.id, [row.item.candidateId]);
+      else wanted.set(row.id, (adoptable.get(row.item.id) ?? []).map((target) => target.candidateId));
+    } else if (row.kind === "interview_cancelled" && row.booking) {
+      wanted.set(row.id, [row.booking.candidate.id]);
+    }
+  }
+  const ids = Array.from(new Set(Array.from(wanted.values()).flat()));
+  const targets = new Map<string, ArrangeTarget[]>();
+  if (!ids.length) return targets;
+  const now = new Date();
+  const open = await db.candidate.findMany({
+    where: {
+      id: { in: ids }, role: { userId: ownerId, status: "open" }, stage: { notIn: ["rejected", "placed"] }, person: { doNotContact: false },
+      bookings: { none: { kind: "interview", status: "booked", endsAt: { gt: now } } },
+    },
+    select: { id: true, role: { select: { title: true } } },
+  });
+  const byId = new Map(open.map((candidate) => [candidate.id, candidate.role.title]));
+  for (const [rowId, candidateIds] of Array.from(wanted.entries())) {
+    const found = candidateIds.filter((id) => byId.has(id)).map((id) => ({ candidateId: id, roleTitle: byId.get(id)! }));
+    if (found.length) targets.set(rowId, found);
   }
   return targets;
 }

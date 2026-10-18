@@ -1,4 +1,6 @@
 import { db } from "./db";
+import { currentOffer } from "./arrange";
+import { clientKey } from "./shortlist-core.mjs";
 import { appOrigin } from "./auth";
 import { calendarBusy } from "./calendar";
 import {
@@ -106,7 +108,9 @@ export async function loadBookingContext(token: string, now = new Date()) {
   const owner = candidate.role.user;
   const settings = await db.settings.findUnique({ where: { userId: owner.id } });
   if (!settings) return null;
-  return { read, candidate, owner, settings, booking: candidate.bookings[0] ?? null };
+  // Times the recruiter offered this candidate by hand, for an interview link.
+  const offer = read.kind === "interview" ? await currentOffer(candidate.id, owner.id, clientKey(candidate.role.client, candidate.role.id), now) : null;
+  return { read, candidate, owner, settings, booking: candidate.bookings[0] ?? null, offer: offer && offer.open.length ? offer : null };
 }
 
 export async function freeSlots(ownerId: string, settings: BookingSettings, now = new Date()) {

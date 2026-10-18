@@ -2,6 +2,7 @@ import { db } from "./db";
 import { appOrigin } from "./auth";
 import { availableSlots, bookingSecret, bookingToken, parseWindows } from "./booking-core.mjs";
 import { clientKey, hasInterviewHours, interviewLinkState } from "./shortlist-core.mjs";
+import { currentOffer } from "./arrange";
 
 // Client interviews: the hours a client interviews in, kept on the role; the
 // signed link a candidate books one from; and the free times, which are the
@@ -59,7 +60,8 @@ export async function interviewLinkFor(candidateId: string, ownerId: string, now
     },
   });
   if (!candidate) return { link: "", reason: "candidate_closed" };
-  const state = interviewLinkState({ role: candidate.role, candidate, person: candidate.person, item: candidate.shortlistItems[0] ?? null });
+  const offer = await currentOffer(candidate.id, ownerId, clientKey(candidate.role.client, candidate.role.id), now);
+  const state = interviewLinkState({ role: candidate.role, candidate, person: candidate.person, item: candidate.shortlistItems[0] ?? null, offered: Boolean(offer?.open.length) });
   if (!state.ok) return { link: "", reason: state.reason };
   return { link: interviewLink(candidate.id, now) ?? "", reason: null };
 }

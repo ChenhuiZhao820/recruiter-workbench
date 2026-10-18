@@ -75,6 +75,7 @@ export const CANDIDATE_FIELD_POLICY: Record<string, Policy> = {
   bookings: "hidden",
   personNotes: "hidden",
   shortlistItems: "hidden",
+  interviewOffers: "hidden",
   importBatchId: "hidden",
   importBatch: "hidden",
   createdAt: "hidden",

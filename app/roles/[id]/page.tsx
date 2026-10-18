@@ -30,6 +30,7 @@ import { OUTREACH_KIND_SUMMARY, isTemplateKind } from "@/lib/templates";
 import { CLOSED_STAGES, consentPersonSelect, knownConsentAt } from "@/lib/shortlists";
 import { DECISION_REASON_LABELS, clientKey, shortlistStatus } from "@/lib/shortlist-core.mjs";
 import { unreadOnRole } from "@/lib/notifications";
+import { openOfferTimes } from "@/lib/arrange-core.mjs";
 import { MarkSeen } from "@/components/MarkSeen";
 import { adoptShortlistAnswer, newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
 import { ShortlistSharing } from "@/components/ShortlistSharing";
@@ -100,6 +101,11 @@ export default async function RolePage({ params }: { params: { id: string } }) {
   const notForThem = visibleItems.filter((item) => item.decision === "declined").length;
   // What clients did here that the recruiter has not seen yet.
   const unread = await unreadOnRole(owner.id, role.id);
+  // Times offered by hand that a candidate has not picked from yet.
+  const offers = features.clientShortlists
+    ? await db.interviewOffer.findMany({ where: { userId: owner.id, withdrawnAt: null, bookingId: null, candidate: { roleId: role.id } }, select: { candidateId: true, times: true, durationMins: true, withdrawnAt: true, bookingId: true } })
+    : [];
+  const offered = new Set(offers.filter((offer) => openOfferTimes(offer, now).length > 0).map((offer) => offer.candidateId));
   // A client may have answered about one of these people on a custom
   // shortlist for the same client. That answer is shown on their row, newest
   // per person, so it is not lost on a page the role never reads.
@@ -573,6 +579,27 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                           </div>
                         );
                       })()}
+                      {(() => {
+                        // The client wants to meet them and nothing is booked yet: one
+                        // button to the page that arranges it, whichever link they asked on.
+                        const wantsToMeet = onLink.get(c.id)?.decision === "interview" || answerElsewhere(c)?.decision === "interview";
+                        const interviewBooked = c.bookings[0]?.kind === "interview";
+                        if (!features.clientShortlists || readOnly || role.status !== "open" || CLOSED_STAGES.includes(c.stage) || c.person?.doNotContact || interviewBooked) return null;
+                        if (offered.has(c.id)) {
+                          return (
+                            <div className="put-forward">
+                              <span className="chip">Times offered, waiting for {c.fullName.split(/\s+/)[0]}</span>
+                              <Link href={`/candidates/${c.id}/interview`} className="btn-quiet">See the offer</Link>
+                            </div>
+                          );
+                        }
+                        if (!wantsToMeet) return null;
+                        return (
+                          <div className="put-forward">
+                            <Link href={`/candidates/${c.id}/interview`} className="btn-primary btn-arrange">Arrange interview</Link>
+                          </div>
+                        );
+                      })()}
                       {c.bookings[0] ? (
                         <div className="booking-on-card">
                           <p className="text-sm">
@@ -580,7 +607,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                             <span className="tabular">{callTime.format(c.bookings[0].startsAt)}</span>
                             <span className="text-ink-soft">
                               {c.bookings[0].kind === "interview"
-                                ? (c.bookings[0].meetingUrl ? ", video" : role.interviewLocation ? `, ${role.interviewLocation}` : "")
+                                ? (c.bookings[0].meetingUrl ? ", video" : (c.bookings[0].place ?? role.interviewLocation) ? `, ${c.bookings[0].place ?? role.interviewLocation}` : "")
                                 : c.bookings[0].mode === "phone" ? `, phone ${c.bookings[0].phone}` : ", video"}
                             </span>
                           </p>
@@ -591,8 +618,8 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                                   start: c.bookings[0].startsAt.getTime(),
                                   end: c.bookings[0].endsAt.getTime(),
                                   title: c.bookings[0].kind === "interview" ? `Interview: ${c.fullName} with ${clientName} (${role.title})` : `Screening call: ${c.fullName} (${role.title})`,
-                                  details: c.bookings[0].kind === "interview" ? c.bookings[0].meetingUrl ?? role.interviewLocation ?? "" : c.bookings[0].mode === "phone" ? `Call ${c.fullName} on ${c.bookings[0].phone}` : c.bookings[0].meetingUrl ?? "",
-                                  location: c.bookings[0].meetingUrl ?? (c.bookings[0].kind === "interview" ? role.interviewLocation ?? undefined : undefined),
+                                  details: c.bookings[0].kind === "interview" ? c.bookings[0].meetingUrl ?? c.bookings[0].place ?? role.interviewLocation ?? "" : c.bookings[0].mode === "phone" ? `Call ${c.fullName} on ${c.bookings[0].phone}` : c.bookings[0].meetingUrl ?? "",
+                                  location: c.bookings[0].meetingUrl ?? (c.bookings[0].kind === "interview" ? c.bookings[0].place ?? role.interviewLocation ?? undefined : undefined),
                                 })}
                                 target="_blank"
                                 rel="noopener noreferrer"

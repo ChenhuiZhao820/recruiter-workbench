@@ -35,7 +35,7 @@ export default async function BookingPage({ params }: { params: { token: string 
       </Shell>
     );
   }
-  const { candidate, owner, settings, booking } = context;
+  const { candidate, owner, settings, booking, offer } = context;
   const who = settings.recruiterName || owner.name;
   const firstName = candidate.fullName.trim().split(/\s+/)[0];
 
@@ -48,14 +48,14 @@ export default async function BookingPage({ params }: { params: { token: string 
           <h1>Your interview is booked, {firstName}</h1>
           <div className="booking-confirmed">
             <dl>
-              <div><dt>When</dt><dd><LocalTime at={booking.startsAt.getTime()} recruiterZone={candidate.role.interviewTimezone ?? settings.bookingTimezone} /></dd></div>
+              <div><dt>When</dt><dd><LocalTime at={booking.startsAt.getTime()} recruiterZone={booking.timeZone ?? candidate.role.interviewTimezone ?? settings.bookingTimezone} /></dd></div>
               <div><dt>With</dt><dd>{client}, about the {candidate.role.title} role</dd></div>
               <div>
                 <dt>Where</dt>
                 <dd>
                   {booking.meetingUrl
                     ? <>Video call: <a href={booking.meetingUrl} className="underline underline-offset-2" rel="noopener noreferrer">{booking.meetingUrl}</a></>
-                    : place.text ?? <>{who} will send you the details.</>}
+                    : booking.place ?? place.text ?? <>{who} will send you the details.</>}
                 </dd>
               </div>
             </dl>
@@ -65,7 +65,7 @@ export default async function BookingPage({ params }: { params: { token: string 
         </Shell>
       );
     }
-    const state = interviewLinkState({ role: candidate.role, candidate: { ...candidate, roleId: candidate.role.id }, person: candidate.person, item: candidate.shortlistItems[0] ?? null });
+    const state = interviewLinkState({ role: candidate.role, candidate: { ...candidate, roleId: candidate.role.id }, person: candidate.person, item: candidate.shortlistItems[0] ?? null, offered: Boolean(offer) });
     if (!state.ok) {
       return (
         <Shell>
@@ -74,22 +74,25 @@ export default async function BookingPage({ params }: { params: { token: string 
         </Shell>
       );
     }
-    const slots = await interviewSlots(owner.id, candidate.role, now);
+    // Times the recruiter offered by hand come first; otherwise the role's hours.
+    const offered = offer ? interviewPlace(offer.offer.location) : null;
+    const where = offered ?? place;
+    const slots = offer ? offer.open : await interviewSlots(owner.id, candidate.role, now);
     return (
       <Shell>
         <h1>Book your interview with {client}</h1>
         <p className="page-description">
           Hi {firstName}, {client} would like to meet you about the {candidate.role.title} role.
-          Choose a time that suits you; you will see it confirmed straight away.
-          {place.url ? " It is a video call." : place.text ? ` It is at ${place.text}.` : ""}
+          {offer ? "Choose the time that suits you best; you will see it confirmed straight away." : "Choose a time that suits you; you will see it confirmed straight away."}
+          {where.url ? " It is a video call." : where.text ? ` It is at ${where.text}.` : ""}
         </p>
         <SlotPicker
           token={params.token}
           slots={slots}
-          durationMins={candidate.role.interviewDurationMins!}
+          durationMins={offer ? offer.offer.durationMins : candidate.role.interviewDurationMins!}
           offerVideo={false}
           offerPhone={false}
-          recruiterZone={candidate.role.interviewTimezone!}
+          recruiterZone={offer ? offer.offer.timeZone : candidate.role.interviewTimezone!}
           notice={privacyNoticeText(settings, owner.email)}
           variant="interview"
         />

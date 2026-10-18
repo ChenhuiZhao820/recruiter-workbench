@@ -175,6 +175,7 @@ export async function cancelBooking(formData: FormData) {
     await tx.auditEvent.create({ data: { actorId: user.id, targetUserId: user.id, action: "booking.cancelled" } });
   });
   revalidatePath(`/roles/${booking.candidate.roleId}`);
+  revalidatePath(`/candidates/${booking.candidate.id}/interview`);
   revalidatePath("/followups");
   if (booking.candidate.personId) revalidatePath(`/people/${booking.candidate.personId}`);
 }

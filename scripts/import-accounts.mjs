@@ -36,7 +36,7 @@ export const accountColumns = {
   },
   Booking: {
     id: "id", candidateId: "id", userId: "id", startsAt: "date", endsAt: "date", mode: "text", meetingUrl: "text?",
-    phone: "text?", email: "text", consentAt: "date", noticeVersion: "text", status: "text", kind: "bookingKind", createdAt: "date",
+    phone: "text?", email: "text", consentAt: "date", noticeVersion: "text", status: "text", kind: "bookingKind", place: "text?", timeZone: "text?", createdAt: "date",
   },
   Shortlist: {
     id: "id", userId: "id", kind: "shortlistKind", roleId: "id?", title: "text", client: "text?", access: "shortlistAccess",
@@ -56,7 +56,7 @@ export const accountColumns = {
   Suppression: { userId: "id", keyHash: "text", createdAt: "date" },
 };
 // Tables a source may not have yet: it was written before they existed.
-const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification"]);
+const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification", "InterviewOffer"]);
 // Accepted in a source but never copied. Calendar and integration tokens are
 // encrypted with the source deployment's key and must be reconnected; monthly
 // AI counters start again; booked-slot and interview-slot locks are rebuilt
@@ -72,6 +72,8 @@ const notImportedColumns = {
   InterviewSlot: { userId: "id", clientKey: "text", startsAt: "date", bookingId: "id" },
   // What a client did, for the bell: about this deployment's links, so it stays behind.
   Notification: { id: "id", userId: "id", kind: "text", detail: "text?", shortlistId: "id?", itemId: "id?", bookingId: "id?", roleId: "id?", accessId: "id?", createdAt: "date", readAt: "date?" },
+  // Times offered to a candidate for one interview, behind this deployment's links.
+  InterviewOffer: { id: "id", userId: "id", candidateId: "id", times: "text", durationMins: "int", timeZone: "text", location: "text?", createdAt: "date", withdrawnAt: "date?", bookingId: "id?" },
   ShortlistAccess: { id: "id", shortlistId: "id", email: "text?", nonce: "text", lastViewedAt: "date?", viewCount: "int", revokedAt: "date?", createdAt: "date" },
 };
 const ephemeralColumns = {
@@ -110,7 +112,7 @@ const lateColumns = {
   Person: [{ importBatchId: { value: null, sql: "NULL" } }],
   SavedSearch: [{ searchUrl: { value: null, sql: "NULL" } }],
   Candidate: [{ memberId: { value: null, sql: "NULL" } }, { personId: { value: null, sql: "NULL" } }, { importBatchId: { value: null, sql: "NULL" } }, { submittedAt: { value: null, sql: "NULL" } }],
-  Booking: [{ kind: { value: "screening", sql: "'screening'" } }],
+  Booking: [{ kind: { value: "screening", sql: "'screening'" } }, { place: { value: null, sql: "NULL" }, timeZone: { value: null, sql: "NULL" } }],
   Settings: [
     { seenRelease: { value: null, sql: "NULL" } },
     {
@@ -352,7 +354,7 @@ async function verifyData(db, validated) {
     }
     if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification"]) {
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification", "InterviewOffer"]) {
     if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar, usage-counter or shortlist-link state in target.");
   }
   const held = validated.data.booking.filter((booking) => booking.status === "booked");

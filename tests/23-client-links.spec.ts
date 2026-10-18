@@ -260,6 +260,31 @@ test("L6 marking a client email as sent puts the candidate on the role's client 
   expect((await db.candidate.findUniqueOrThrow({ where: { id: candidate.id } })).stage).toBe("submitted");
 });
 
+test("L7a with JavaScript off the client's answer still posts, with its own origin, and is saved", async ({ browser, page }) => {
+  // The form posts natively here, as it does for anyone who presses before
+  // the page's script has loaded. Under no-referrer that post carried
+  // Origin: null and ended in a 500.
+  await page.goto(`/roles/${roleId}`);
+  const link = await linkOf(page);
+  const context = await browser.newContext({ baseURL: BASE, storageState: { cookies: [], origins: [] }, javaScriptEnabled: false });
+  const client = await context.newPage();
+  try {
+    await client.goto(link);
+    const imogen = client.locator(".client-entry", { hasText: "Imogen Achterberg" });
+    await imogen.getByRole("button", { name: "Interview Imogen" }).click();
+    await expect(client.locator(".client-entry", { hasText: "Imogen Achterberg" }).getByText("You asked to meet Imogen.")).toBeVisible();
+  } finally {
+    await context.close();
+  }
+  const imogen = await personOnRole(roleId, "Imogen Achterberg");
+  const item = await db.shortlistItem.findFirstOrThrow({ where: { personId: imogen.id, shortlist: { roleId } } });
+  expect(item.decision).toBe("interview");
+  // Undone, so the next test starts with no answers.
+  await db.shortlistItem.update({ where: { id: item.id }, data: { decision: null, decisionAt: null, decisionAccessId: null } });
+  await db.auditEvent.deleteMany({ where: { action: "shortlist.decision" } });
+  await db.usageEvent.deleteMany({ where: { userId: TEST_ADMIN_ID, kind: "client_decision" } });
+});
+
 test("L7 the client's page fits a phone without sideways scrolling", async ({ browser, page }, testInfo) => {
   await page.goto(`/roles/${roleId}`);
   const link = await linkOf(page);
@@ -332,10 +357,6 @@ test("L9 'Client wants to meet' is a follow-up and a run of its own, and leaves 
   await expect(page.getByText(/Halden Systems Ltd asked to meet them today/)).toBeVisible();
   await page.getByRole("button", { name: /^Start \(1\)$/ }).click();
   await expect(page.getByLabel("Message")).toHaveValue(/Good news on the Client Link Test Platform Lead role - they would like to meet you\./);
-  // Pressed before the page has hydrated, the form posts natively, and the
-  // site-wide no-referrer policy makes that post carry Origin: null, which
-  // Next.js cannot parse. Wait until the page has settled.
-  await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Mark as sent", exact: true }).click();
   await expect(page.getByRole("heading", { name: "That is everyone." })).toBeVisible();
 

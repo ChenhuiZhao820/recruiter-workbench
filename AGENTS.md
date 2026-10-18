@@ -397,7 +397,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - The page reads live (`loadClientPage` in `lib/shortlists.ts`): someone who
   becomes do not contact, is rejected or moves role leaves it at once, and any
   doubt about a link shows "no longer active" with at most the recruiter's
-  name. It is `noindex`, sends no referrer, gets the bare header, and has no
+  name. It is `noindex`, sends no referrer to other sites (`same-origin`,
+  for the reason given under Booking page), gets the bare header, and has no
   session. A view is counted at most once per ten minutes per link, never when
   the owner opens their own link; `/shortlists/[id]/preview` shows the same
   component inside the app and is never counted.

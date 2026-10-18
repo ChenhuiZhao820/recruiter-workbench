@@ -63,14 +63,6 @@ function linkFor(shortlist: { accesses: { id: string; nonce: string }[] }) {
   return `/s/${shortlistToken(SECRET, shortlist.accesses[0].id, shortlist.accesses[0].nonce)}`;
 }
 
-// A server-action button pressed before the page hydrates posts natively,
-// and the site-wide no-referrer policy makes that post carry Origin: null,
-// which Next.js cannot parse. Until that is fixed, let each page settle
-// before pressing one.
-async function settle(page: Page) {
-  await page.waitForLoadState("networkidle");
-}
-
 function rowOf(page: Page, title: string | RegExp) {
   return page.locator("details.shortlist-row", { has: page.locator(".shortlist-row-title", { hasText: title }) });
 }
@@ -95,7 +87,6 @@ test("S1 people ticked on People become a shortlist for one client; consent alre
   const bilal = chosen.locator("li", { hasText: "Bilal Rahman" });
   await expect(bilal.getByRole("checkbox")).not.toBeChecked();
 
-  await settle(page);
   await page.screenshot({ path: testInfo.outputPath("new-shortlist.png"), fullPage: true });
   await page.getByLabel("Name (optional)").fill(`Data people ${tag}`);
   await page.getByRole("button", { name: "Create shortlist" }).click();
@@ -140,17 +131,14 @@ test("S2 people are added and removed later, it can be renamed but not moved to 
   await page.getByRole("button", { name: "Find", exact: true }).click();
   await page.getByRole("list", { name: "People found" }).getByLabel(/Chidi Okonkwo/).check();
   await page.getByRole("button", { name: "Add ticked people" }).click();
-  await settle(page);
   await page.getByLabel("Agreed to be put forward to Marsh & Pike").check();
   await page.getByRole("button", { name: "Add them" }).click();
   await expect(rowOf(page, `Data people ${tag}`).getByRole("list", { name: /People on/ }).getByText(`Chidi Okonkwo ${tag}`)).toBeVisible();
 
-  await settle(page);
   page.once("dialog", (dialog) => dialog.accept());
   await rowOf(page, `Data people ${tag}`).getByRole("list", { name: /People on/ }).locator("li", { hasText: "Bilal Rahman" }).getByRole("button", { name: "Remove" }).click();
   await expect(rowOf(page, `Data people ${tag}`).getByText(`Bilal Rahman ${tag}`)).toHaveCount(0);
 
-  await settle(page);
   const open = rowOf(page, `Data people ${tag}`);
   await open.getByText("Rename").click();
   await open.getByLabel("Name", { exact: true }).fill(`Data people renamed ${tag}`);
@@ -182,7 +170,6 @@ test("S3 Basic keeps three open at once: the fourth is refused, closing or expir
     await expect(page.getByRole("alert").filter({ hasText: "3 of 3" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Create shortlist" })).toBeDisabled();
     // Forcing the button does not get past the server.
-    await settle(page);
     await page.getByLabel("Agreed to be put forward to Elsewhere").check();
     await page.getByRole("button", { name: "Create shortlist" }).evaluate((button) => { button.removeAttribute("disabled"); button.removeAttribute("aria-disabled"); });
     await page.getByRole("button", { name: "Create shortlist" }).click();
@@ -191,20 +178,17 @@ test("S3 Basic keeps three open at once: the fourth is refused, closing or expir
 
     // Reopening an expired one needs a place too.
     await page.goto("/shortlists");
-    await settle(page);
     const expired = rowOf(page, "Basic expired");
     await expired.locator("summary").first().click();
     await expired.getByRole("button", { name: "Keep open 60 more days" }).click();
     await expect(expired.locator('[data-form-message="error"]')).toContainText("You already have 3 active shortlists");
 
-    await settle(page);
     page.once("dialog", (dialog) => dialog.accept());
     const first = rowOf(page, "Basic open 1");
     await first.locator("summary").first().click();
     await first.getByRole("button", { name: "Close the link" }).click();
     await expect(page.getByText("2 of 3")).toBeVisible();
     await page.goto(`/shortlists/new?client=Elsewhere&p=${someone.id}`);
-    await settle(page);
     await page.getByLabel("Agreed to be put forward to Elsewhere").check();
     await page.getByRole("button", { name: "Create shortlist" }).click();
     await expect(page).toHaveURL(/\/shortlists\?open=/);

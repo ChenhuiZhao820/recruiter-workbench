@@ -9,11 +9,15 @@ export const dynamic = "force-dynamic";
 
 // A client's page, reached from the link in a recruiter's email. No session:
 // the signed link is the only key, and it opens this one shortlist and
-// nothing else. Not for search engines, and it sends no referrer.
+// nothing else. Not for search engines, and it sends no referrer to any
+// other site.
 export const metadata: Metadata = {
   title: "Candidates",
   robots: { index: false, follow: false },
-  referrer: "no-referrer",
+  // same-origin, not no-referrer, like the booking page: under no-referrer
+  // Chrome posts the client's answer with `Origin: null`, which Next cannot
+  // parse. Other sites still get no referrer.
+  referrer: "same-origin",
 };
 
 export default async function ClientShortlistPage({ params }: { params: { token: string } }) {

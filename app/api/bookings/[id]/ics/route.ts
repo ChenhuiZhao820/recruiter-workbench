@@ -16,9 +16,21 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   if (!canUseFeature(session.user, "booking")) return new Response("Not found", { status: 404, headers });
   const booking = await db.booking.findFirst({
     where: { id: params.id, userId: session.user.id, status: "booked", candidate: { role: { userId: session.user.id } } },
-    include: { candidate: { select: { fullName: true, role: { select: { title: true } } } } },
+    include: { candidate: { select: { fullName: true, role: { select: { title: true, client: true, interviewLocation: true } } } } },
   });
   if (!booking) return new Response("Not found", { status: 404, headers });
+  if (booking.kind === "interview") {
+    const where = booking.meetingUrl ?? booking.candidate.role.interviewLocation ?? undefined;
+    const body = bookingIcs({
+      uid: booking.id,
+      start: booking.startsAt.getTime(),
+      end: booking.endsAt.getTime(),
+      summary: `Interview: ${booking.candidate.fullName} with ${booking.candidate.role.client || "the client"} (${booking.candidate.role.title})`,
+      description: where ?? "",
+      location: where,
+    });
+    return new Response(body, { headers: { ...headers, "Content-Type": "text/calendar; charset=utf-8", "Content-Disposition": 'attachment; filename="interview.ics"' } });
+  }
   const how = booking.mode === "video" ? booking.meetingUrl ?? "" : `Call ${booking.candidate.fullName} on ${booking.phone}`;
   const body = bookingIcs({
     uid: booking.id,

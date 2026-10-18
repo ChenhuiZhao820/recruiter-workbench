@@ -31,7 +31,7 @@ export default async function RolesPage() {
   ]);
 
   const followUpsByRole = new Map<string, number>();
-  const followUps = [...buckets.repliedWaiting, ...buckets.saidYesNeverBooked, ...buckets.wentQuiet];
+  const followUps = [...buckets.repliedWaiting, ...buckets.clientWantsToMeet, ...buckets.saidYesNeverBooked, ...buckets.wentQuiet];
   for (const row of followUps) followUpsByRole.set(row.roleId, (followUpsByRole.get(row.roleId) ?? 0) + 1);
   const summarize = (role: typeof roles[number]) => ({
     id: role.id, title: role.title, client: role.client,

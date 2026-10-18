@@ -118,7 +118,7 @@ export default async function FollowUpsPage() {
     db.booking.findMany({
       where: { userId: owner.id, status: "booked", endsAt: { gt: now }, startsAt: { lt: new Date(now.getTime() + 7 * 86_400_000) }, candidate: { role: { userId: owner.id } } },
       orderBy: { startsAt: "asc" },
-      select: { id: true, startsAt: true, mode: true, phone: true, candidate: { select: { id: true, fullName: true, role: { select: { id: true, title: true } } } } },
+      select: { id: true, startsAt: true, mode: true, phone: true, kind: true, candidate: { select: { id: true, fullName: true, role: { select: { id: true, title: true, client: true } } } } },
     }),
     // People the recruiter chose to come back to, due within the week or overdue.
     features.revisitReminders
@@ -130,7 +130,7 @@ export default async function FollowUpsPage() {
         })
       : Promise.resolve([]),
   ]);
-  const due = features.followUpRuns ? buckets.repliedWaiting.length + buckets.saidYesNeverBooked.length + buckets.wentQuiet.length : 0;
+  const due = features.followUpRuns ? buckets.repliedWaiting.length + buckets.clientWantsToMeet.length + buckets.saidYesNeverBooked.length + buckets.wentQuiet.length : 0;
   const callTime = new Intl.DateTimeFormat("en-GB", { timeZone: settings.bookingTimezone, weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
   return (
@@ -153,14 +153,16 @@ export default async function FollowUpsPage() {
       {calls.length > 0 && (
         <section aria-labelledby="calls-heading" className="workspace-section">
           <h2 id="calls-heading" className="section-heading">Calls this week</h2>
-          <p className="section-caption mb-4">Booked by candidates through your booking page.</p>
+          <p className="section-caption mb-4">Booked by candidates through your booking page, and client interviews they booked.</p>
           <ul className="space-y-2">
             {calls.map((call) => (
               <li key={call.id} className="card flex flex-wrap items-baseline justify-between gap-2">
                 <span>
                   <span className="font-medium tabular">{callTime.format(call.startsAt)}</span>{" "}
                   <span>{call.candidate.fullName}</span>
-                  <span className="text-ink-soft">{call.mode === "phone" ? `, phone ${call.phone}` : ", video"}</span>
+                  <span className="text-ink-soft">
+                    {call.kind === "interview" ? `, interview with ${call.candidate.role.client || "the client"}` : call.mode === "phone" ? `, phone ${call.phone}` : ", video"}
+                  </span>
                 </span>
                 <Link href={`/roles/${call.candidate.role.id}`} className="text-sm text-ink/60 underline">{call.candidate.role.title}</Link>
               </li>
@@ -187,9 +189,30 @@ export default async function FollowUpsPage() {
         )}
       />
 
+      {/* Shown only when a client has answered: most weeks it is empty, and
+          an empty heading for it would be noise above the usual three. */}
+      {buckets.clientWantsToMeet.length > 0 && (
+        <Bucket
+          readOnly={readOnly}
+          number="02"
+          title="Client wants to meet"
+          description="A client pressed Interview on your client link. Let the candidate know and find a time."
+          rows={buckets.clientWantsToMeet}
+          run={features.followUpRuns ? "/followups/run?only=m" : undefined}
+          actions={(row) => (
+            <>
+              <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
+                Draft message
+              </Link>
+              <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
+            </>
+          )}
+        />
+      )}
+
       <Bucket
         readOnly={readOnly}
-        number="02"
+        number={buckets.clientWantsToMeet.length > 0 ? "03" : "02"}
         title="Said yes, never booked"
         description={`Keen but no booking after ${settings.bookingChaseDays} ${settings.bookingChaseDays === 1 ? "day" : "days"}.`}
         rows={buckets.saidYesNeverBooked}
@@ -207,7 +230,7 @@ export default async function FollowUpsPage() {
 
       <Bucket
         readOnly={readOnly}
-        number="03"
+        number={buckets.clientWantsToMeet.length > 0 ? "04" : "03"}
         title="Went quiet"
         description={`Contacted, no reply, and more than ${settings.quietNudgeDays} days have passed.`}
         rows={buckets.wentQuiet}
@@ -224,7 +247,7 @@ export default async function FollowUpsPage() {
       />
       {features.revisitReminders && (
         <section aria-labelledby="revisit-heading" className="workspace-section">
-          <h2 id="revisit-heading" className="section-heading"><span className="section-number" aria-hidden="true">04</span>Due to revisit</h2>
+          <h2 id="revisit-heading" className="section-heading"><span className="section-number" aria-hidden="true">{buckets.clientWantsToMeet.length > 0 ? "05" : "04"}</span>Due to revisit</h2>
           <p className="section-caption mb-4">People you said you would get back in touch with, due this week or overdue.</p>
           {revisits.length === 0 ? (
             <p className="text-ink/60">Nothing here. All clear.</p>

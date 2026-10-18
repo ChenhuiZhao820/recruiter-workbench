@@ -14,6 +14,8 @@ import { CopyButton } from "@/components/CopyButton";
 import { StageBadge } from "@/components/StageBadge";
 import { oncePerDay } from "@/lib/outreach-log";
 
+import { interviewLinkFor } from "@/lib/interviews";
+
 export const dynamic = "force-dynamic";
 
 export default async function OutreachPage({
@@ -49,6 +51,7 @@ export default async function OutreachPage({
         recruiter_name: settings.recruiterName,
         booking_link: bookingLinkFor(candidate, settings),
         privacy_notice: privacyNoticeLine(settings.privacyContactEmail || owner.email),
+        interview_link: (await interviewLinkFor(candidate.id, owner.id)).link,
       })
     : "";
   const hasGaps = messageHasGaps(rendered);

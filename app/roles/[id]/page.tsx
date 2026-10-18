@@ -27,6 +27,14 @@ import { RunSearchButton } from "@/components/RunSearchButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { ActionForm } from "@/components/ActionForm";
 import { OUTREACH_KIND_SUMMARY, isTemplateKind } from "@/lib/templates";
+import { CLOSED_STAGES, consentPersonSelect, knownConsentAt } from "@/lib/shortlists";
+import { DECISION_REASON_LABELS, shortlistStatus } from "@/lib/shortlist-core.mjs";
+import { newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
+import { ShortlistSharing } from "@/components/ShortlistSharing";
+import { InterviewHoursForm } from "@/components/InterviewHoursForm";
+import { setClientReviewFirst } from "@/app/actions/interview-hours";
+import { interviewHoursPrefill } from "@/lib/interviews";
+import { hasInterviewHours } from "@/lib/shortlist-core.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -58,14 +66,36 @@ export default async function RolePage({ params }: { params: { id: string } }) {
         orderBy: { lastActivityAt: "desc" },
         include: {
           outreach: { orderBy: { sentAt: "desc" }, take: 1 },
-          person: { select: { doNotContact: true } },
+          person: { select: consentPersonSelect },
           bookings: { where: { status: "booked", endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 1 },
         },
       },
       searches: { where: { userId: owner.id }, orderBy: { updatedAt: "desc" } },
+      shortlist: {
+        include: {
+          accesses: { orderBy: { createdAt: "asc" } },
+          items: { select: { id: true, candidateId: true, decision: true, decisionReason: true, decisionNote: true, decisionAt: true, decisionAccessId: true } },
+        },
+      },
     },
   });
   if (!role) notFound();
+
+  // The role's client link: who is on it, and its address when the server can
+  // sign one. Nothing is created by reading the page.
+  const clientList = role.shortlist && role.shortlist.userId === owner.id ? role.shortlist : null;
+  const onLink = new Map((clientList?.items ?? []).filter((item) => item.candidateId).map((item) => [item.candidateId!, item]));
+  const linkStatus = clientList ? shortlistStatus(clientList, role, now) : null;
+  const openAccesses = (clientList?.accesses ?? []).filter((access) => !access.revokedAt);
+  // Who answered, when the link was shared with named people.
+  const answeredBy = new Map((clientList?.accesses ?? []).filter((access) => access.email).map((access) => [access.id, access.email!]));
+  const onLinkCount = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).length;
+  const clientName = role.client || "the client";
+  const interviewHours = features.clientShortlists ? await interviewHoursPrefill(owner.id, role, settings) : null;
+  const lastViewed = openAccesses.reduce<Date | null>((latest, access) => (access.lastViewedAt && (!latest || access.lastViewedAt > latest) ? access.lastViewedAt : latest), null);
+  const visibleItems = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).map((c) => onLink.get(c.id)!);
+  const wantToMeet = visibleItems.filter((item) => item.decision === "interview").length;
+  const notForThem = visibleItems.filter((item) => item.decision === "declined").length;
 
   const briefing = role.briefing;
   const hasJobDesc = Boolean(role.jobDesc && role.jobDesc.trim());
@@ -299,6 +329,99 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               Send outreach
             </Link>
           )}
+          {features.clientShortlists && (
+            <details className="client-link min-w-0 basis-full" aria-label="Client link">
+              <summary className="btn-secondary inline-flex cursor-pointer items-center gap-2">
+                <Icon name="external" size={16} />
+                Client link
+                <span className="tabular text-ink-soft">{onLinkCount}</span>
+              </summary>
+              <div className="client-link-panel">
+                {!clientList ? (
+                  <p>
+                    Put someone forward and they appear on one page {clientName} opens without signing in:
+                    their headline, the facts they confirmed with you, their skills and why they would move.
+                    Never their LinkedIn, contact details or your notes.
+                  </p>
+                ) : linkStatus === "closed" ? (
+                  <p>This role is closed, so its client link shows {clientName} that it is no longer active.</p>
+                ) : linkStatus === "revoked" ? (
+                  <p>You closed this link. Its address no longer opens. A new link brings the page back at a new address, with the same people on it.</p>
+                ) : (
+                  <>
+                    <p>
+                      The page shows the {onLinkCount === 1 ? "person" : "people"} you put forward, as {clientName} would.
+                      People you put forward later appear on it too, at the same address.
+                    </p>
+                    <ShortlistSharing
+                      shortlist={clientList}
+                      accesses={openAccesses}
+                      active={linkStatus === "active"}
+                      readOnly={readOnly}
+                      recruiterName={settings.recruiterName || owner.name}
+                    />
+                  </>
+                )}
+                {clientList && linkStatus === "active" && interviewHours && (
+                  <>
+                    {/* Whether the client answers before anyone books an interview. */}
+                    <div className="review-switch">
+                      <span className="text-sm font-medium">Before an interview</span>
+                      <div className="access-switch" role="group" aria-label="Before an interview">
+                        <form action={setClientReviewFirst}>
+                          <input type="hidden" name="roleId" value={role.id} />
+                          <input type="hidden" name="reviewFirst" value="on" />
+                          <button type={role.clientReviewFirst ? "button" : "submit"} className="access-option" aria-pressed={role.clientReviewFirst}>{clientName} reviews first</button>
+                        </form>
+                        <form action={setClientReviewFirst}>
+                          <input type="hidden" name="roleId" value={role.id} />
+                          <button type={role.clientReviewFirst ? "submit" : "button"} className="access-option" aria-pressed={!role.clientReviewFirst}>Candidates book straight away</button>
+                        </form>
+                      </div>
+                      <p className="text-xs text-ink-soft">
+                        {role.clientReviewFirst
+                          ? `${clientName} answers Interview or Not for us on the page, and only then can a candidate book.`
+                          : `Anyone you put forward can book ${clientName}'s interview at once; the page shows ${clientName} who is invited.`}
+                      </p>
+                    </div>
+                    <InterviewHoursForm roleId={role.id} client={clientName} hours={interviewHours} saved={hasInterviewHours(role)} open={!role.clientReviewFirst && !hasInterviewHours(role)} />
+                  </>
+                )}
+                {clientList && (
+                  <p className="client-link-stats">
+                    <span><strong className="tabular">{onLinkCount}</strong> on the page</span>
+                    <span>{lastViewed ? <>Last opened <strong>{formatWhen(lastViewed)}</strong></> : "Not opened yet"}</span>
+                    {wantToMeet > 0 && <span><strong className="tabular">{wantToMeet}</strong> {clientName} wants to meet</span>}
+                    {notForThem > 0 && <span><strong className="tabular">{notForThem}</strong> not for them</span>}
+                  </p>
+                )}
+                {clientList && (
+                  <div className="client-link-actions">
+                    <Link href={`/shortlists/${clientList.id}/preview`} className="btn-quiet">See what {clientName} sees</Link>
+                    {linkStatus !== "closed" && (
+                      <form action={newClientLink}>
+                        <input type="hidden" name="roleId" value={role.id} />
+                        <ConfirmSubmitButton
+                          label={linkStatus === "revoked" ? "Make a new link" : "Replace the link"}
+                          confirmText={linkStatus === "revoked"
+                            ? "Make a new link for this role? The page opens again at a new address, with the same people on it."
+                            : clientList.access === "people"
+                              ? "Give everyone a new link? Each person's current link stops working at once."
+                              : "Replace this link? The address you sent stops working at once, and the page moves to a new address."}
+                        />
+                      </form>
+                    )}
+                    {linkStatus === "active" && (
+                      <form action={revokeClientLink}>
+                        <input type="hidden" name="roleId" value={role.id} />
+                        <ConfirmSubmitButton label="Close the link" confirmText={`Close this link? ${clientName} can no longer open the page. You can make a new link later.`} />
+                      </form>
+                    )}
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
         </div>
         {role.candidates.length === 0 && (
           <p className="mb-3 text-ink/70">
@@ -351,12 +474,65 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                         </div>
                       </div>
                       {c.notes && <p className="mt-2 text-sm text-ink/80">{c.notes}</p>}
+                      {features.clientShortlists && role.status === "open" && !CLOSED_STAGES.includes(c.stage) && !c.person?.doNotContact && (
+                        onLink.has(c.id) ? (
+                          <div className="put-forward">
+                            <span className="chip screening-chip-done">On the client link</span>
+                            {onLink.get(c.id)!.decision === "interview" && (
+                              <span className="chip client-said-yes">
+                                {clientName} wants to meet
+                                {onLink.get(c.id)!.decisionAccessId && answeredBy.get(onLink.get(c.id)!.decisionAccessId!) ? ` · ${answeredBy.get(onLink.get(c.id)!.decisionAccessId!)}` : ""}
+                              </span>
+                            )}
+                            {onLink.get(c.id)!.decision === "declined" && (
+                              <>
+                                <span className="chip">
+                                  Not for {clientName}
+                                  {onLink.get(c.id)!.decisionReason ? ` · ${DECISION_REASON_LABELS[onLink.get(c.id)!.decisionReason as keyof typeof DECISION_REASON_LABELS] ?? onLink.get(c.id)!.decisionReason}` : ""}
+                                  {onLink.get(c.id)!.decisionAccessId && answeredBy.get(onLink.get(c.id)!.decisionAccessId!) ? ` · ${answeredBy.get(onLink.get(c.id)!.decisionAccessId!)}` : ""}
+                                </span>
+                                {onLink.get(c.id)!.decisionNote && <span className="client-said-note">&ldquo;{onLink.get(c.id)!.decisionNote}&rdquo;</span>}
+                                <form action={setCandidateStage}>
+                                  <input type="hidden" name="id" value={c.id} />
+                                  <input type="hidden" name="stage" value="rejected" />
+                                  <button type="submit" className="btn-quiet">Mark rejected</button>
+                                </form>
+                              </>
+                            )}
+                            <form action={takeOffClientLink}>
+                              <input type="hidden" name="itemId" value={onLink.get(c.id)!.id} />
+                              <ConfirmSubmitButton label="Take off" confirmText={`Take ${c.fullName} off the client link? ${clientName} stops seeing them at once.`} />
+                            </form>
+                          </div>
+                        ) : knownConsentAt(c.person, c.id, role.client) ? (
+                          <ActionForm action={putForward} className="put-forward">
+                            <input type="hidden" name="candidateId" value={c.id} />
+                            <button type="submit" className="btn-quiet">Put forward to {clientName}</button>
+                          </ActionForm>
+                        ) : (
+                          <details className="mt-2">
+                            <summary className="btn-quiet cursor-pointer list-none [&::-webkit-details-marker]:hidden">Put forward to {clientName}</summary>
+                            <ActionForm action={putForward} className="put-forward-confirm">
+                              <input type="hidden" name="candidateId" value={c.id} />
+                              <label>
+                                <input type="checkbox" name="agreed" required />
+                                <span>{c.fullName} agreed to be put forward to {clientName}.</span>
+                              </label>
+                              <button type="submit" className="btn-primary justify-self-start">Put forward</button>
+                            </ActionForm>
+                          </details>
+                        )
+                      )}
                       {c.bookings[0] ? (
                         <div className="booking-on-card">
                           <p className="text-sm">
-                            <span className="chip screening-chip-done">Call booked</span>{" "}
+                            <span className="chip screening-chip-done">{c.bookings[0].kind === "interview" ? `Interview with ${clientName}` : "Call booked"}</span>{" "}
                             <span className="tabular">{callTime.format(c.bookings[0].startsAt)}</span>
-                            <span className="text-ink-soft">{c.bookings[0].mode === "phone" ? `, phone ${c.bookings[0].phone}` : ", video"}</span>
+                            <span className="text-ink-soft">
+                              {c.bookings[0].kind === "interview"
+                                ? (c.bookings[0].meetingUrl ? ", video" : role.interviewLocation ? `, ${role.interviewLocation}` : "")
+                                : c.bookings[0].mode === "phone" ? `, phone ${c.bookings[0].phone}` : ", video"}
+                            </span>
                           </p>
                           {!readOnly && (
                             <div className="flex flex-wrap items-center gap-2">
@@ -364,9 +540,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                                 href={googleCalendarUrl({
                                   start: c.bookings[0].startsAt.getTime(),
                                   end: c.bookings[0].endsAt.getTime(),
-                                  title: `Screening call: ${c.fullName} (${role.title})`,
-                                  details: c.bookings[0].mode === "phone" ? `Call ${c.fullName} on ${c.bookings[0].phone}` : c.bookings[0].meetingUrl ?? "",
-                                  location: c.bookings[0].meetingUrl ?? undefined,
+                                  title: c.bookings[0].kind === "interview" ? `Interview: ${c.fullName} with ${clientName} (${role.title})` : `Screening call: ${c.fullName} (${role.title})`,
+                                  details: c.bookings[0].kind === "interview" ? c.bookings[0].meetingUrl ?? role.interviewLocation ?? "" : c.bookings[0].mode === "phone" ? `Call ${c.fullName} on ${c.bookings[0].phone}` : c.bookings[0].meetingUrl ?? "",
+                                  location: c.bookings[0].meetingUrl ?? (c.bookings[0].kind === "interview" ? role.interviewLocation ?? undefined : undefined),
                                 })}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -377,7 +553,12 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                               <a href={`/api/bookings/${c.bookings[0].id}/ics`} className="btn-quiet" download>Calendar file</a>
                               <form action={cancelBooking}>
                                 <input type="hidden" name="bookingId" value={c.bookings[0].id} />
-                                <ConfirmSubmitButton label="Cancel call" confirmText={`Cancel the call with ${c.fullName}? The time becomes free again. Capture does not tell them, so let them know yourself.`} />
+                                <ConfirmSubmitButton
+                                  label={c.bookings[0].kind === "interview" ? "Cancel interview" : "Cancel call"}
+                                  confirmText={c.bookings[0].kind === "interview"
+                                    ? `Cancel ${c.fullName}'s interview with ${clientName}? The time becomes free again and they go back to Submitted. Capture tells neither of them, so let them both know yourself.`
+                                    : `Cancel the call with ${c.fullName}? The time becomes free again. Capture does not tell them, so let them know yourself.`}
+                                />
                               </form>
                             </div>
                           )}
@@ -524,6 +705,14 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   People you already know who are not on this role, matched on the briefing&rsquo;s key skills and job titles
                   {role.budgetMax !== null ? ", leaving out anyone whose confirmed salary is above the budget" : ""}. Their details are their own words from a screening call, not checked.
                 </p>
+                {features.clientShortlists && !readOnly && (
+                  <Link
+                    href={`/shortlists/new?${new URLSearchParams([...(role.client ? [["client", role.client]] : []), ...matches.map(({ person }) => ["p", person.id])]).toString()}`}
+                    className="btn-quiet mt-3"
+                  >
+                    Put these on a shortlist{role.client ? ` for ${role.client}` : ""}
+                  </Link>
+                )}
                 <ul className="people-list mt-3">
                   {matches.map(({ person, hits, budget }) => {
                     const facts = [

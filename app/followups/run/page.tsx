@@ -19,6 +19,8 @@ import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { RememberRun, StartRunButton, TemplateSelect } from "@/components/FollowUpRun";
 
+import { interviewLinkFor } from "@/lib/interviews";
+
 export const dynamic = "force-dynamic";
 
 // Everyone due a follow-up, across roles, walked through one person at a time.
@@ -29,11 +31,12 @@ export const dynamic = "force-dynamic";
 // worked out from the follow-up buckets, ticked with reasons, and the
 // recruiter changes it before starting. The address is the whole run.
 
-type Params = { c?: string | string[]; i?: string; tb?: string; tq?: string; review?: string; only?: string };
-type Group = "r" | "b" | "q";
+type Params = { c?: string | string[]; i?: string; tm?: string; tb?: string; tq?: string; review?: string; only?: string };
+type Group = "r" | "m" | "b" | "q";
 
 const OUTCOMES: Record<Group, { stage: string; label: string }[]> = {
   r: [{ stage: "booking_pending", label: "They said yes" }, { stage: "rejected", label: "Mark rejected" }],
+  m: [{ stage: "rejected", label: "Mark rejected" }],
   b: [{ stage: "booked", label: "Mark booked" }, { stage: "rejected", label: "Mark rejected" }],
   q: [{ stage: "replied", label: "They replied" }, { stage: "rejected", label: "Mark rejected" }],
 };
@@ -44,7 +47,8 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
     getSettings(),
     db.messageTemplate.findMany({ where: { userId: owner.id }, orderBy: { updatedAt: "desc" } }),
   ]);
-  const chosen: Record<"b" | "q", string> = {
+  const chosen: Record<"m" | "b" | "q", string> = {
+    m: templates.some((t) => t.id === searchParams.tm) ? searchParams.tm! : "",
     b: templates.some((t) => t.id === searchParams.tb) ? searchParams.tb! : "",
     q: templates.some((t) => t.id === searchParams.tq) ? searchParams.tq! : "",
   };
@@ -65,14 +69,19 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
 
   // The message for one person in a group, from the chosen template or the
   // built-in one.
-  const messageFor = (
+  const messageFor = async (
     group: Group,
     candidate: { id: string; fullName: string; stage: string; role: { title: string; status: string }; person: { doNotContact: boolean } | null },
   ) => {
     if (group === "r") return { body: "", kind: "message", templateId: "" };
     const template = templates.find((t) => t.id === chosen[group]);
     const booking = bookingLinkFor(candidate, settings);
-    const source = template?.body ?? (group === "b" && !booking ? BUILT_IN_TEMPLATES.bNoLink : BUILT_IN_TEMPLATES[group]);
+    const interview = (await interviewLinkFor(candidate.id, owner.id)).link;
+    const source = template?.body ?? (
+      group === "b" && !booking ? BUILT_IN_TEMPLATES.bNoLink
+        : group === "m" && interview ? BUILT_IN_TEMPLATES.mLink
+          : BUILT_IN_TEMPLATES[group]
+    );
     return {
       body: renderTemplate(source, {
         first_name: firstName(candidate.fullName),
@@ -81,6 +90,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
         recruiter_name: settings.recruiterName,
         booking_link: booking,
         privacy_notice: privacyNoticeLine(settings.privacyContactEmail || owner.email),
+        interview_link: interview,
       }),
       kind: template?.kind ?? "message",
       templateId: template?.id ?? "",
@@ -104,6 +114,17 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
       include: { role: true, person: { select: { doNotContact: true } } },
     });
     const byId = new Map(people.map((p) => [p.id, p]));
+    // The preview under each group's template, for its first ticked person,
+    // worked out before rendering because a message may carry a link that is
+    // looked up per person.
+    const previews = new Map<Group, string>();
+    for (const group of GROUPS as Group[]) {
+      if (group === "r") continue;
+      const rows = planned.filter((row: { group: string }) => row.group === group);
+      const first = rows.find((row: { checked: boolean }) => row.checked) ?? rows[0];
+      const candidate = first ? byId.get(first.row.candidateId) : undefined;
+      if (candidate) previews.set(group, (await messageFor(group, candidate)).body);
+    }
     const templateOptions = [
       { value: "", label: "Capture's follow-up" },
       ...templates.map((t) => ({ value: t.id, label: `${t.name} - ${templateKindLabel(t.kind)}` })),
@@ -133,7 +154,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
             if (rows.length === 0) return null;
             const first = rows.find((row: { checked: boolean }) => row.checked) ?? rows[0];
             const firstCandidate = byId.get(first.row.candidateId);
-            const preview = group !== "r" && firstCandidate ? messageFor(group, firstCandidate).body : "";
+            const preview = previews.get(group) ?? "";
             return (
               <section key={group} aria-labelledby={`run-${group}`} className="workspace-section space-y-4">
                 <div>
@@ -210,7 +231,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
   // again from the list rather than claim a run happened.
   if (run.length === 0) redirect("/followups/run");
   const kept = run.map((step) => ({ group: step.group, candidateId: step.candidate.id }));
-  const templateIds = { b: chosen.b, q: chosen.q };
+  const templateIds = { m: chosen.m, b: chosen.b, q: chosen.q };
   const requested = Number.parseInt(searchParams.i ?? "0", 10);
   const index = Number.isFinite(requested) && requested > 0 ? requested : 0;
   const here = runHref(kept, { templates: templateIds, index });
@@ -236,7 +257,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
   }
 
   const { group, candidate } = run[index];
-  const message = messageFor(group, candidate);
+  const message = await messageFor(group, candidate);
   const compose = messageComposeUrl(candidate.memberId);
   const openUrl = compose || profileHref(candidate.profileUrl) || "";
   const next = runHref(kept, { templates: templateIds, index: index + 1 });

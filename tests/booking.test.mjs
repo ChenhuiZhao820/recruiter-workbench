@@ -145,3 +145,22 @@ test("booking actions: settings and cancelling are the recruiter's, booking is t
   assert.match(bodies.bookSlot, /takeAuthAttempt\(`book:\$\{candidate\.id\}`/);
   assert.doesNotMatch(bodies.bookSlot, /getWorkspace|requireWritable/);
 });
+
+test("a client interview link carries its kind inside the signature and cannot be made from a screening link", () => {
+  const now = new Date("2026-10-18T12:00:00Z");
+  const id = "cmvd0abcd0001xyz12345678";
+  const screening = bookingToken(SECRET, id, now);
+  const interview = bookingToken(SECRET, id, now, "interview");
+  assert.match(interview, new RegExp(`^${id}\\.\\d+\\.i\\.[A-Za-z0-9_-]{43}$`));
+  assert.equal(readBookingToken(SECRET, screening, now).kind, "screening");
+  assert.equal(readBookingToken(SECRET, interview, now).kind, "interview");
+  assert.equal(readBookingToken(SECRET, interview, now).candidateId, id);
+  // Moving the signature across kinds fails both ways.
+  const [cid, day, , interviewSig] = interview.split(".");
+  const screeningSig = screening.split(".")[2];
+  assert.equal(readBookingToken(SECRET, `${cid}.${day}.i.${screeningSig}`, now), null);
+  assert.equal(readBookingToken(SECRET, `${cid}.${day}.${interviewSig}`, now), null);
+  assert.equal(readBookingToken(SECRET, `${cid}.${day}.x.${interviewSig}`, now), null);
+  // It expires like any booking link.
+  assert.equal(readBookingToken(SECRET, interview, new Date(now.getTime() + (LINK_DAYS + 2) * 86_400_000)), null);
+});

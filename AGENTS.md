@@ -67,9 +67,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   SVG/CSS, not hotlinked template assets; no new third-party runtime requests.
 - Anonymous `/` is a public marketing homepage. Authenticated `/` remains the
   owner-scoped Roles dashboard. `/welcome` shows the marketing page for either
-  state. `/book/[token]` and its `.ics` are the one public business route: a
-  candidate's booking page, opened by a signed link and nothing else (see
-  Booking page). All other business routes still require authentication.
+  state. There are two public business routes, each opened by a signed link
+  and nothing else: `/book/[token]` and its `.ics`, a candidate's booking page
+  (see Booking page), and `/s/[token]`, a client's shortlist (see Client
+  links). All other business routes still require authentication.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
   `MarketingHome`/`ProductPreview` use explicitly illustrative, static data only.
   Never feed real recruiting data into a public preview or invent customer claims.
@@ -193,19 +194,22 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   control that acts on more than the person on screen. "Mark as sent" records
   and moves to the next person; the arrow at the corner goes back.
 - The list comes from the follow-up buckets through `planRun`
-  (`lib/followup-run.mjs`): replied first, then said-yes-not-booked, then
-  went quiet, longest wait first, each with a reason. Do not contact and
+  (`lib/followup-run.mjs`): replied first, then client-wants-to-meet, then
+  said-yes-not-booked, then went quiet, longest wait first, each with a
+  reason. Do not contact and
   anyone already written to today cannot be ticked; nudged twice starts
   unticked with a suggestion to mark them rejected. It is advisory, not a cap:
   there is no pace limit on a run. Entry points are "Follow up in batches" and
-  "Go through these one by one" on Follow-ups (`?only=r|b|q`).
-- The address is the whole run: `c=<group>.<candidateId>` in order, `tb`/`tq`
-  the template per group, `i` the position. Ids are scoped to the owner before
-  anything renders; foreign, unknown and do-not-contact ids are dropped, and a
-  run with nobody left goes back to the list. Said-yes and quiet use the
-  chosen template or Capture's built-in follow-up (`BUILT_IN_TEMPLATES`), which
-  asks for times instead of a link when booking is not set up. A template
-  change on the list re-reads the page with `review=1`, ticks kept.
+  "Go through these one by one" on Follow-ups (`?only=r|m|b|q`).
+- The address is the whole run: `c=<group>.<candidateId>` in order,
+  `tm`/`tb`/`tq` the template per group, `i` the position. Ids are scoped to
+  the owner before anything renders; foreign, unknown and do-not-contact ids
+  are dropped, and a run with nobody left goes back to the list. Client-wants-
+  to-meet, said-yes and quiet use the chosen template or Capture's built-in
+  follow-up (`BUILT_IN_TEMPLATES`), which asks for times instead of a link
+  when booking is not set up, and for client interviews until those can be
+  booked. A template change on the list re-reads the page with `review=1`,
+  ticks kept.
 - Without a message, a person can be settled from the card - they replied,
   said yes, booked, or rejected - through `setStageAndAdvance`, which then
   moves on. `markSentAndAdvance` and it redirect only to this app's own queue
@@ -338,11 +342,144 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   The recipient field has no form name, so it is never submitted or stored, and
   the recipient is encoded so it cannot add headers such as `cc`.
 - "Mark as sent" (`markClientEmailSent`) records `clientEmailSentAt` once,
-  moves the candidate to Submitted from any earlier stage, and records a
-  `client_email_sent` usage event. Neither the recipient nor the text is kept.
+  moves the candidate to Submitted from any earlier stage, puts them on the
+  role's client link (see Client links), and records a `client_email_sent`
+  usage event. Neither the recipient nor the text is kept.
 - `tests/15-client-email.spec.ts` covers the consent gate, the mailto address,
   paste cleaning and copying, the long-email fallback, nothing stored, foreign
   ids and the read-only view; `tests/client-email.test.mjs` covers the builder.
+
+## Client links
+
+- Every plan (`clientShortlists` in `FEATURE_TIERS`). A role has one client
+  link: a `Shortlist` of kind `role`, made the first time someone is put
+  forward, listing everyone put forward on one page the client opens without
+  signing in. The design and its decisions are in
+  `docs/plans/client-shortlist.en.md`.
+- Custom shortlists (`kind` `custom`, `app/actions/custom-shortlists.ts`):
+  any people, for one client, open 60 days from creation or from "Keep open
+  60 more days". `/shortlists` is a library like `/templates`; building one is
+  `/shortlists/new`, reached from People (tick rows, "Put ticked people on a
+  shortlist"), a person's page, or a role's "From your database" matches, with
+  the people (`p`) and the client in the address. The client is settled by
+  the GET form before anything is saved, so each person's consent is worked
+  out for that client: consent Capture already has for it (`knownConsentAt`)
+  shows as "Agreed before", anyone else needs the tick, and do-not-contact
+  people stop the save. The client cannot be edited afterwards, only the name:
+  everyone on it agreed to that client.
+- Below Pro at most `SHORTLIST_LIMITS.basic` (3) custom shortlists are active
+  (not closed, not expired) at once; a role's own link never counts. The count
+  and the insert share one serializable transaction, on creating, reopening an
+  expired one and making a new link for a closed one. Reaching the limit only
+  refuses: links already sent keep working after a downgrade or a trial ends.
+  The limit is shown ("2 of 3 active"), because it is a limit, not a hidden
+  Pro feature.
+- What a client sees is `clientProfile` in `lib/client-profile.ts` and nothing
+  else, shared with the client email. Every `Person` and `Candidate` column is
+  classified there as shown or hidden, and `tests/client-profile.test.mjs`
+  reads the schema, so a new column fails until it is classified. Never shown:
+  the LinkedIn address and member id, contact details, notes, revisit dates,
+  do not contact, stages, outreach, other roles, transcripts or the budget.
+- "Put forward" on a candidate row (`putForward`) needs the person's agreement
+  to be put forward to this client: a screening's `representConsentAt`, or any
+  earlier screening or shortlist for the same client (`clientKey` matches
+  spellings and company suffixes), makes it one click; otherwise the recruiter
+  ticks "agreed to be put forward" and that statement is the recorded consent.
+  It moves the candidate to Submitted from any earlier stage and sets
+  `submittedAt`. Rejected, placed and do-not-contact people, and closed roles,
+  are refused. "Take off" removes them from the page at once.
+- `/s/<accessId>.<nonce>.<hmac>` is signed with `SHORTLIST_LINK_SECRET` (32+
+  characters, server only, not the booking secret) over the access and its
+  stored nonce (`lib/shortlist-core.mjs`), so the recruiter can copy it again,
+  a database copy cannot mint one, and "Replace the link" kills the old address.
+  "Close the link" sets `revokedAt`; a closed role closes its link. Changing the
+  secret stops every link already sent.
+- The page reads live (`loadClientPage` in `lib/shortlists.ts`): someone who
+  becomes do not contact, is rejected or moves role leaves it at once, and any
+  doubt about a link shows "no longer active" with at most the recruiter's
+  name. It is `noindex`, sends no referrer to other sites (`same-origin`,
+  for the reason given under Booking page), gets the bare header, and has no
+  session. A view is counted at most once per ten minutes per link, never when
+  the owner opens their own link; `/shortlists/[id]/preview` shows the same
+  component inside the app and is never counted.
+- Capture sends nothing to the client: "Open in email" is a `mailto:` built
+  like the client email's, from a recipient field with no form name.
+- Who can open a page is the recruiter's choice, per role link or shortlist
+  (`components/ShortlistSharing.tsx`, `app/actions/shortlist-access.ts`):
+  "Anyone with the link" (one `ShortlistAccess` with no email) or "Only these
+  people" (one access per email, at most 20, each with its own link and its
+  own "Open in email to ..."). Switching revokes every address of the other
+  kind; removing a person revokes theirs. "Replace the link" and reopening go
+  through `replaceLinks`, which replaces the addresses of whichever kind is in
+  use and never creates a public link on a named-only page, and
+  `ensureRoleShortlist` leaves a named-only role link as it is.
+- A named link first asks for the address it was sent to (`openNamedLink`,
+  trimmed and lower-cased, ten wrong tries an hour per link), showing nothing
+  about the candidates or the client before then. A match sets the HttpOnly
+  `capture_shortlist_gate` cookie, path-scoped to that link's own `/s/<token>`
+  and signed over the access and its nonce, for 30 days; the page and
+  `decideShortlistItem` both require it. It stops a forwarded link opening for
+  someone else; it does not prove who reads the inbox, because Capture sends
+  no code, and the panel says so. Recipients' addresses are never exported.
+- An answer records the access it came from, so a named person's answer shows
+  their address beside it on the role page and in the library.
+- Client interviews (`lib/interviews.ts`, `app/actions/interviews.ts`). A
+  role carries the client's interview hours (`interviewWindows`,
+  `interviewTimezone`, `interviewDurationMins`, `interviewLocation`: a
+  meeting link or an address), set in the Client link panel and opened
+  pre-filled from this role, the last role for the same `clientKey`, or the
+  recruiter's booking hours at 45 minutes.
+- `{{interview_link}}` becomes `/book/<candidateId>.<day>.i.<sig>`: the booking
+  token with its kind inside the signature, so a screening link cannot become
+  an interview one and old links read as before. It is a gap unless
+  `interviewLinkState` allows it: the role is open with hours, the candidate
+  is not rejected, placed or do not contact, they are on the role's link with
+  consent, and the client answered Interview. The follow-up run's
+  client-wants-to-meet message uses it when it exists and asks for times when
+  it does not.
+- The interview page names the client (the candidate agreed to them) and
+  offers the role's hours from a day ahead to three weeks, less every
+  interview booked with the same `clientKey` on any role. `bookInterview`
+  re-reads everything from the link, books only a time still offered, and
+  inserts `Booking` (kind `interview`, mode `video` or `in_person`) with an
+  `InterviewSlot` whose (owner, client, start) key refuses a double booking
+  under a race. The candidate moves to the new `interview` stage ("Client
+  interview"). The recruiter's own screening slots ignore interviews.
+- The client's page lists upcoming interviews (their zone, a meeting link or
+  address, Add to Google Calendar, an `.ics` behind the same link) with
+  "Can't make this time": it cancels, frees the slot, puts the candidate back
+  to Submitted and refreshes the client's Interview answer so they reappear
+  under "Client wants to meet". An answer cannot change once an interview is
+  booked. The recruiter sees and cancels it on the role page like a call.
+- The client answers per person: "Interview <name>", or "Not for us" with an
+  optional reason chip and a line of at most 280 characters
+  (`decideShortlistItem`, constants in `lib/shortlist-decisions.mjs`, which the
+  browser can load; `lib/shortlist-core.mjs` cannot, it uses `node:crypto`).
+  The action has no session: it checks the origin, re-reads the link, refuses
+  anyone no longer visible on it, throttles per link, and writes the answer
+  with the link it came from, a nameless `shortlist.decision` audit event and
+  a `client_decision` usage event. An answer can be changed until an interview
+  is booked. Capture never changes a stage on a client's answer: the role
+  page shows it, with "Mark rejected" beside a "not for us".
+- Follow-ups lists "Client wants to meet" (only when it has anyone) for an
+  Interview answer on a role link - or, on a role that does not review first,
+  anyone on it without a "not for us" - with no message logged since and no
+  interview booked; it is its own group, `m`, in the follow-up run.
+- "Before an interview" on the role's Client link (`Role.clientReviewFirst`,
+  `setClientReviewFirst`): "<client> reviews first" (the default) waits for an
+  Interview answer; "Candidates book straight away" makes being put forward
+  enough for `{{interview_link}}`, and the client's page then says who is
+  invited instead of asking (`decideShortlistItem` refuses an answer there).
+  Turning it off on a role with no interview hours opens the hours form.
+- A role link whose client wants to meet someone, on a role with no interview
+  hours, asks the client on their own page "When could you interview?"
+  (`ClientHoursPanel`, `setHoursFromClient`): Monday to Friday 09:00-17:00
+  ticked, in the client's browser time zone, 45 minutes. It is saved only
+  while the role still has none (one `updateMany` on `interviewWindows: "[]"`),
+  so it never overwrites the recruiter's hours, and writes a nameless
+  `role.interview_hours_from_client` audit event.
+- `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts`, `tests/25-named-access.spec.ts` and `tests/26-interviews.spec.ts` play the client (and the candidate) in a second browser context
+  with no session; `tests/shortlist.test.mjs` covers the rules.
 
 ## Booking page
 
@@ -381,7 +518,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Slots are the weekly hours stepped by the call length, from the notice to the
   horizon, less booked calls, computed in the recruiter's zone with `Intl`:
   a wall-clock time skipped when the clocks go forward has no slot, and one
-  repeated when they go back counts once (`tests/booking.test.mjs`).
+  repeated when they go back counts once (`tests/booking.test.mjs`). Only
+  screening calls count: a client interview is the client's time, not the
+  recruiter's (see Client links), and `bookSlot` refuses an interview link.
 - The candidate gets an `.ics` behind the same link; the recruiter gets the call
   on the role page and under Calls this week in Follow-ups, an Add to Google
   Calendar link, an authenticated `.ics` from `/api/bookings/[id]/ics` (own
@@ -943,6 +1082,18 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   received the table and the three columns in place (`ADD COLUMN`, not Prisma's
   SQLite rebuild) after a backup copy and a rehearsal, every existing table's
   content unchanged and Prisma reporting no difference.
+- On 2026-10-18, `20261020000000_client_shortlists` (`Shortlist`,
+  `ShortlistItem`, `ShortlistAccess`, `InterviewSlot`; the role's client
+  review switch and interview hours, `Candidate.submittedAt`, `Booking.kind`)
+  was applied and registered on the hosted database the same way, through
+  WSL as on 2026-10-14 (`prisma/private-local/migrate-hosted-client-shortlists.mjs`),
+  checked against the reviewed file's SHA-256: a custom-format dump from a
+  locked snapshot, restored into a disposable database and rehearsed, then one
+  transaction. Every existing table came out unchanged, the four new tables
+  empty, every role reviewing first with no interview hours, no candidate
+  submitted and every booking a screening call; Prisma reports 10 migrations
+  and no difference. Deploying the code also needs `SHORTLIST_LINK_SECRET` on
+  the service. The local account database has not received this migration.
 
 ## Searches and LinkedIn industry filters
 

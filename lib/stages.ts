@@ -6,6 +6,7 @@ export const STAGES = [
   "booked",
   "screened",
   "submitted",
+  "interview",
   "rejected",
   "placed",
 ] as const;
@@ -20,6 +21,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   booked: "Booked",
   screened: "Screened",
   submitted: "Submitted",
+  interview: "Client interview",
   rejected: "Rejected",
   placed: "Placed",
 };
@@ -33,6 +35,7 @@ export const STAGE_COLORS: Record<Stage, string> = {
   booked: "bg-accent",
   screened: "bg-accent",
   submitted: "bg-ink/70",
+  interview: "bg-accent",
   rejected: "bg-ink/20",
   placed: "bg-ink",
 };

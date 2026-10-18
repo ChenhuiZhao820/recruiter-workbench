@@ -177,7 +177,7 @@ model Candidate {
   headline       String?
   notes          String?
   stage          String   @default("sourced")
-  // stages: sourced | contacted | replied | booking_pending | booked | screened | submitted | rejected | placed
+  // stages: sourced | contacted | replied | booking_pending | booked | screened | submitted | interview | rejected | placed
   lastActivityAt DateTime @default(now())
   lastNudgeAt    DateTime?
   nudgeCount     Int      @default(0)

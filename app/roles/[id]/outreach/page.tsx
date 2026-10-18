@@ -17,6 +17,8 @@ import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { oncePerDay } from "@/lib/outreach-log";
 
+import { interviewLinkFor } from "@/lib/interviews";
+
 export const dynamic = "force-dynamic";
 
 // One shortlist, one template, one person on screen at a time.
@@ -262,6 +264,7 @@ export default async function RoleOutreachPage({
         recruiter_name: settings.recruiterName,
         booking_link: bookingLinkFor({ ...candidate, role }, settings),
         privacy_notice: privacyNoticeLine(settings.privacyContactEmail || owner.email),
+        interview_link: (await interviewLinkFor(candidate.id, owner.id)).link,
       })
     : "";
   const kind = selected?.kind ?? "message";

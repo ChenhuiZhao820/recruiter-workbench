@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
-import { featureAvailability } from "@/lib/feature-access";
+import { activeShortlistLimit } from "@/lib/features";
 import { dismissRelease } from "@/app/actions/release";
-import { bookingReadiness } from "@/lib/booking";
 
 export const dynamic = "force-dynamic";
 
@@ -13,100 +12,73 @@ export const dynamic = "force-dynamic";
 // is left out, not teased.
 export default async function WhatsNewPage() {
   const { owner, readOnly } = await getWorkspace();
-  const features = await featureAvailability();
-  const [settings, people] = await Promise.all([
-    db.settings.findUnique({ where: { userId: owner.id }, select: { bookingWindows: true, meetingLink: true, offerPhone: true } }),
-    db.person.count({ where: { userId: owner.id } }),
-  ]);
-  const bookingReady = settings ? bookingReadiness(settings).ready : false;
+  const limit = activeShortlistLimit(owner);
+  const openRole = await db.role.findFirst({ where: { userId: owner.id, status: "open" }, orderBy: { updatedAt: "desc" }, select: { id: true, title: true } });
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 max-w-3xl">
       <header className="page-header">
         <div>
-          <p className="page-eyebrow">Capture / 3 October</p>
+          <p className="page-eyebrow">Capture / 18 October</p>
           <h1>What&rsquo;s new</h1>
-          <p className="page-description">Everyone you talk to now becomes a record you keep, and the steps between a first message and a client email got shorter.</p>
+          <p className="page-description">
+            Your client can now see who you found, say who they want to meet, and have those people book the interview themselves,
+            without an account and without you passing emails back and forth.
+          </p>
         </div>
       </header>
 
       <ol className="space-y-4">
         <li className="card space-y-2">
-          <h2 className="text-lg">Everyone is one person now, across every role</h2>
+          <h2 className="text-lg">Show a client who you found, on one page</h2>
           <p className="text-ink/80">
-            Save the same profile for a second role and it is the same person, with every role, message and call in one place
-            under <strong>People</strong> in the sidebar. Two people who share a name stay two people.
+            On a role, press <em>Put forward</em> beside a candidate who agreed to be put forward to that client. They appear on the
+            role&rsquo;s <strong>Client link</strong>: a page your client opens without signing in, showing their headline, the facts they
+            confirmed with you, their skills and why they would move. Never their LinkedIn, their contact details or your notes.
           </p>
           <p className="text-ink/80">
-            From a person&rsquo;s page you can mark them do not contact, or erase them completely; Capture then warns you if the same
-            profile is saved again. Settings has a full download of your data, and People lists anyone with no activity for a year,
-            to keep or erase.
+            Send the link from your own email. Your client presses <em>Interview</em> or <em>Not for us</em> on each person, and
+            whoever they want to meet appears under <em>Client wants to meet</em> in Follow-ups. You can share the page only with
+            named people instead, and close or replace the link at any time.
           </p>
+          {openRole && (
+            <p>
+              <Link href={`/roles/${openRole.id}`} className="btn-quiet">Open {openRole.title}</Link>
+            </p>
+          )}
+        </li>
+
+        <li className="card space-y-2">
+          <h2 className="text-lg">Shortlists for a client, beyond one role</h2>
+          <p className="text-ink/80">
+            Tick people on <strong>People</strong>, or open someone&rsquo;s page, and put them on a shortlist for a client: the same kind
+            of page, for anyone you know, open for 60 days. Capture remembers who already agreed to be put forward to that client.
+          </p>
+          {limit !== null && (
+            <p className="text-sm text-ink-soft">Your plan keeps {limit} shortlists open at once; closed and expired ones do not count.</p>
+          )}
           <p>
-            <Link href="/people" className="btn-quiet">
-              {people > 0 ? `Open People (${people})` : "Open People"}
-            </Link>
+            <Link href="/shortlists" className="btn-quiet">Open Shortlists</Link>
           </p>
         </li>
 
         <li className="card space-y-2">
-          <h2 className="text-lg">Candidates book their own call</h2>
+          <h2 className="text-lg">Candidates book the client&rsquo;s interview</h2>
           <p className="text-ink/80">
-            Put <code className="font-mono">{"{{booking_link}}"}</code> in a template and each person gets their own link to a page with your free
-            times, in their time zone. They pick one, and it lands on the role page and in Follow-ups with a calendar file; they move to Booked.
-            Capture sends nothing; the link travels in your own message.
+            Put <code className="font-mono">{"{{interview_link}}"}</code> in a template, or use Capture&rsquo;s own follow-up, and each
+            person the client wants to meet gets a link to the client&rsquo;s free times. Two people can never take the same time with
+            one client, and the client sees every booked interview on their page, with a calendar file and a way to say they cannot
+            make it.
           </p>
-          {!bookingReady && (
-            <p className="rounded border border-line bg-sunken p-3 text-sm">
-              <strong>One thing to do once.</strong> Choose the hours you take calls and how the call happens, and the links start working.
-            </p>
-          )}
-          <p>
-            <Link href="/settings/booking" className="btn-quiet">
-              {bookingReady ? "Booking page settings" : "Set up your booking page"}
-            </Link>
+          <p className="rounded border border-line bg-sunken p-3 text-sm">
+            <strong>One thing to do per client.</strong> Set when they interview, under <em>Interview hours</em> in the role&rsquo;s
+            Client link. The next role for the same client starts with the same hours. If you skip it, the client is asked on their page.
+          </p>
+          <p className="text-ink/80">
+            If a client does not need to review first, switch the role to <em>Candidates book straight away</em> and anyone you put
+            forward can book at once.
           </p>
         </li>
-
-        {features.screening && (
-          <li className="card space-y-2">
-            <h2 className="text-lg">A screening call becomes four facts, and an email to the client</h2>
-            <p className="text-ink/80">
-              Paste the transcript your call app saved, or your notes, and press <em>Summarise</em>. Salary, notice, location and right to
-              work come back next to the line the candidate said them in; anything the summary cannot quote is marked for you to check.
-              Nothing is saved to their record until you confirm all four.
-            </p>
-            {features.clientEmail && (
-              <p className="text-ink/80">
-                Once they agree to be put forward, the facts become an email to the client that you edit and send from your own inbox.
-                Marking it sent moves them to Submitted.
-              </p>
-            )}
-            <p className="text-sm text-ink-soft">Find it under <em>Screening call</em> on any candidate.</p>
-          </li>
-        )}
-
-        {(features.talentMatches || features.peopleSearch || features.revisitReminders) && (
-          <li className="card space-y-2">
-            <h2 className="text-lg">Your own database finds people for a new role</h2>
-            {features.talentMatches && (
-              <p className="text-ink/80">
-                Each role now lists <em>From your database</em> at the end of its candidates: people you already know who fit its key skills,
-                leaving out anyone above the budget you can now set on the role.
-              </p>
-            )}
-            {features.peopleSearch && (
-              <p className="text-ink/80">
-                People search reaches skills and confirmed details, and filters by salary, notice, working pattern and right to work.
-              </p>
-            )}
-            {features.revisitReminders && (
-              <p className="text-ink/80">
-                &ldquo;Get back to me in six months&rdquo; becomes a reminder that shows in Follow-ups the week it is due.
-              </p>
-            )}
-          </li>
-        )}
       </ol>
 
       <p className="mt-6 text-sm text-ink-soft">

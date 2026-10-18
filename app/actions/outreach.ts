@@ -16,6 +16,7 @@ const STAGES_SENDING_DOES_NOT_CHANGE = new Set([
   "booked",
   "screened",
   "submitted",
+  "interview",
   "rejected",
   "placed",
 ]);

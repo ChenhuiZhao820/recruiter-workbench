@@ -10,6 +10,7 @@ export const KNOWN_PLACEHOLDERS = [
   "recruiter_name",
   "booking_link",
   "privacy_notice",
+  "interview_link",
 ] as const;
 
 export type PlaceholderValues = {
@@ -21,6 +22,9 @@ export type PlaceholderValues = {
   booking_link?: string;
   // One short line saying a record is kept and how to have it removed.
   privacy_notice?: string;
+  // Each candidate's own signed link to book the client's interview, once
+  // the client asked to meet them (lib/interviews.ts).
+  interview_link?: string;
 };
 
 // Any {{ token }}, known or not. Kept global so it can be reused with exec.

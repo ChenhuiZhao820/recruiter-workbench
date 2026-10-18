@@ -84,6 +84,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
   const people = filters.q && !features.peopleSearch
     ? found.filter((person) => `${person.fullName} ${person.headline ?? ""}`.toLowerCase().includes(needle))
     : found;
+  // Ticking people here and pressing the button starts a shortlist with them,
+  // through the address: nothing is saved until the shortlist page says so.
+  const picking = features.clientShortlists && !readOnly;
 
   return (
     <div className="min-w-0">
@@ -156,6 +159,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
           )}
         </div>
       ) : (
+        <form method="get" action="/shortlists/new">
         <ul className="people-list" aria-label="People">
           {people.map((person) => {
             const latest = person.candidates[0];
@@ -163,6 +167,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             return (
               <li key={person.id} className="person-row">
                 <div className="person-row-identity">
+                  {picking && !person.doNotContact && (
+                    <label className="people-pick">
+                      <input type="checkbox" name="p" value={person.id} aria-label={`Choose ${person.fullName}`} />
+                    </label>
+                  )}
                   <Link href={`/people/${person.id}`} className="person-row-name">{person.fullName}</Link>
                   {person.headline && <p className="person-row-headline">{person.headline}</p>}
                   {!person.profileUrl && <p className="person-row-headline">No profile link</p>}
@@ -196,6 +205,13 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             );
           })}
         </ul>
+        {picking && (
+          <div className="people-pick-bar">
+            <span>Tick people above to put them in front of a client together.</span>
+            <button type="submit" className="btn-primary">Put ticked people on a shortlist</button>
+          </div>
+        )}
+        </form>
       )}
       {!searching && total > PAGE_SIZE && (
         <p className="section-caption mt-4">Showing the {PAGE_SIZE} most recently updated of {total}. Search to find anyone else.</p>

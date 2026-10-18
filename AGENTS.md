@@ -364,7 +364,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   header. It shows the recruiter's name and the role title, never the client,
   free times in the candidate's own time zone (read from the browser,
   changeable), a required consent box, an optional "keep my details for future
-  roles" box and the full notice; it is `noindex` and sends no referrer.
+  roles" box and the full notice; it is `noindex` and sends no referrer to
+  any other site. Its policy, like the site-wide header in `next.config.mjs`,
+  is `same-origin`, not `no-referrer`: under `no-referrer` Chrome posts a form
+  with `Origin: null`, so a Book pressed before the page's script has loaded
+  hit Next 14's own origin check, which cannot parse `null`, and got a 500.
+  Links out (the meeting link) also carry `rel="noreferrer"`.
 - `bookSlot` trusts nothing from the page: it re-reads the link, re-checks the
   candidate, throttles per candidate and per owner with the login throttle
   table, and books only a start time that `freeSlots` still offers. One
@@ -638,6 +643,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 - `lib/auth.ts`: opaque hashed database sessions, HttpOnly/SameSite cookies,
   fixed expiry, active-account and auth-version checks, same-origin action checks.
+- `middleware.ts` answers a POST to any page route with a plain 403 when its
+  Origin is not a URL (`null`) or names another host than the request's - the
+  comparison Next makes itself, made before Next's parse of the header can
+  throw. A post with no Origin is left to `assertSameOrigin()`; `/api` routes
+  check their own callers and are not matched. `tests/14-booking.spec.ts` B9
+  books with JavaScript off and posts the same form from both kinds of origin.
 - `lib/auth-crypto.ts`: native scrypt password hashing and SHA-256 token hashes.
 - `lib/workspace.ts`: `getWorkspace()` supplies the owner for every business read;
   `requireWritableWorkspace()` guards every business mutation. Never trust an

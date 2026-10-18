@@ -759,13 +759,23 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .activity-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 12px 38px; }
 .activity-entry { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: baseline; gap: 12px; padding: 13px 16px; color: inherit; text-decoration: none; }
 .activity-entry:hover { background: #fafafa; }
-.activity-entry.is-unread { background: #fff7f7; }
 .activity-entry .activity-text { overflow-wrap: anywhere; }
 .activity-entry.is-unread .activity-text { font-weight: 600; }
 .activity-dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; }
 .activity-entry.is-unread .activity-dot { background: #e5484d; }
 .activity-when { color: #71717a; font-size: 12px; white-space: nowrap; }
-.activity-note { padding: 0 16px 12px 38px; color: #52525b; font-size: 13px; line-height: 1.5; }
+/* A release line: the actions sit in the text column, under what they act on. */
+.release-entry { align-items: start; }
+.release-entry:hover { background: transparent; }
+.release-entry .activity-dot { margin-top: 26px; }
+.release-body { display: grid; gap: 6px; min-width: 0; }
+.release-tag { color: var(--color-accent); font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.release-body .activity-text { margin: 0; }
+.release-note { margin: 0; color: #52525b; font-size: 13px; line-height: 1.55; }
+.release-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 6px; }
+.release-actions .btn-primary { min-height: 34px; padding: 6px 12px; font-size: 13px; }
+.release-link { display: inline-flex; align-items: center; gap: 6px; color: var(--color-accent); font-size: 13px; font-weight: 500; text-decoration: none; }
+.release-link:hover { text-decoration: underline; }
 @media (max-width: 760px) { .activity-entry { grid-template-columns: 10px minmax(0, 1fr); } .activity-when { grid-column: 2; } }
 
 /* Client email: the screened candidate, put forward from the recruiter's own inbox. */

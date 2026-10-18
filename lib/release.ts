@@ -19,6 +19,7 @@ import { db } from "@/lib/db";
 export type Release = { id: string; title: string; extension: boolean };
 
 export const RELEASES: readonly Release[] = [
+  { id: "2026-10-19", title: "The Capture panel keeps up as you move from one LinkedIn profile to the next", extension: true },
   { id: "2026-10-18", title: "Clients see who you put forward, say who they want to meet, and those people book the interview", extension: false },
   { id: "2026-10-03", title: "One person across every role, booking links, screening summaries and matches from your own database", extension: false },
   { id: "2026-09-24", title: "LinkedIn's own industries, an outreach queue and a Capture panel that follows you", extension: true },

@@ -19,9 +19,9 @@ const unreadOf = (row: Row) => (row.kind === "activity" ? row.entry.unread : row
 
 // What clients did on their links, the interviews candidates booked with them,
 // and each new version of Capture, newest first. What has not been seen yet is
-// marked; opening this page is what makes client news seen, once it is on
-// screen, never a read-only view of it. A release stays new until Got it is
-// pressed on What's new, as it always has.
+// marked; opening this page is what makes it seen, the current release
+// included, once it is on screen, never a read-only view of it. The New marks
+// stay until the page is next opened, so nothing moves under the reader.
 export default async function NotificationsPage() {
   const { owner, readOnly } = await getWorkspace();
   const renderedAt = new Date();
@@ -39,7 +39,6 @@ export default async function NotificationsPage() {
   ].sort((a, b) => atOf(b) - atOf(a));
   const fresh = rows.filter(unreadOf);
   const earlier = rows.filter((row) => !unreadOf(row));
-  const clientNewsUnread = entries.some((entry) => entry.unread);
 
   const activityItem = (entry: ActivityEntry) => <li key={entry.id} className="activity-item">
     <Link href={entry.href} className={`activity-entry activity-tone-${entry.tone}${entry.unread ? " is-unread" : ""}`} data-testid="activity-entry">
@@ -56,24 +55,28 @@ export default async function NotificationsPage() {
   </li>;
 
   // Only the current release has a What's new page and a download that is
-  // still the right one; earlier releases keep their one line.
+  // still the right one; earlier releases keep their one line. The actions sit
+  // in the text column, under what they act on.
   const releaseItem = ({ release, at, current, unread }: ReleaseNotice) => <li key={`release-${release.id}`} className="activity-item" data-testid="release-entry" data-release={release.id}>
-    <div className={`activity-entry${unread ? " is-unread" : ""}`}>
+    <div className={`activity-entry release-entry${unread ? " is-unread" : ""}`}>
       <span className="activity-dot" aria-hidden="true" />
-      <span className="activity-text">{unread && <span className="sr-only">New: </span>}Capture updated: {release.title}</span>
+      <div className="release-body">
+        <span className="release-tag">Capture update</span>
+        <p className="activity-text">{unread && <span className="sr-only">New: </span>}{release.title}</p>
+        {current && release.extension && <p className="release-note">
+          {canDownload
+            ? <>This version needs a new copy of the browser extension. After you load it in <code className="font-mono">chrome://extensions</code>, generate a new capture key in <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension.</>
+            : readOnly
+              ? <>This version needs a new copy of the browser extension; it is downloaded from the account&rsquo;s own workspace.</>
+              : <>This version needs a new copy of the browser extension. <Link href="/account" className="text-accent underline">Activate extension access</Link> to download it, then generate a new capture key in Settings.</>}
+        </p>}
+        {current && <div className="release-actions">
+          {release.extension && canDownload && <a href="/api/extension/download" download className="btn-primary">Download the new extension<Icon name="down" size={15} /></a>}
+          <Link href="/whats-new" className="release-link">See what&rsquo;s new<Icon name="arrow" size={14} /></Link>
+        </div>}
+      </div>
       <time className="activity-when" dateTime={at.toISOString()}>{day.format(at)}</time>
     </div>
-    {current && <div className="activity-actions">
-      <Link href="/whats-new" className="btn-quiet">See what&rsquo;s new</Link>
-      {release.extension && canDownload && <a href="/api/extension/download" download className="btn-quiet">Download the new extension<Icon name="down" size={15} /></a>}
-    </div>}
-    {current && release.extension && <p className="activity-note">
-      {canDownload
-        ? <>This version needs a new copy of the browser extension. Load it in <code className="font-mono">chrome://extensions</code>, then <Link href="/settings" className="text-accent underline">generate a new capture key in Settings</Link> and paste it into the extension.</>
-        : readOnly
-          ? <>This version needs a new copy of the browser extension; it is downloaded from the account&rsquo;s own workspace.</>
-          : <>This version needs a new copy of the browser extension. <Link href="/account" className="text-accent underline">Activate extension access</Link> to download it, then generate a new capture key in Settings.</>}
-    </p>}
   </li>;
 
   const list = (items: Row[]) => <ol className="activity-list">
@@ -82,7 +85,7 @@ export default async function NotificationsPage() {
 
   return (
     <div className="min-w-0 max-w-3xl space-y-6">
-      {!readOnly && clientNewsUnread && <MarkSeen renderedAt={renderedAt.toISOString()} />}
+      {!readOnly && fresh.length > 0 && <MarkSeen renderedAt={renderedAt.toISOString()} />}
       <header className="page-header">
         <div>
           <p className="page-eyebrow">Workspace / Notifications</p>
@@ -95,6 +98,7 @@ export default async function NotificationsPage() {
       </div>}
       {fresh.length > 0 && <section aria-label="New" className="space-y-2">
         <h2 className="section-heading">New <span className="unread-badge">{fresh.length}</span></h2>
+        {!readOnly && <p className="text-sm text-ink-soft">Opening this page marks these as seen. They move to Earlier the next time you come here.</p>}
         {list(fresh)}
       </section>}
       {earlier.length > 0 && <section aria-label="Earlier" className="space-y-2">

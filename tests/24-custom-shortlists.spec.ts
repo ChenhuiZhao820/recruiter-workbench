@@ -231,7 +231,7 @@ test("S4 another account's shortlist is not found, and a read-only view shows sh
     await page.goto("/shortlists");
     const row = rowOf(page, "Their shortlist");
     await row.locator("summary").first().click();
-    await expect(row.getByText("The link is not shown in a read-only view.")).toBeVisible();
+    await expect(row.getByText("Links are not shown in a read-only view.")).toBeVisible();
     await expect(row.getByRole("button", { name: "Close the link" })).toBeDisabled();
     await expect(page.getByRole("link", { name: "New shortlist" })).toHaveCount(0);
   } finally {

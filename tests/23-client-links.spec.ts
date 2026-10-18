@@ -240,7 +240,7 @@ test("L5 the preview shows the client's page in the app, and is never counted; a
     expect((await page.goto(`/shortlists/${theirs.id}/preview`))?.status()).toBe(200);
     await page.goto(`/roles/${theirRole.id}`);
     const panel = await openPanel(page);
-    await expect(panel.getByText("The link is not shown in a read-only view.")).toBeVisible();
+    await expect(panel.getByText("Links are not shown in a read-only view.")).toBeVisible();
     await expect(panel.locator(".client-link-address")).toHaveCount(0);
     await expect(panel.getByRole("button", { name: "Close the link" })).toBeDisabled();
   } finally {

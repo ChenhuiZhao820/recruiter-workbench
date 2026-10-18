@@ -1,5 +1,8 @@
 import type { ClientShortlistView } from "@/lib/shortlists";
 import { ClientDecision } from "@/components/ClientDecision";
+import { ActionForm } from "@/components/ActionForm";
+import { SubmitButton } from "@/components/SubmitButton";
+import { openNamedLink } from "@/app/actions/shortlist-access";
 
 // The page a client reads: the people a recruiter has put forward, as
 // ClientProfile allows and nothing more. Shared by /s/<token> and the
@@ -103,6 +106,31 @@ export function ClientLinkInactive({ recruiterName }: { recruiterName: string | 
           {recruiterName ? `Ask ${recruiterName} for an up-to-date link.` : "Ask the recruiter who sent it for an up-to-date link."}
         </p>
       </header>
+    </article>
+  );
+}
+
+// A link sent to one named person: before anything about the candidates is
+// shown, the reader types the address it was sent to. Nothing on this screen
+// says who the candidates are or which client the page is for.
+export function ClientLinkGate({ token, recruiterName }: { token: string; recruiterName: string }) {
+  return (
+    <article className="client-page">
+      <header className="client-header">
+        <h1>Confirm it is you</h1>
+        <p className="client-note">
+          {recruiterName} shared this page with you by email. Enter that email address to open it.
+          You only need to do this once on this browser.
+        </p>
+      </header>
+      <ActionForm action={openNamedLink} className="client-gate">
+        <input type="hidden" name="token" value={token} />
+        <div>
+          <label htmlFor="gate-email" className="field-label">Your email address</label>
+          <input id="gate-email" name="email" type="email" required autoComplete="email" className="field-input" />
+        </div>
+        <SubmitButton pendingLabel="Checking...">Open the page</SubmitButton>
+      </ActionForm>
     </article>
   );
 }

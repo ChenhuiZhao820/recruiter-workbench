@@ -5,12 +5,11 @@ import { activeShortlistLimit } from "@/lib/features";
 import { getSettings } from "@/lib/settings";
 import { formatWhen } from "@/lib/dates";
 import { factDate } from "@/lib/fact-labels";
-import { shortlistLink } from "@/lib/shortlists";
 import { DECISION_REASON_LABELS, shortlistStatus } from "@/lib/shortlist-core.mjs";
 import { closeShortlist, keepShortlistOpen, newShortlistLink, removeFromShortlist, renameShortlist } from "@/app/actions/custom-shortlists";
 import { ActionForm } from "@/components/ActionForm";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
-import { ClientLinkShare } from "@/components/ClientLinkShare";
+import { ShortlistSharing } from "@/components/ShortlistSharing";
 import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +28,7 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
     where: { userId: owner.id, kind: "custom" },
     orderBy: { createdAt: "desc" },
     include: {
-      accesses: { where: { email: null, revokedAt: null }, take: 1 },
+      accesses: { orderBy: { createdAt: "asc" } },
       items: {
         orderBy: [{ position: "asc" }, { addedAt: "asc" }],
         include: { person: { select: { id: true, fullName: true, headline: true, doNotContact: true } } },
@@ -76,8 +75,9 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
       ) : (
         <ul className="space-y-3" aria-label="Shortlists">
           {rows.map(({ shortlist, status }) => {
-            const access = shortlist.accesses[0] ?? null;
-            const link = access && status === "active" && !readOnly ? shortlistLink(access.id, access.nonce) : null;
+            const openAccesses = shortlist.accesses.filter((access) => !access.revokedAt);
+            const answeredBy = new Map(shortlist.accesses.filter((access) => access.email).map((access) => [access.id, access.email!]));
+            const lastViewed = openAccesses.reduce<Date | null>((latest, access) => (access.lastViewedAt && (!latest || access.lastViewedAt > latest) ? access.lastViewedAt : latest), null);
             const visible = shortlist.items.filter((item) => !item.person.doNotContact);
             const yes = visible.filter((item) => item.decision === "interview").length;
             return (
@@ -106,11 +106,7 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
 
                   <div className="client-link-panel">
                     {status === "active" ? (
-                      link ? (
-                        <ClientLinkShare link={link} roleTitle={shortlist.title} client={shortlist.client} recruiterName={settings.recruiterName || owner.name} kind="custom" />
-                      ) : (
-                        <p>{readOnly ? "The link is not shown in a read-only view." : "Shortlist links need the server's shortlist link secret. Ask your administrator to set it."}</p>
-                      )
+                      <ShortlistSharing shortlist={shortlist} accesses={openAccesses} active readOnly={readOnly} recruiterName={settings.recruiterName || owner.name} />
                     ) : status === "expired" ? (
                       <p>This shortlist expired, so its address shows {shortlist.client} that it is no longer active. Keep it open to make the same address work again.</p>
                     ) : (
@@ -118,7 +114,7 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
                     )}
 
                     <p className="client-link-stats">
-                      <span>{access?.lastViewedAt ? <>Last opened <strong>{formatWhen(access.lastViewedAt)}</strong></> : "Not opened yet"}</span>
+                      <span>{lastViewed ? <>Last opened <strong>{formatWhen(lastViewed)}</strong></> : "Not opened yet"}</span>
                     </p>
 
                     <ul className="shortlist-people" aria-label={`People on ${shortlist.title}`}>
@@ -130,11 +126,16 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             {item.person.doNotContact && <span className="chip person-flag">Do not contact, hidden from the client</span>}
-                            {item.decision === "interview" && <span className="chip client-said-yes">{shortlist.client} wants to meet</span>}
+                            {item.decision === "interview" && (
+                              <span className="chip client-said-yes">
+                                {shortlist.client} wants to meet{item.decisionAccessId && answeredBy.get(item.decisionAccessId) ? ` · ${answeredBy.get(item.decisionAccessId)}` : ""}
+                              </span>
+                            )}
                             {item.decision === "declined" && (
                               <span className="chip">
                                 Not for {shortlist.client}
                                 {item.decisionReason ? ` · ${DECISION_REASON_LABELS[item.decisionReason as keyof typeof DECISION_REASON_LABELS] ?? item.decisionReason}` : ""}
+                                {item.decisionAccessId && answeredBy.get(item.decisionAccessId) ? ` · ${answeredBy.get(item.decisionAccessId)}` : ""}
                               </span>
                             )}
                             {item.decisionNote && <span className="client-said-note">&ldquo;{item.decisionNote}&rdquo;</span>}
@@ -162,7 +163,9 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
                           label={status === "revoked" ? "Make a new link" : "Replace the link"}
                           confirmText={status === "revoked"
                             ? "Make a new link for this shortlist? The page opens again at a new address, with the same people on it."
-                            : "Replace this link? The address you sent stops working at once, and the page moves to a new address."}
+                            : shortlist.access === "people"
+                              ? "Give everyone a new link? Each person's current link stops working at once."
+                              : "Replace this link? The address you sent stops working at once, and the page moves to a new address."}
                         />
                       </ActionForm>
                       {status === "active" && (

@@ -27,10 +27,10 @@ import { RunSearchButton } from "@/components/RunSearchButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { ActionForm } from "@/components/ActionForm";
 import { OUTREACH_KIND_SUMMARY, isTemplateKind } from "@/lib/templates";
-import { CLOSED_STAGES, consentPersonSelect, knownConsentAt, shortlistLink } from "@/lib/shortlists";
+import { CLOSED_STAGES, consentPersonSelect, knownConsentAt } from "@/lib/shortlists";
 import { DECISION_REASON_LABELS, shortlistStatus } from "@/lib/shortlist-core.mjs";
 import { newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
-import { ClientLinkShare } from "@/components/ClientLinkShare";
+import { ShortlistSharing } from "@/components/ShortlistSharing";
 
 export const dynamic = "force-dynamic";
 
@@ -69,8 +69,8 @@ export default async function RolePage({ params }: { params: { id: string } }) {
       searches: { where: { userId: owner.id }, orderBy: { updatedAt: "desc" } },
       shortlist: {
         include: {
-          accesses: { where: { email: null, revokedAt: null }, take: 1 },
-          items: { select: { id: true, candidateId: true, decision: true, decisionReason: true, decisionNote: true, decisionAt: true } },
+          accesses: { orderBy: { createdAt: "asc" } },
+          items: { select: { id: true, candidateId: true, decision: true, decisionReason: true, decisionNote: true, decisionAt: true, decisionAccessId: true } },
         },
       },
     },
@@ -82,11 +82,12 @@ export default async function RolePage({ params }: { params: { id: string } }) {
   const clientList = role.shortlist && role.shortlist.userId === owner.id ? role.shortlist : null;
   const onLink = new Map((clientList?.items ?? []).filter((item) => item.candidateId).map((item) => [item.candidateId!, item]));
   const linkStatus = clientList ? shortlistStatus(clientList, role, now) : null;
-  const linkAccess = clientList?.accesses[0] ?? null;
-  const clientLink = linkAccess && linkStatus === "active" && !readOnly ? shortlistLink(linkAccess.id, linkAccess.nonce) : null;
+  const openAccesses = (clientList?.accesses ?? []).filter((access) => !access.revokedAt);
+  // Who answered, when the link was shared with named people.
+  const answeredBy = new Map((clientList?.accesses ?? []).filter((access) => access.email).map((access) => [access.id, access.email!]));
   const onLinkCount = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).length;
   const clientName = role.client || "the client";
-  const lastViewed = linkAccess?.lastViewedAt ?? null;
+  const lastViewed = openAccesses.reduce<Date | null>((latest, access) => (access.lastViewedAt && (!latest || access.lastViewedAt > latest) ? access.lastViewedAt : latest), null);
   const visibleItems = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).map((c) => onLink.get(c.id)!);
   const wantToMeet = visibleItems.filter((item) => item.decision === "interview").length;
   const notForThem = visibleItems.filter((item) => item.decision === "declined").length;
@@ -341,15 +342,19 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   <p>This role is closed, so its client link shows {clientName} that it is no longer active.</p>
                 ) : linkStatus === "revoked" ? (
                   <p>You closed this link. Its address no longer opens. A new link brings the page back at a new address, with the same people on it.</p>
-                ) : !clientLink ? (
-                  <p>{readOnly ? "The link is not shown in a read-only view." : "Client links need the server's shortlist link secret. Ask your administrator to set it."}</p>
                 ) : (
                   <>
                     <p>
-                      Anyone with this address sees the {onLinkCount === 1 ? "person" : "people"} you put forward, as {clientName} would.
-                      People you put forward later appear on the same page.
+                      The page shows the {onLinkCount === 1 ? "person" : "people"} you put forward, as {clientName} would.
+                      People you put forward later appear on it too, at the same address.
                     </p>
-                    <ClientLinkShare link={clientLink} roleTitle={role.title} client={role.client} recruiterName={settings.recruiterName || owner.name} />
+                    <ShortlistSharing
+                      shortlist={clientList}
+                      accesses={openAccesses}
+                      active={linkStatus === "active"}
+                      readOnly={readOnly}
+                      recruiterName={settings.recruiterName || owner.name}
+                    />
                   </>
                 )}
                 {clientList && (
@@ -370,7 +375,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                           label={linkStatus === "revoked" ? "Make a new link" : "Replace the link"}
                           confirmText={linkStatus === "revoked"
                             ? "Make a new link for this role? The page opens again at a new address, with the same people on it."
-                            : "Replace this link? The address you sent stops working at once, and the page moves to a new address."}
+                            : clientList.access === "people"
+                              ? "Give everyone a new link? Each person's current link stops working at once."
+                              : "Replace this link? The address you sent stops working at once, and the page moves to a new address."}
                         />
                       </form>
                     )}
@@ -442,13 +449,17 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                           <div className="put-forward">
                             <span className="chip screening-chip-done">On the client link</span>
                             {onLink.get(c.id)!.decision === "interview" && (
-                              <span className="chip client-said-yes">{clientName} wants to meet</span>
+                              <span className="chip client-said-yes">
+                                {clientName} wants to meet
+                                {onLink.get(c.id)!.decisionAccessId && answeredBy.get(onLink.get(c.id)!.decisionAccessId!) ? ` · ${answeredBy.get(onLink.get(c.id)!.decisionAccessId!)}` : ""}
+                              </span>
                             )}
                             {onLink.get(c.id)!.decision === "declined" && (
                               <>
                                 <span className="chip">
                                   Not for {clientName}
                                   {onLink.get(c.id)!.decisionReason ? ` · ${DECISION_REASON_LABELS[onLink.get(c.id)!.decisionReason as keyof typeof DECISION_REASON_LABELS] ?? onLink.get(c.id)!.decisionReason}` : ""}
+                                  {onLink.get(c.id)!.decisionAccessId && answeredBy.get(onLink.get(c.id)!.decisionAccessId!) ? ` · ${answeredBy.get(onLink.get(c.id)!.decisionAccessId!)}` : ""}
                                 </span>
                                 {onLink.get(c.id)!.decisionNote && <span className="client-said-note">&ldquo;{onLink.get(c.id)!.decisionNote}&rdquo;</span>}
                                 <form action={setCandidateStage}>

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { loadClientPage, recordClientView } from "@/lib/shortlists";
+import { GATE_COOKIE, loadClientPage, recordClientView } from "@/lib/shortlists";
 import { recordUsage } from "@/lib/usage";
-import { ClientLinkInactive, ClientShortlist } from "@/components/ClientShortlist";
+import { ClientLinkGate, ClientLinkInactive, ClientShortlist } from "@/components/ClientShortlist";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,10 @@ export const metadata: Metadata = {
 
 export default async function ClientShortlistPage({ params }: { params: { token: string } }) {
   const now = new Date();
-  const page = await loadClientPage(params.token, now);
-  if (page.state !== "active") return <ClientLinkInactive recruiterName={page.recruiterName} />;
+  const page = await loadClientPage(params.token, now, cookies().get(GATE_COOKIE)?.value);
+  if (page.state === "inactive") return <ClientLinkInactive recruiterName={page.recruiterName} />;
+  // A link sent to a named person opens once this browser confirms the email.
+  if (page.state === "gate") return <ClientLinkGate token={params.token} recruiterName={page.recruiterName} />;
 
   // The recruiter opening their own link is not the client reading it.
   const session = await getSession();

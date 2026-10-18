@@ -1224,3 +1224,21 @@ label > .im-editor-note { margin-top: 6px; }
 @media (max-width: 760px) {
   .shortlist-row > summary { flex-direction: column; align-items: flex-start; }
 }
+.client-gate { display: grid; gap: 14px; max-width: 420px; margin-top: 28px; padding: 22px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.client-gate .btn-primary { justify-self: start; }
+
+/* Who can open a client link: a two-way switch, then either the one link or
+   a list of named people, each with their own link and email. */
+.shortlist-sharing { display: grid; gap: 14px; }
+.shortlist-sharing > p { max-width: 64ch; font-size: 13px; line-height: 1.65; color: var(--color-ink-soft); }
+.access-switch { display: inline-flex; justify-self: start; padding: 3px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-sunken); }
+.access-switch form { display: contents; }
+.access-option { min-height: 34px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; font-weight: 500; color: var(--color-ink-soft); cursor: pointer; transition: background-color .15s, color .15s; }
+.access-option:hover { color: var(--color-ink); }
+.access-option[aria-pressed="true"] { background: var(--color-surface); color: var(--color-ink); box-shadow: 0 1px 2px rgb(var(--rgb-ink) / .08); cursor: default; }
+.recipient-list { display: grid; border: 1px solid var(--color-line); border-radius: 8px; }
+.recipient-list > li { display: grid; gap: 10px; padding: 14px 16px; }
+.recipient-list > li + li { border-top: 1px solid var(--color-line); }
+.recipient-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.recipient-email { font-size: 14px; font-weight: 550; overflow-wrap: anywhere; }
+.recipient-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }

@@ -354,7 +354,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Every plan (`clientShortlists` in `FEATURE_TIERS`). A role has one client
   link: a `Shortlist` of kind `role`, made the first time someone is put
   forward, listing everyone put forward on one page the client opens without
-  signing in. Named recipients and interview booking are planned in
+  signing in. Interview booking is planned in
   `docs/plans/client-shortlist.en.md`.
 - Custom shortlists (`kind` `custom`, `app/actions/custom-shortlists.ts`):
   any people, for one client, open 60 days from creation or from "Keep open
@@ -404,6 +404,25 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   component inside the app and is never counted.
 - Capture sends nothing to the client: "Open in email" is a `mailto:` built
   like the client email's, from a recipient field with no form name.
+- Who can open a page is the recruiter's choice, per role link or shortlist
+  (`components/ShortlistSharing.tsx`, `app/actions/shortlist-access.ts`):
+  "Anyone with the link" (one `ShortlistAccess` with no email) or "Only these
+  people" (one access per email, at most 20, each with its own link and its
+  own "Open in email to ..."). Switching revokes every address of the other
+  kind; removing a person revokes theirs. "Replace the link" and reopening go
+  through `replaceLinks`, which replaces the addresses of whichever kind is in
+  use and never creates a public link on a named-only page, and
+  `ensureRoleShortlist` leaves a named-only role link as it is.
+- A named link first asks for the address it was sent to (`openNamedLink`,
+  trimmed and lower-cased, ten wrong tries an hour per link), showing nothing
+  about the candidates or the client before then. A match sets the HttpOnly
+  `capture_shortlist_gate` cookie, path-scoped to that link's own `/s/<token>`
+  and signed over the access and its nonce, for 30 days; the page and
+  `decideShortlistItem` both require it. It stops a forwarded link opening for
+  someone else; it does not prove who reads the inbox, because Capture sends
+  no code, and the panel says so. Recipients' addresses are never exported.
+- An answer records the access it came from, so a named person's answer shows
+  their address beside it on the role page and in the library.
 - The client answers per person: "Interview <name>", or "Not for us" with an
   optional reason chip and a line of at most 280 characters
   (`decideShortlistItem`, constants in `lib/shortlist-decisions.mjs`, which the
@@ -417,7 +436,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Follow-ups lists "Client wants to meet" (only when it has anyone) for an
   Interview answer on a role link with no message logged since and no
   interview booked; it is its own group, `m`, in the follow-up run.
-- `tests/23-client-links.spec.ts` and `tests/24-custom-shortlists.spec.ts` play the client in a second browser context
+- `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts` and `tests/25-named-access.spec.ts` play the client in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
 
 ## Booking page

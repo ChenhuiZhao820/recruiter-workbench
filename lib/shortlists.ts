@@ -5,6 +5,7 @@ import { clientProfile, type ClientProfile } from "./client-profile";
 import {
   accessOpens,
   canDecide,
+  readGateCookie,
   hasPriorConsent,
   itemVisible,
   newNonce,
@@ -33,13 +34,19 @@ export function shortlistLink(accessId: string, nonce: string): string | null {
   return `${appOrigin()}/s/${shortlistToken(secret, accessId, nonce)}`;
 }
 
+// The cookie that keeps a named person's browser in, scoped to their link's
+// own path so it is sent for that page and its actions and nothing else.
+export const GATE_COOKIE = "capture_shortlist_gate";
+
 // A role's client link, made the first time it is needed, with its one
-// "anyone with the link" access. The unique roleId makes a race harmless.
+// "anyone with the link" access. The unique roleId makes a race harmless. A
+// link already shared with named people is left as it is: making it public
+// again is the recruiter's choice, never a side effect.
 export async function ensureRoleShortlist(tx: Tx, ownerId: string, role: { id: string; title: string; client: string | null }) {
   const existing = await tx.shortlist.findUnique({ where: { roleId: role.id }, include: { accesses: true } });
   if (existing) {
     if (existing.userId !== ownerId) throw new Error("That role belongs to another account.");
-    if (!existing.accesses.some((access) => access.email === null && !access.revokedAt)) {
+    if (existing.access === "link" && !existing.accesses.some((access) => access.email === null && !access.revokedAt)) {
       await tx.shortlistAccess.create({ data: { shortlistId: existing.id, nonce: newNonce() } });
     }
     return existing;
@@ -55,6 +62,18 @@ export async function ensureRoleShortlist(tx: Tx, ownerId: string, role: { id: s
       accesses: { create: { nonce: newNonce() } },
     },
   });
+}
+
+// New addresses for whoever the shortlist is shared with now: the one public
+// link, or each named person's. Every old address stops working at once.
+export async function replaceLinks(tx: Tx, shortlist: { id: string; access: string }) {
+  if (shortlist.access === "people") {
+    const named = await tx.shortlistAccess.findMany({ where: { shortlistId: shortlist.id, email: { not: null }, revokedAt: null }, select: { id: true } });
+    for (const access of named) await tx.shortlistAccess.update({ where: { id: access.id }, data: { nonce: newNonce(), lastViewedAt: null, viewCount: 0 } });
+    return;
+  }
+  const { count } = await tx.shortlistAccess.updateMany({ where: { shortlistId: shortlist.id, email: null, revokedAt: null }, data: { nonce: newNonce(), lastViewedAt: null, viewCount: 0 } });
+  if (!count) await tx.shortlistAccess.create({ data: { shortlistId: shortlist.id, nonce: newNonce() } });
 }
 
 type ConsentPerson = {
@@ -186,12 +205,14 @@ function recruiterName(settings: { recruiterName: string } | null, owner: { name
 
 export type ClientPage =
   | { state: "active"; accessId: string; ownerId: string; shortlistId: string; roleId: string | null; view: ClientShortlistView }
+  // A named link whose browser has not confirmed the email yet.
+  | { state: "gate"; accessId: string; recruiterName: string }
   | { state: "inactive"; recruiterName: string | null };
 
 // Everything /s/<token> shows, from the link alone. Any doubt reads as an
 // inactive link that names nobody but, where the link was genuine, the
 // recruiter to ask.
-export async function loadClientPage(token: string, now = new Date()): Promise<ClientPage> {
+export async function loadClientPage(token: string, now = new Date(), gateCookie?: string): Promise<ClientPage> {
   const read = readShortlistToken(shortlistSecret(), token);
   if (!read) return { state: "inactive", recruiterName: null };
   const access = await db.shortlistAccess.findUnique({
@@ -214,10 +235,13 @@ export async function loadClientPage(token: string, now = new Date()): Promise<C
   const name = recruiterName(owner.settings, owner);
   if (!nonceMatches(access.nonce, read.nonce)) return { state: "inactive", recruiterName: name };
   if (shortlist.role && shortlist.role.userId !== shortlist.userId) return { state: "inactive", recruiterName: null };
-  // Named people come with their own check, which is not built yet: until
-  // then a named link does not open.
-  if (!accessOpens(access, shortlist) || access.email) return { state: "inactive", recruiterName: name };
+  if (!accessOpens(access, shortlist)) return { state: "inactive", recruiterName: name };
   if (shortlistStatus(shortlist, shortlist.role, now) !== "active") return { state: "inactive", recruiterName: name };
+  // A named link opens once the browser has confirmed the email it was sent
+  // to; the cookie is signed over this access and its nonce.
+  if (access.email && !readGateCookie(shortlistSecret(), access.id, access.nonce, gateCookie, now)) {
+    return { state: "gate", accessId: access.id, recruiterName: name };
+  }
   return {
     state: "active",
     accessId: access.id,

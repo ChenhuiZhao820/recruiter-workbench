@@ -5,8 +5,7 @@ import { db } from "@/lib/db";
 import { requireWritableFeature } from "@/lib/feature-access";
 import type { FormState } from "@/lib/formState";
 import { ensureCandidatePerson } from "@/lib/people";
-import { CLOSED_STAGES, consentPersonSelect, ensureRoleShortlist, knownConsentAt, putOnRoleShortlist } from "@/lib/shortlists";
-import { newNonce } from "@/lib/shortlist-core.mjs";
+import { CLOSED_STAGES, consentPersonSelect, ensureRoleShortlist, knownConsentAt, putOnRoleShortlist, replaceLinks } from "@/lib/shortlists";
 
 // A role's client link: putting someone on it, taking them off, and closing
 // or replacing the link. Every id is looked up under the signed-in owner; the
@@ -90,7 +89,7 @@ export async function newClientLink(formData: FormData) {
   await db.$transaction(async (tx) => {
     const shortlist = await ensureRoleShortlist(tx, user.id, role);
     await tx.shortlist.update({ where: { id: shortlist.id }, data: { revokedAt: null } });
-    await tx.shortlistAccess.updateMany({ where: { shortlistId: shortlist.id, email: null, revokedAt: null }, data: { nonce: newNonce(), lastViewedAt: null, viewCount: 0 } });
+    await replaceLinks(tx, shortlist);
     await tx.auditEvent.create({ data: { actorId: user.id, targetUserId: user.id, action: "shortlist.new_link" } });
   });
   revalidateRole(role.id, null);

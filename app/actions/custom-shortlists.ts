@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { requireWritableFeature } from "@/lib/feature-access";
 import { activeShortlistLimit } from "@/lib/features";
 import type { FormState } from "@/lib/formState";
-import { consentPersonSelect, knownConsentAt } from "@/lib/shortlists";
+import { consentPersonSelect, knownConsentAt, replaceLinks } from "@/lib/shortlists";
 import { canOpenAnother, customExpiry, defaultShortlistTitle, newNonce, shortlistStatus } from "@/lib/shortlist-core.mjs";
 import { recordUsage } from "@/lib/usage";
 
@@ -177,8 +177,7 @@ export async function newShortlistLink(_prev: FormState, formData: FormData): Pr
       const reopening = shortlistStatus(shortlist, null, now) !== "active";
       if (reopening && !canOpenAnother(await activeCustomCount(tx, user.id, now), limit)) throw new LimitReached();
       if (reopening) await tx.shortlist.update({ where: { id: shortlist.id }, data: { revokedAt: null, expiresAt: customExpiry(now) } });
-      const { count } = await tx.shortlistAccess.updateMany({ where: { shortlistId: shortlist.id, email: null, revokedAt: null }, data: { nonce: newNonce(), lastViewedAt: null, viewCount: 0 } });
-      if (!count) await tx.shortlistAccess.create({ data: { shortlistId: shortlist.id, nonce: newNonce() } });
+      await replaceLinks(tx, shortlist);
       await tx.auditEvent.create({ data: { actorId: user.id, targetUserId: user.id, action: "shortlist.new_link" } });
     }, { isolationLevel: "Serializable" });
   } catch (error) {

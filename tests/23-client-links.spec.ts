@@ -69,7 +69,7 @@ test.beforeAll(async () => {
 test("L1 a consented candidate is put forward in one click, and the client reads them without signing in - and nothing private", async ({ browser, page }, testInfo) => {
   const { candidate } = await personOn(roleId, "Imogen Achterberg");
   await page.goto(`/roles/${roleId}`);
-  await expect((await openPanel(page)).getByText(/Put someone forward and they appear on one page Halden Systems Ltd opens without signing in/)).toBeVisible();
+  await expect((await openPanel(page)).getByText("A page Halden Systems Ltd opens without signing in, to see who you put forward and choose who to interview.")).toBeVisible();
   await row(page, "Imogen Achterberg").getByRole("button", { name: "Put forward to Halden Systems Ltd" }).click();
   await expect(row(page, "Imogen Achterberg").getByText("On the client link")).toBeVisible();
   const after = await db.candidate.findUniqueOrThrow({ where: { id: candidate.id } });

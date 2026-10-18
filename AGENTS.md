@@ -507,6 +507,50 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts`, `tests/25-named-access.spec.ts` and `tests/26-interviews.spec.ts` play the client (and the candidate) in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
 
+## Arranging a client interview
+
+- Once a client wants to meet someone, the recruiter arranges it from one
+  page, `/candidates/[id]/interview` (`clientShortlists`, every plan), with
+  no weekly interview hours needed: client diaries change too often to keep
+  standing hours, and most recruiters never agree them up front. "Arrange
+  interview" leads there from the candidate's row on the role page (whenever
+  the client answered Interview, on the role's link or a custom shortlist for
+  the same `clientKey`, and nothing is booked), from the line on
+  Notifications, and from both "Client wants to meet" groups on Follow-ups.
+  The page reads only; `lib/arrange.ts` loads what it needs under the owner.
+- Two ways, side by side (`app/actions/arrange-interview.ts`):
+  "You agreed a time" (`setInterviewTime`) books one date and time typed in
+  a chosen zone; "Offer a few times" (`offerInterviewTimes`) saves up to
+  three as an `InterviewOffer` for the candidate to choose from. Both take a
+  length and an optional meeting link (https only) or address, refuse a time
+  that overlaps another interview with the same client (and the
+  `InterviewSlot` key refuses a race), and, in the same transaction, put the
+  candidate on the role's client link with the consent Capture already has
+  for this client - or the tick the page then asks for - carrying a custom
+  shortlist's Interview answer across. Rejected, placed, do-not-contact and
+  closed roles are refused. The rules are in `lib/arrange-core.mjs`
+  (`tests/arrange.test.mjs`).
+- A set time is a `Booking` (kind `interview`, `noticeVersion` "arranged",
+  the person's email if known) with its `place` and `timeZone`; the
+  candidate moves to Client interview and the client's page lists it. An
+  offer makes `{{interview_link}}` a link without hours or an answer
+  (`interviewLinkState`'s `offered`), and the candidate's page shows exactly
+  its open times (`openOfferTimes`: not passed, not within an hour, not
+  clashing); booking one claims the offer by its state (`bookingId`), and a
+  set time or a new offer withdraws an open one. Offered times must be two
+  hours ahead at least.
+- After either, the message to the candidate is ready on the page
+  (`ArrangeMessage`, `arrangeMessage`): editable, copied with LinkedIn
+  opened in one click, recorded by Mark as sent through `markAsSent`. Capture
+  sends nothing, to the candidate or the client. Cancel the interview is the
+  existing `cancelBooking`; "Withdraw these times" closes an offer.
+- `20261022000000_interview_offers` adds `InterviewOffer` and the nullable
+  `Booking.place`/`timeZone` (additive). The offer is not exported or
+  imported; the two booking columns are `lateColumns`. See Hosting for when
+  it was applied.
+  `tests/28-arrange-interview.spec.ts` plays the recruiter, the candidate and
+  the client.
+
 ## Notifications
 
 - Formerly Activity: `/notifications`, with `/activity` redirecting to it. It
@@ -539,8 +583,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   the shortlist recorded and copies the answer, so the usual "Client wants to
   meet" and `{{interview_link}}` see it. Follow-ups lists Interview answers
   on custom shortlists not yet brought across, pointing at the matching role.
-  The same button sits on that answer's line on `/notifications` (one per
-  matching role, named when there is more than one), and goes once it is used.
+  On `/notifications` an Interview answer (or a client's "Can't make this
+  time") has "Arrange interview" instead, one per matching role, named when
+  there is more than one; arranging also brings the answer across, and the
+  button goes once an interview is booked (see Arranging a client interview).
 - `20261021000000_client_notifications` adds the table (additive; see Hosting
   for when it was applied). It is not
   exported or imported. `tests/27-activity.spec.ts`.
@@ -1177,6 +1223,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   existing table came out unchanged and the new table empty; Prisma reports 11
   migrations and no difference. The local account database has not received
   it.
+- On 2026-10-19, `20261022000000_interview_offers` (`InterviewOffer`; nullable
+  `Booking.place` and `timeZone`) was applied and registered on the hosted
+  database the same way, through WSL
+  (`prisma/private-local/migrate-hosted-interview-offers.mjs`), checked against
+  the reviewed file's SHA-256: a dump from a locked snapshot, restored into a
+  disposable database and rehearsed, then one transaction. Every existing
+  table came out unchanged, the new table empty and no booking with a place
+  or zone; Prisma reports 12 migrations and no difference. The local account
+  database has not received it.
 
 ## Searches and LinkedIn industry filters
 

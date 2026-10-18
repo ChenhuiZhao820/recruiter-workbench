@@ -6,9 +6,7 @@ import { releaseNotices, type ReleaseNotice } from "@/lib/release";
 import { releaseIsNews } from "@/lib/onboarding";
 import { canUseExtension } from "@/lib/extension-access";
 import { MarkSeen } from "@/components/MarkSeen";
-import { ActionForm } from "@/components/ActionForm";
 import { Icon } from "@/components/Icon";
-import { adoptShortlistAnswer } from "@/app/actions/shortlists";
 
 export const dynamic = "force-dynamic";
 
@@ -49,12 +47,11 @@ export default async function NotificationsPage() {
       <span className="activity-text">{entry.unread && <span className="sr-only">New: </span>}{entry.text}</span>
       <time className="activity-when" dateTime={entry.at.toISOString()}>{when.format(entry.at)}</time>
     </Link>
-    {!readOnly && entry.adopt.length > 0 && <div className="activity-actions">
-      {entry.adopt.map((target) => <ActionForm key={target.candidateId} action={adoptShortlistAnswer}>
-        <input type="hidden" name="candidateId" value={target.candidateId} />
-        <input type="hidden" name="itemId" value={target.itemId} />
-        <button type="submit" className="btn-quiet">{entry.adopt.length > 1 ? `Add to client link · ${target.roleTitle}` : "Add to client link"}</button>
-      </ActionForm>)}
+    {!readOnly && entry.arrange.length > 0 && <div className="activity-actions">
+      {/* Arranging also puts them on the role's client link, so this is the one step. */}
+      {entry.arrange.map((target) => <Link key={target.candidateId} href={`/candidates/${target.candidateId}/interview`} className="btn-quiet btn-arrange">
+        {entry.arrange.length > 1 ? `Arrange interview · ${target.roleTitle}` : "Arrange interview"}
+      </Link>)}
     </div>}
   </li>;
 

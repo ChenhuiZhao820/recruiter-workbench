@@ -146,8 +146,9 @@ test("A3 an answer on a custom shortlist shows on the role's row and Follow-ups,
     await me.page.goto("/followups");
     const section = me.page.getByRole("region", { name: "Wants to meet, from a shortlist" });
     await expect(section).toContainText("Tobiah Lindqvist");
-    await section.getByRole("link", { name: "Open on Activity Test Analytics Lead" }).click();
-    await expect(me.page).toHaveURL(new RegExp(`/roles/${roleId}#candidate-${candidate.id}$`));
+    // Follow-ups goes straight to arranging it.
+    await expect(section.getByRole("link", { name: "Arrange interview" })).toHaveAttribute("href", `/candidates/${candidate.id}/interview`);
+    await me.page.goto(`/roles/${roleId}#candidate-${candidate.id}`);
 
     const row = me.page.locator("li.card", { hasText: "Tobiah Lindqvist" });
     await expect(row.getByTestId("answer-elsewhere")).toContainText("Brightwater Group Ltd wants to meet");
@@ -215,13 +216,21 @@ test("A5 a shortlist answer is brought onto the role from its line on Activity, 
   try {
     await me.page.goto("/notifications");
     const line = me.page.locator(".activity-item", { hasText: "wants to meet Ines Halvorsen" });
-    // The open of the link is news too, but only the answer can be brought across.
-    await expect(me.page.locator(".activity-item", { hasText: "opened More analytics people" }).getByRole("button")).toHaveCount(0);
-    await line.getByRole("button", { name: "Add to client link" }).click();
-    await expect(line.getByRole("button", { name: "Add to client link" })).toHaveCount(0);
+    // The open of the link is news too, but only the answer leads to an interview.
+    await expect(me.page.locator(".activity-item", { hasText: "opened More analytics people" }).getByRole("link", { name: /Arrange interview/ })).toHaveCount(0);
+    await line.getByRole("link", { name: "Arrange interview" }).click();
+    await expect(me.page).toHaveURL(new RegExp(`/candidates/${candidate.id}/interview$`));
+    // Arranging it brings the answer onto the role's link, and the line no longer offers it.
+    const set = me.page.getByRole("region", { name: "You agreed a time" });
+    await set.getByLabel("Date").fill(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + 6 * DAY)));
+    await set.getByLabel("Time", { exact: true }).fill("11:00");
+    await set.getByRole("button", { name: "Book the interview" }).click();
+    await expect(me.page.getByRole("region", { name: "Interview booked" })).toBeVisible();
     const onRole = await db.shortlistItem.findFirstOrThrow({ where: { personId: person.id, shortlist: { roleId } } });
     expect(onRole.decision).toBe("interview");
     expect(onRole.candidateId).toBe(candidate.id);
+    await me.page.goto("/notifications");
+    await expect(me.page.locator(".activity-item", { hasText: "wants to meet Ines Halvorsen" }).getByRole("link", { name: "Arrange interview" })).toHaveCount(0);
   } finally {
     await me.close();
   }

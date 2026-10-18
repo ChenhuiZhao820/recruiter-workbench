@@ -20,7 +20,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   });
   if (!booking) return new Response("Not found", { status: 404, headers });
   if (booking.kind === "interview") {
-    const where = booking.meetingUrl ?? booking.candidate.role.interviewLocation ?? undefined;
+    const where = booking.meetingUrl ?? booking.place ?? booking.candidate.role.interviewLocation ?? undefined;
     const body = bookingIcs({
       uid: booking.id,
       start: booking.startsAt.getTime(),

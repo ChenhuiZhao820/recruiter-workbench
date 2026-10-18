@@ -21,8 +21,8 @@ export async function GET(_request: Request, { params }: { params: { token: stri
       start: booking.startsAt.getTime(),
       end: booking.endsAt.getTime(),
       summary: `Interview with ${client}: ${candidate.role.title}`,
-      description: booking.meetingUrl ?? place.text ?? `${who} will send you the details.`,
-      location: booking.meetingUrl ?? place.text ?? undefined,
+      description: booking.meetingUrl ?? booking.place ?? place.text ?? `${who} will send you the details.`,
+      location: booking.meetingUrl ?? booking.place ?? place.text ?? undefined,
     });
     return new Response(body, { headers: { ...headers, "Content-Type": "text/calendar; charset=utf-8", "Content-Disposition": 'attachment; filename="interview.ics"' } });
   }

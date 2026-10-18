@@ -45,7 +45,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
   const publicPage = !user || pathname === "/welcome";
   const active = (href: string) => href === "/" ? pathname === "/" || pathname.startsWith("/roles") : pathname.startsWith(href);
   const items = setupPending ? [setupNavigation, ...navigation] : navigation;
-  const pageName = items.find((item) => active(item.href))?.label ?? (pathname.startsWith("/getting-started") ? setupNavigation.label : pathname.startsWith("/admin") ? "Accounts" : pathname.startsWith("/account") ? "Your account" : pathname.startsWith("/whats-new") ? "What’s new" : pathname.startsWith("/candidates/") && pathname.endsWith("/screening") ? "Screening" : "Outreach");
+  const pageName = items.find((item) => active(item.href))?.label ?? (pathname.startsWith("/getting-started") ? setupNavigation.label : pathname.startsWith("/admin") ? "Accounts" : pathname.startsWith("/account") ? "Your account" : pathname.startsWith("/whats-new") ? "What’s new" : pathname.startsWith("/candidates/") && pathname.endsWith("/screening") ? "Screening" : pathname.startsWith("/candidates/") && pathname.endsWith("/interview") ? "Interview" : "Outreach");
   const initials = user?.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "C";
 
   // A candidate's booking page and a client's shortlist: the product's mark

@@ -36,6 +36,7 @@ model User {
   importBatches    ImportBatch[]
   shortlists       Shortlist[]
   notifications    Notification[]
+  interviewOffers  InterviewOffer[]
 }
 
 model ExtensionAccess {
@@ -198,6 +199,7 @@ model Candidate {
   importBatchId  String?
   importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   shortlistItems ShortlistItem[]
+  interviewOffers InterviewOffer[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -346,9 +348,15 @@ model Booking {
   noticeVersion String
   status        String    @default("booked")   // booked | cancelled
   kind          String    @default("screening") // screening | interview
+  // An interview the recruiter arranged: the address when it is in person
+  // (a meeting link stays in meetingUrl), and the zone it was arranged in.
+  // Empty for one booked from the role's weekly hours, which read the role.
+  place         String?
+  timeZone      String?
   slot          BookedSlot?
   interviewSlot InterviewSlot?
   notifications Notification[]
+  interviewOffer InterviewOffer?
   createdAt     DateTime  @default(now())
 
   @@index([candidateId])
@@ -571,4 +579,26 @@ model Notification {
 
   @@index([userId, readAt])
   @@index([userId, createdAt])
+}
+
+// Two or three times the recruiter offers one candidate for a client
+// interview, without the role having weekly interview hours. The candidate's
+// interview link shows these times while the offer is open; booking one
+// closes it. A newer offer for the same candidate replaces the older.
+model InterviewOffer {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  candidateId  String
+  candidate    Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  times        String    // JSON [epoch ms], sorted
+  durationMins Int
+  timeZone     String    // the zone the times were chosen in, for showing them
+  location     String?   // a meeting link or an address
+  createdAt    DateTime  @default(now())
+  withdrawnAt  DateTime?
+  bookingId    String?   @unique
+  booking      Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([candidateId])
 }

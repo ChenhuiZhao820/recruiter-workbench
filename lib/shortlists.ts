@@ -206,7 +206,7 @@ async function visibleEntries(shortlist: { id: string; kind: string; roleId: str
         select: {
           id: true, roleId: true, personId: true, stage: true, fullName: true, headline: true,
           role: { select: { title: true, interviewLocation: true, interviewTimezone: true } },
-          bookings: { where: { kind: "interview", status: "booked" }, orderBy: { startsAt: "desc" }, select: { id: true, startsAt: true, endsAt: true, meetingUrl: true }, take: 1 },
+          bookings: { where: { kind: "interview", status: "booked" }, orderBy: { startsAt: "desc" }, select: { id: true, startsAt: true, endsAt: true, meetingUrl: true, place: true, timeZone: true }, take: 1 },
         },
       },
     },
@@ -215,11 +215,11 @@ async function visibleEntries(shortlist: { id: string; kind: string; roleId: str
   const interviews: ClientInterview[] = visible.flatMap((item) => {
     const booking = item.candidate?.bookings[0];
     if (!booking || booking.endsAt <= now) return [];
-    const where = (item.candidate!.role.interviewLocation ?? "").trim();
+    const where = (booking.place ?? item.candidate!.role.interviewLocation ?? "").trim();
     return [{
       bookingId: booking.id, itemId: item.id, candidateId: item.candidate!.id, fullName: item.person.fullName,
       startsAt: booking.startsAt, endsAt: booking.endsAt, meetingUrl: booking.meetingUrl, place: booking.meetingUrl ? null : where || null,
-      timeZone: item.candidate!.role.interviewTimezone ?? "Europe/London", roleTitle: item.candidate!.role.title,
+      timeZone: booking.timeZone ?? item.candidate!.role.interviewTimezone ?? "Europe/London", roleTitle: item.candidate!.role.title,
     }];
   }).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
   const entries: ClientShortlistEntry[] = visible

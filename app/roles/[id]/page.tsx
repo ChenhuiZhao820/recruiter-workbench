@@ -567,7 +567,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                               <ActionForm action={adoptShortlistAnswer}>
                                 <input type="hidden" name="candidateId" value={c.id} />
                                 <input type="hidden" name="itemId" value={answer.id} />
-                                <button type="submit" className="btn-quiet">{onLink.has(c.id) ? "Use this answer for the role" : "Add to this role’s client link with this answer"}</button>
+                                <button type="submit" className="btn-quiet">{onLink.has(c.id) ? "Use this answer for the role" : "Add to client link"}</button>
                               </ActionForm>
                             )}
                           </div>

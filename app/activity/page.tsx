@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getWorkspace } from "@/lib/workspace";
 import { listActivity } from "@/lib/notifications";
 import { MarkSeen } from "@/components/MarkSeen";
+import { ActionForm } from "@/components/ActionForm";
+import { adoptShortlistAnswer } from "@/app/actions/shortlists";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +20,19 @@ export default async function ActivityPage() {
   const earlier = entries.filter((entry) => !entry.unread);
 
   const list = (rows: typeof entries) => <ol className="activity-list">
-    {rows.map((entry) => <li key={entry.id}>
+    {rows.map((entry) => <li key={entry.id} className="activity-item">
       <Link href={entry.href} className={`activity-entry activity-tone-${entry.tone}${entry.unread ? " is-unread" : ""}`} data-testid="activity-entry">
         <span className="activity-dot" aria-hidden="true" />
         <span className="activity-text">{entry.unread && <span className="sr-only">New: </span>}{entry.text}</span>
         <time className="activity-when" dateTime={entry.at.toISOString()}>{when.format(entry.at)}</time>
       </Link>
+      {!readOnly && entry.adopt.length > 0 && <div className="activity-actions">
+        {entry.adopt.map((target) => <ActionForm key={target.candidateId} action={adoptShortlistAnswer}>
+          <input type="hidden" name="candidateId" value={target.candidateId} />
+          <input type="hidden" name="itemId" value={target.itemId} />
+          <button type="submit" className="btn-quiet">{entry.adopt.length > 1 ? `Add to client link · ${target.roleTitle}` : "Add to client link"}</button>
+        </ActionForm>)}
+      </div>}
     </li>)}
   </ol>;
 

@@ -505,11 +505,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   until it is next opened; only the bell counts again.
 - A role page marks the rows with news (`New`) and, for a person also on a
   custom shortlist for the same `clientKey`, shows that shortlist's newer
-  answer with "Add to this role's client link with this answer"
+  answer with "Add to client link"
   (`adoptShortlistAnswer`): it puts them on the role link with the consent
   the shortlist recorded and copies the answer, so the usual "Client wants to
   meet" and `{{interview_link}}` see it. Follow-ups lists Interview answers
   on custom shortlists not yet brought across, pointing at the matching role.
+  The same button sits on that answer's line on `/activity` (one per
+  matching role, named when there is more than one), and goes once it is used.
 - `20261021000000_client_notifications` adds the table (additive; see Hosting
   for when it was applied). It is not
   exported or imported. `tests/27-activity.spec.ts`.

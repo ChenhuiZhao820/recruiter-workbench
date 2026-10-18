@@ -43,3 +43,18 @@ export async function updateInterviewHours(_prev: FormState, formData: FormData)
   revalidatePath(`/roles/${role.id}`);
   return { notice: "Saved. Candidates the client wants to meet can now book a time with {{interview_link}}." };
 }
+
+// Whether the client reviews candidates before interviews. Off, anyone put
+// forward can book the client's interview at once, and the client's page shows
+// who is invited instead of asking for an answer.
+export async function setClientReviewFirst(formData: FormData) {
+  const user = await requireWritableFeature("clientShortlists");
+  const role = await db.role.findFirst({ where: { id: String(formData.get("roleId") ?? ""), userId: user.id }, select: { id: true } });
+  if (!role) return;
+  await db.$transaction(async (tx) => {
+    await tx.role.update({ where: { id: role.id }, data: { clientReviewFirst: formData.get("reviewFirst") === "on" } });
+    await tx.auditEvent.create({ data: { actorId: user.id, targetUserId: user.id, action: "role.client_review_changed" } });
+  });
+  revalidatePath(`/roles/${role.id}`);
+  revalidatePath("/followups");
+}

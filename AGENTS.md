@@ -354,7 +354,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Every plan (`clientShortlists` in `FEATURE_TIERS`). A role has one client
   link: a `Shortlist` of kind `role`, made the first time someone is put
   forward, listing everyone put forward on one page the client opens without
-  signing in. What is still to come (the "client reviews first" switch) is in
+  signing in. The design and its decisions are in
   `docs/plans/client-shortlist.en.md`.
 - Custom shortlists (`kind` `custom`, `app/actions/custom-shortlists.ts`):
   any people, for one client, open 60 days from creation or from "Keep open
@@ -462,8 +462,22 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   is booked. Capture never changes a stage on a client's answer: the role
   page shows it, with "Mark rejected" beside a "not for us".
 - Follow-ups lists "Client wants to meet" (only when it has anyone) for an
-  Interview answer on a role link with no message logged since and no
+  Interview answer on a role link - or, on a role that does not review first,
+  anyone on it without a "not for us" - with no message logged since and no
   interview booked; it is its own group, `m`, in the follow-up run.
+- "Before an interview" on the role's Client link (`Role.clientReviewFirst`,
+  `setClientReviewFirst`): "<client> reviews first" (the default) waits for an
+  Interview answer; "Candidates book straight away" makes being put forward
+  enough for `{{interview_link}}`, and the client's page then says who is
+  invited instead of asking (`decideShortlistItem` refuses an answer there).
+  Turning it off on a role with no interview hours opens the hours form.
+- A role link whose client wants to meet someone, on a role with no interview
+  hours, asks the client on their own page "When could you interview?"
+  (`ClientHoursPanel`, `setHoursFromClient`): Monday to Friday 09:00-17:00
+  ticked, in the client's browser time zone, 45 minutes. It is saved only
+  while the role still has none (one `updateMany` on `interviewWindows: "[]"`),
+  so it never overwrites the recruiter's hours, and writes a nameless
+  `role.interview_hours_from_client` audit event.
 - `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts`, `tests/25-named-access.spec.ts` and `tests/26-interviews.spec.ts` play the client (and the candidate) in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
 

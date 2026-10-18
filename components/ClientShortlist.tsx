@@ -1,5 +1,6 @@
 import type { ClientShortlistView } from "@/lib/shortlists";
 import { ClientDecision } from "@/components/ClientDecision";
+import { ClientHoursPanel } from "@/components/ClientHoursPanel";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { openNamedLink } from "@/app/actions/shortlist-access";
@@ -34,8 +35,11 @@ export function ClientShortlist({ view, token }: { view: ClientShortlistView; to
         <p className="client-note">
           Each person agreed to be put forward. What they told {view.recruiterName} about pay, notice,
           location and right to work is in their own words and has not been checked.
+          {!view.reviewFirst && <> Everyone here is invited to book an interview with you at a time inside your interview hours.</>}
         </p>
       </header>
+
+      {view.needsHours && token && <ClientHoursPanel token={token} recruiterName={view.recruiterName} />}
 
       {view.interviews.length > 0 && (
         <section aria-labelledby="client-interviews" className="client-interviews">
@@ -134,8 +138,18 @@ export function ClientShortlist({ view, token }: { view: ClientShortlistView; to
                 </p>
               )}
 
-              {/* Keyed by the answer, so a saved change starts the control afresh. */}
-              <ClientDecision key={`${itemId}-${decision?.decision ?? "none"}-${decision?.at.toISOString() ?? ""}`} token={token} itemId={itemId} firstName={profile.fullName.trim().split(/\s+/)[0] || profile.fullName} decision={decision} canDecide={canDecide} />
+              {view.reviewFirst ? (
+                /* Keyed by the answer, so a saved change starts the control afresh. */
+                <ClientDecision key={`${itemId}-${decision?.decision ?? "none"}-${decision?.at.toISOString() ?? ""}`} token={token} itemId={itemId} firstName={profile.fullName.trim().split(/\s+/)[0] || profile.fullName} decision={decision} canDecide={canDecide} />
+              ) : (
+                <div className="client-decision">
+                  <p className={`client-decision-status${canDecide ? "" : " is-yes"}`}>
+                    {canDecide
+                      ? <>{profile.fullName.trim().split(/\s+/)[0]} is invited to book an interview with you.</>
+                      : <>Your interview with {profile.fullName.trim().split(/\s+/)[0]} is booked.</>}
+                  </p>
+                </div>
+              )}
             </li>
           ))}
         </ol>

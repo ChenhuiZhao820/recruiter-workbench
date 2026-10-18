@@ -32,6 +32,7 @@ import { DECISION_REASON_LABELS, shortlistStatus } from "@/lib/shortlist-core.mj
 import { newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
 import { ShortlistSharing } from "@/components/ShortlistSharing";
 import { InterviewHoursForm } from "@/components/InterviewHoursForm";
+import { setClientReviewFirst } from "@/app/actions/interview-hours";
 import { interviewHoursPrefill } from "@/lib/interviews";
 import { hasInterviewHours } from "@/lib/shortlist-core.mjs";
 
@@ -362,7 +363,29 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   </>
                 )}
                 {clientList && linkStatus === "active" && interviewHours && (
-                  <InterviewHoursForm roleId={role.id} client={clientName} hours={interviewHours} saved={hasInterviewHours(role)} />
+                  <>
+                    {/* Whether the client answers before anyone books an interview. */}
+                    <div className="review-switch">
+                      <span className="text-sm font-medium">Before an interview</span>
+                      <div className="access-switch" role="group" aria-label="Before an interview">
+                        <form action={setClientReviewFirst}>
+                          <input type="hidden" name="roleId" value={role.id} />
+                          <input type="hidden" name="reviewFirst" value="on" />
+                          <button type={role.clientReviewFirst ? "button" : "submit"} className="access-option" aria-pressed={role.clientReviewFirst}>{clientName} reviews first</button>
+                        </form>
+                        <form action={setClientReviewFirst}>
+                          <input type="hidden" name="roleId" value={role.id} />
+                          <button type={role.clientReviewFirst ? "submit" : "button"} className="access-option" aria-pressed={!role.clientReviewFirst}>Candidates book straight away</button>
+                        </form>
+                      </div>
+                      <p className="text-xs text-ink-soft">
+                        {role.clientReviewFirst
+                          ? `${clientName} answers Interview or Not for us on the page, and only then can a candidate book.`
+                          : `Anyone you put forward can book ${clientName}'s interview at once; the page shows ${clientName} who is invited.`}
+                      </p>
+                    </div>
+                    <InterviewHoursForm roleId={role.id} client={clientName} hours={interviewHours} saved={hasInterviewHours(role)} open={!role.clientReviewFirst && !hasInterviewHours(role)} />
+                  </>
                 )}
                 {clientList && (
                   <p className="client-link-stats">

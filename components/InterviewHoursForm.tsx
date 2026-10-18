@@ -16,16 +16,18 @@ function summary(hours: InterviewHours) {
   return `${days.join(", ")} · ${hours.durationMins} minutes · ${hours.timeZone.replace(/_/g, " ")}`;
 }
 
-export function InterviewHoursForm({ roleId, client, hours, saved }: {
+export function InterviewHoursForm({ roleId, client, hours, saved, open = false }: {
   roleId: string;
   client: string;
   hours: InterviewHours & { from: "role" | "client" | "settings" };
   saved: boolean;
+  // Opened by the page when the next step needs the hours.
+  open?: boolean;
 }) {
   const byDay = new Map(parseWindows(hours.windows).map((window: { day: number; startMin: number; endMin: number }) => [window.day, window]));
   const zones = Array.from(new Set([hours.timeZone, ...ZONES]));
   return (
-    <details className="interview-hours">
+    <details className="interview-hours" open={open}>
       <summary>
         <span>Interview hours</span>
         <span className="text-xs text-ink-soft">{saved ? summary(hours) : `Not set yet${hours.from === "client" ? ` · ready to copy from another ${client} role` : ""}`}</span>

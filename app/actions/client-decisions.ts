@@ -24,6 +24,7 @@ export async function decideShortlistItem(_prev: FormState, formData: FormData):
   if (page.state !== "active") return { error: "This link is no longer active. Ask the recruiter who sent it for a new one." };
   const entry = page.view.entries.find((candidate) => candidate.itemId === itemId);
   if (!entry) return { error: "That person is no longer on this page." };
+  if (!page.view.reviewFirst) return { error: "Everyone here is invited to book an interview; there is nothing to answer." };
   if (!entry.canDecide) return { error: "An interview is already booked with them. Ask the recruiter to change it." };
   if (!(await takeAuthAttempt(`shortlist-decide:${page.accessId}`, 60, 3600))) return { error: "Too many changes in a short time. Wait a while and try again." };
 

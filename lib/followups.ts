@@ -24,8 +24,8 @@ export type FollowUpRow = {
 
 export type FollowUpBuckets = {
   repliedWaiting: FollowUpRow[];
-  // A client pressed Interview on their link and nobody has written to the
-  // candidate since. Leaves once a message is logged or an interview booked.
+  // A client pressed Interview on their link (or does not review first) and
+  // nobody has written to the candidate since. Leaves once a message is logged or an interview booked.
   clientWantsToMeet: FollowUpRow[];
   saidYesNeverBooked: FollowUpRow[];
   wentQuiet: FollowUpRow[];
@@ -96,7 +96,9 @@ export async function getFollowUpBuckets(): Promise<FollowUpBuckets> {
 
   const wanted = await db.shortlistItem.findMany({
     where: {
-      decision: "interview",
+      // An Interview answer - or, where the client does not review first,
+      // simply being on the link without a "not for us".
+      OR: [{ decision: "interview" }, { decision: null, shortlist: { role: { clientReviewFirst: false } } }],
       shortlist: { userId: owner.id, kind: "role", revokedAt: null },
       person: { doNotContact: false },
       candidate: {

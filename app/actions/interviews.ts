@@ -10,9 +10,9 @@ import { normalizeEmail, validEmail } from "@/lib/auth-crypto";
 import type { FormState } from "@/lib/formState";
 import { ensureCandidatePerson } from "@/lib/people";
 import { loadBookingContext, privacyNoticeText } from "@/lib/booking";
-import { interviewPlace, interviewSlots } from "@/lib/interviews";
+import { INTERVIEW_DURATIONS, interviewPlace, interviewSlots } from "@/lib/interviews";
 import { GATE_COOKIE, loadClientPage } from "@/lib/shortlists";
-import { noticeVersion } from "@/lib/booking-core.mjs";
+import { isTimeZone, noticeVersion, timeToMinutes } from "@/lib/booking-core.mjs";
 import { clientKey, interviewLinkState } from "@/lib/shortlist-core.mjs";
 import { recordUsage } from "@/lib/usage";
 
@@ -124,6 +124,47 @@ export async function clientCannotMakeIt(_prev: FormState, formData: FormData): 
     await tx.auditEvent.create({ data: { actorId: page.ownerId, targetUserId: page.ownerId, action: "booking.cancelled" } });
   });
   if (page.roleId) revalidatePath(`/roles/${page.roleId}`);
+  revalidatePath("/followups");
+  redirect(`/s/${token}`);
+}
+
+// The client sets the hours they interview in, from their own page, when the
+// role has none yet. Only ever the first set: once the role has hours, they are
+// the recruiter's to change, and this refuses rather than overwrites.
+export async function setHoursFromClient(_prev: FormState, formData: FormData): Promise<FormState> {
+  assertSameOrigin();
+  const token = String(formData.get("token") ?? "");
+  const now = new Date();
+  const page = await loadClientPage(token, now, cookies().get(GATE_COOKIE)?.value);
+  if (page.state !== "active" || !page.roleId) return { error: "This link is no longer active. Ask the recruiter who sent it for a new one." };
+  if (!page.view.needsHours) return { error: "Interview hours are already set. Ask the recruiter to change them." };
+  if (!(await takeAuthAttempt(`shortlist-decide:${page.accessId}`, 60, 3600))) return { error: "Too many changes in a short time. Wait a while and try again." };
+  const windows: { day: number; startMin: number; endMin: number }[] = [];
+  for (let day = 0; day <= 6; day++) {
+    if (formData.get(`day-${day}`) !== "on") continue;
+    const startMin = timeToMinutes(formData.get(`start-${day}`));
+    const endMin = timeToMinutes(formData.get(`end-${day}`));
+    if (startMin === null || endMin === null || startMin >= endMin) return { error: "Each ticked day needs a start time before its end time." };
+    windows.push({ day, startMin, endMin });
+  }
+  if (!windows.length) return { error: "Tick at least one day." };
+  const timeZone = String(formData.get("timeZone") ?? "").trim();
+  if (!isTimeZone(timeZone)) return { error: "Choose your time zone." };
+  const duration = Number(formData.get("durationMins"));
+  if (!INTERVIEW_DURATIONS.includes(duration)) return { error: "Choose how long an interview lasts." };
+  await db.$transaction(async (tx) => {
+    // Written only while the role still has no hours, in the same statement.
+    const { count } = await tx.role.updateMany({
+      where: { id: page.roleId!, userId: page.ownerId, interviewWindows: "[]" },
+      data: {
+        interviewWindows: JSON.stringify(windows.sort((a, b) => ((a.day + 6) % 7) - ((b.day + 6) % 7))),
+        interviewTimezone: timeZone,
+        interviewDurationMins: duration,
+      },
+    });
+    if (count) await tx.auditEvent.create({ data: { actorId: page.ownerId, targetUserId: page.ownerId, action: "role.interview_hours_from_client" } });
+  });
+  revalidatePath(`/roles/${page.roleId}`);
   revalidatePath("/followups");
   redirect(`/s/${token}`);
 }

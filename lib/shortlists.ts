@@ -5,6 +5,7 @@ import { clientProfile, type ClientProfile } from "./client-profile";
 import {
   accessOpens,
   canDecide,
+  hasInterviewHours,
   readGateCookie,
   hasPriorConsent,
   itemVisible,
@@ -185,6 +186,12 @@ export type ClientShortlistView = {
   recruiterName: string;
   entries: ClientShortlistEntry[];
   interviews: ClientInterview[];
+  // Whether the client answers before interviews. A custom shortlist always
+  // asks; a role's link stops asking when the recruiter turns review off.
+  reviewFirst: boolean;
+  // A role link whose client wants to meet someone, on a role with no
+  // interview hours yet: the client is offered to set their own.
+  needsHours: boolean;
 };
 
 // The entries a client sees, read live: whoever has since become do not
@@ -232,6 +239,14 @@ function recruiterName(settings: { recruiterName: string } | null, owner: { name
   return settings?.recruiterName.trim() || owner.name;
 }
 
+type RoleChoices = { clientReviewFirst: boolean; interviewWindows: string; interviewTimezone: string | null; interviewDurationMins: number | null } | null;
+
+function clientChoices(role: RoleChoices, entries: ClientShortlistEntry[]) {
+  const reviewFirst = role ? role.clientReviewFirst : true;
+  const wanted = reviewFirst ? entries.some((entry) => entry.decision?.decision === "interview") : entries.length > 0;
+  return { reviewFirst, needsHours: Boolean(role) && wanted && !hasInterviewHours(role!) };
+}
+
 export type ClientPage =
   | { state: "active"; accessId: string; ownerId: string; shortlistId: string; roleId: string | null; view: ClientShortlistView }
   // A named link whose browser has not confirmed the email yet.
@@ -249,7 +264,7 @@ export async function loadClientPage(token: string, now = new Date(), gateCookie
     include: {
       shortlist: {
         include: {
-          role: { select: { id: true, title: true, status: true, userId: true } },
+          role: { select: { id: true, title: true, status: true, userId: true, clientReviewFirst: true, interviewWindows: true, interviewTimezone: true, interviewDurationMins: true } },
           user: { select: { id: true, name: true, active: true, settings: { select: { recruiterName: true } } } },
         },
       },
@@ -271,6 +286,7 @@ export async function loadClientPage(token: string, now = new Date(), gateCookie
   if (access.email && !readGateCookie(shortlistSecret(), access.id, access.nonce, gateCookie, now)) {
     return { state: "gate", accessId: access.id, recruiterName: name };
   }
+  const visible = await visibleEntries(shortlist, now);
   return {
     state: "active",
     accessId: access.id,
@@ -281,8 +297,9 @@ export async function loadClientPage(token: string, now = new Date(), gateCookie
       title: shortlist.title,
       client: shortlist.client,
       roleTitle: shortlist.role?.title ?? null,
+      ...clientChoices(shortlist.role, visible.entries),
       recruiterName: name,
-      ...(await visibleEntries(shortlist, now)),
+      ...visible,
     },
   };
 }
@@ -304,19 +321,21 @@ export async function loadPreview(shortlistId: string, ownerId: string, now = ne
   const shortlist = await db.shortlist.findFirst({
     where: { id: shortlistId, userId: ownerId },
     include: {
-      role: { select: { id: true, title: true, status: true, userId: true } },
+      role: { select: { id: true, title: true, status: true, userId: true, clientReviewFirst: true, interviewWindows: true, interviewTimezone: true, interviewDurationMins: true } },
       user: { select: { name: true, settings: { select: { recruiterName: true } } } },
     },
   });
   if (!shortlist) return null;
+  const visible = await visibleEntries(shortlist, now);
   return {
     status: shortlistStatus(shortlist, shortlist.role, now),
     view: {
       title: shortlist.title,
       client: shortlist.client,
       roleTitle: shortlist.role?.title ?? null,
+      ...clientChoices(shortlist.role, visible.entries),
       recruiterName: recruiterName(shortlist.user.settings, shortlist.user),
-      ...(await visibleEntries(shortlist, now)),
+      ...visible,
     },
   };
 }

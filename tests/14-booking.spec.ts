@@ -327,3 +327,51 @@ test("B8 a person's page lists their calls: upcoming, done and cancelled, with a
     await db.session.update({ where: { tokenHash: hashToken(token) }, data: { viewUserId: null } });
   }
 });
+
+// A slow connection lets the candidate press Book before React has hydrated,
+// and the browser then posts the form itself. That post must carry this site's
+// origin, so the page's referrer policy cannot be no-referrer: under it Chrome
+// sends `Origin: null`, which Next 14 cannot parse and answers with a 500.
+test("B9 booking works before the page's script has loaded, and a post from nowhere or elsewhere is refused with a 403", async ({ browser }) => {
+  const candidate = await candidateOn(roleId, "Ottoline Varga-Brennan");
+  const token = bookingToken(SECRET, candidate.id);
+  const context = await browser.newContext({ baseURL: BASE, storageState: { cookies: [], origins: [] }, javaScriptEnabled: false });
+  const page = await context.newPage();
+  try {
+    const sent: (string | null)[] = [];
+    page.on("request", (request) => { if (request.method() === "POST") sent.push(request.headers()["origin"] ?? null); });
+    // Nothing leaves for another site, but this site's own posts keep their origin.
+    const opened = await page.goto(`/book/${token}`);
+    expect(opened!.headers()["referrer-policy"]).toBe("same-origin");
+    await expect(page.locator('meta[name="referrer"]')).toHaveAttribute("content", "same-origin");
+    await page.locator(".booking-slot").first().click();
+    await page.getByLabel("Email address").fill("ottoline@example.test");
+    await page.getByLabel(/I have read how my details are used/).check();
+    await page.getByRole("button", { name: "Book this call" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "You are booked in, Ottoline" })).toBeVisible();
+    expect(sent).toEqual([BASE]);
+    expect(await db.booking.count({ where: { candidateId: candidate.id, status: "booked" } })).toBe(1);
+
+    // The same native post - the fields the page's form would send - from an
+    // opaque origin or another site is turned away with a 403 and books nothing.
+    const other = await candidateOn(roleId, "Bartholomew Nakashima");
+    const otherPath = `/book/${bookingToken(SECRET, other.id)}`;
+    await page.goto(otherPath);
+    const fields: Record<string, string> = { email: "bartholomew@example.test", mode: "video", consent: "on" };
+    for (const input of await page.locator("form.booking-form input[type=hidden]").all()) {
+      fields[(await input.getAttribute("name"))!] = (await input.getAttribute("value")) ?? "";
+    }
+    fields.slot = (await page.locator(".booking-slot input").first().getAttribute("value"))!;
+    for (const origin of ["null", "https://elsewhere.example"]) {
+      const response = await page.request.post(otherPath, { multipart: fields, headers: { origin }, maxRedirects: 0 });
+      expect(response.status()).toBe(403);
+      expect(await response.text()).toContain("did not come from this site");
+    }
+    // The control: the same fields from this site's own origin do book.
+    const own = await page.request.post(otherPath, { multipart: fields, headers: { origin: BASE }, maxRedirects: 0 });
+    expect(own.status()).toBeLessThan(400);
+    expect(await db.booking.count({ where: { candidateId: other.id } })).toBe(1);
+  } finally {
+    await context.close();
+  }
+});

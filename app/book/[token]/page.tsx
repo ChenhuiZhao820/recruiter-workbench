@@ -11,7 +11,9 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Book a call",
   robots: { index: false, follow: false },
-  referrer: "no-referrer",
+  // same-origin, not no-referrer: under no-referrer Chrome posts the form with
+  // `Origin: null`, which Next cannot parse. Other sites still get no referrer.
+  referrer: "same-origin",
 };
 
 function Shell({ children }: { children: React.ReactNode }) {

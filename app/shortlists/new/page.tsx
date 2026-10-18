@@ -80,7 +80,9 @@ export default async function NewShortlistPage({ searchParams }: { searchParams:
               : "A page of people you would like one client to meet, which they open without signing in. It stays open for 60 days unless you keep it open longer."}
           </p>
         </div>
-        <Link href="/shortlists" className="btn-quiet">Back to shortlists</Link>
+        {adding
+          ? <Link href="/shortlists" className="btn-quiet">Back to shortlists</Link>
+          : <Link href="/people" className="btn-quiet">Back to People</Link>}
       </header>
 
       {!adding && limit !== null && (
@@ -136,7 +138,7 @@ export default async function NewShortlistPage({ searchParams }: { searchParams:
         </h2>
         {chosen.length === 0 ? (
           <p className="text-ink-soft">
-            No one yet. Find people above, or start from <Link href="/people" className="underline">People</Link>, a person&rsquo;s page or a role.
+            No one yet. Find people above by name or headline.
           </p>
         ) : !client ? (
           <p className="text-ink-soft">Say which client this is for, then press Find and update, so Capture can check who already agreed to be put forward to them.</p>

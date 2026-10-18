@@ -45,7 +45,7 @@ async function candidateOn(fullName: string, stage = "screened") {
 }
 
 async function linkIn(page: Page) {
-  const body = await page.getByLabel("Message to send them").inputValue();
+  const body = await page.getByLabel("Email", { exact: true }).inputValue();
   const found = body.match(/http:\/\/localhost:3100\/book\/\S+/);
   expect(found, body).not.toBeNull();
   return found![0];
@@ -89,7 +89,11 @@ test("R1 a shortlist answer: the row offers Arrange interview, setting the agree
     const booked = page.getByRole("region", { name: "Interview booked" });
     await expect(booked).toContainText("14:30 (London time)");
     await expect(booked).toContainText("https://meet.example.com/fernmoor");
-    await expect(page.getByLabel("Message to send them")).toHaveValue(/The interview is booked for .* at 14:30 \(London time\)\./);
+    await expect(page.getByLabel("Email", { exact: true })).toHaveValue(/The interview is booked for .* at 14:30 \(London time\)\./);
+    // Told by email, from the recruiter's own inbox: a mailto: with the subject and body, nothing sent by Capture.
+    await expect(page.getByLabel("Subject")).toHaveValue("Your interview with Fernmoor Ltd: Arrange Test Data Lead");
+    await page.getByLabel("Tomasz’s email address").fill("tomasz@private.example");
+    await expect(page.getByRole("link", { name: "Open in email" })).toHaveAttribute("href", /^mailto:tomasz@private\.example\?subject=Your%20interview%20with%20Fernmoor%20Ltd/);
     await page.screenshot({ path: testInfo.outputPath("arrange-booked.png"), fullPage: true });
 
     const booking = await db.booking.findFirstOrThrow({ where: { candidateId: candidate.id, kind: "interview", status: "booked" } });
@@ -121,6 +125,9 @@ test("R1 a shortlist answer: the row offers Arrange interview, setting the agree
     // Sending the message is the recruiter's; Capture records it when told.
     await page.getByRole("button", { name: "Mark as sent" }).click();
     await expect.poll(() => db.outreachLog.count({ where: { candidateId: candidate.id } })).toBe(1);
+    expect((await db.outreachLog.findFirstOrThrow({ where: { candidateId: candidate.id } })).renderedBody).toMatch(/^Your interview with Fernmoor Ltd: Arrange Test Data Lead\n\nHi Tomasz,/);
+    // The address typed was only for the mailto: link, never stored.
+    expect((await db.person.findUniqueOrThrow({ where: { id: person.id } })).email).toBeNull();
     // The row no longer offers to arrange it.
     await page.goto(`/roles/${roleId}`);
     const row = page.locator("li.card", { hasText: "Tomasz Wierzbicki" });
@@ -150,7 +157,8 @@ test("R2 offering times: the candidate's link shows exactly those, the pick is b
     const waiting = page.getByRole("region", { name: "Waiting for Ines to choose" });
     await expect(waiting.getByRole("list", { name: "Times offered" }).locator("li")).toHaveCount(2);
     await expect(waiting).toContainText("16:15 (London time)");
-    await expect(page.getByLabel("Message to send them")).toHaveValue(/pick the time that suits you best here\?/);
+    await expect(page.getByLabel("Email", { exact: true })).toHaveValue(/pick the time that suits you best here\?/);
+    await expect(page.getByLabel("Subject")).toHaveValue("Interview with Fernmoor Ltd: please choose a time");
     await page.screenshot({ path: testInfo.outputPath("arrange-offered.png"), fullPage: true });
     await page.goto(`/roles/${roleId}`);
     await expect(page.locator("li.card", { hasText: "Ines Halloran" }).getByText("Times offered, waiting for Ines")).toBeVisible();

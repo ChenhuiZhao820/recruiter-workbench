@@ -1318,8 +1318,6 @@ label > .im-editor-note { margin-top: 6px; }
 .arrange-facts dd { margin-top: 4px; overflow-wrap: anywhere; }
 .arrange-times { display: grid; gap: 6px; font-weight: 500; }
 .arrange-times li::before { content: "·"; margin-right: 8px; color: var(--color-accent); }
-.arrange-message { display: grid; gap: 8px; }
-.arrange-message-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .arrange-blocked { max-width: 660px; padding: 10px 14px; border: 1px solid rgb(180 83 9 / .28); border-radius: 6px; background: rgb(255 251 235); color: rgb(120 53 15); font-size: 13px; }
 @media (max-width: 760px) {
   .arrange-choices, .arrange-facts { grid-template-columns: minmax(0, 1fr); }

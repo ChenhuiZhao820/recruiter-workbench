@@ -3,21 +3,35 @@
 import { useState } from "react";
 import { normalizeMessage } from "@/lib/render";
 import { mailtoHref, mailtoSubjectOnly } from "@/lib/client-email";
+import { markAsSent } from "@/app/actions/outreach";
 
-// The email to the client, editable, and two ways out of Capture with it:
-// open it in the recruiter's own email app, or copy it. Capture never sends
-// it. The recipient is typed here only to fill the mailto: address; the field
-// has no name, so it is never submitted or stored.
+// An email, editable, and two ways out of Capture with it: open it in the
+// recruiter's own email app, or copy it. Capture never sends it. The recipient
+// is typed (or filled from what Capture knows) only to build the mailto:
+// address; the field has no name, so it is never submitted or stored. Used for
+// the email to the client, and for the one telling a candidate about their
+// interview, which is also recorded in their outreach when marked as sent.
 export function ClientEmailComposer({
   initialSubject,
   initialBody,
   disabled = false,
+  idPrefix = "client-email",
+  recipientLabel = "Client’s email address",
+  initialRecipient = "",
+  rows = 20,
+  recordFor,
 }: {
   initialSubject: string;
   initialBody: string;
   disabled?: boolean;
+  idPrefix?: string;
+  recipientLabel?: string;
+  initialRecipient?: string;
+  rows?: number;
+  // A candidate whose outreach records this email when it is marked as sent.
+  recordFor?: { candidateId: string; lastSent: string | null };
 }) {
-  const [recipient, setRecipient] = useState("");
+  const [recipient, setRecipient] = useState(initialRecipient);
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState(initialBody);
   const [status, setStatus] = useState<string | null>(null);
@@ -39,32 +53,32 @@ export function ClientEmailComposer({
     <div className="client-email">
       <div className="client-email-fields">
         <div>
-          <label htmlFor="client-email-to" className="field-label">Client&rsquo;s email address</label>
+          <label htmlFor={`${idPrefix}-to`} className="field-label">{recipientLabel}</label>
           <input
-            id="client-email-to"
+            id={`${idPrefix}-to`}
             type="email"
             autoComplete="email"
             value={recipient}
             onChange={(event) => setRecipient(event.target.value)}
             className="field-input"
-            aria-describedby="client-email-to-help"
+            aria-describedby={`${idPrefix}-to-help`}
           />
-          <p id="client-email-to-help" className="mt-2 text-xs text-ink-soft">Only used to open your email app. Not saved.</p>
+          <p id={`${idPrefix}-to-help`} className="mt-2 text-xs text-ink-soft">Only used to open your email app. Not saved.</p>
         </div>
         <div>
-          <label htmlFor="client-email-subject" className="field-label">Subject</label>
-          <input id="client-email-subject" value={subject} onChange={(event) => setSubject(event.target.value)} className="field-input" />
+          <label htmlFor={`${idPrefix}-subject`} className="field-label">Subject</label>
+          <input id={`${idPrefix}-subject`} value={subject} onChange={(event) => setSubject(event.target.value)} className="field-input" />
         </div>
       </div>
 
       <div>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <label htmlFor="client-email-body" className="field-label">Email</label>
+          <label htmlFor={`${idPrefix}-body`} className="field-label">Email</label>
           <span className="font-mono text-xs tabular text-ink-soft">{message.length} characters</span>
         </div>
         <textarea
-          id="client-email-body"
-          rows={20}
+          id={`${idPrefix}-body`}
+          rows={rows}
           value={body}
           onChange={(event) => setBody(event.target.value)}
           onPaste={(event) => {
@@ -96,7 +110,15 @@ export function ClientEmailComposer({
         <button type="button" className="btn-secondary" disabled={disabled} onClick={() => copy(message, "Email copied.")}>
           Copy email
         </button>
-        <p role="status" aria-live="polite" className="text-xs text-ink-soft">{status ?? ""}</p>
+        {recordFor && (
+          // Only our own record: the email went from the recruiter's own inbox.
+          <form action={markAsSent} onSubmit={() => setStatus("Recorded as sent.")}>
+            <input type="hidden" name="candidateId" value={recordFor.candidateId} />
+            <input type="hidden" name="renderedBody" value={`${subject.trim()}\n\n${message}`} />
+            <button type="submit" className="btn-secondary" disabled={disabled || !message}>Mark as sent</button>
+          </form>
+        )}
+        <p role="status" aria-live="polite" className="text-xs text-ink-soft">{status ?? (recordFor?.lastSent ? `Last message logged ${recordFor.lastSent}.` : "")}</p>
       </div>
     </div>
   );

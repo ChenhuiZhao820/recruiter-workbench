@@ -6,15 +6,13 @@ import { loadArrangement } from "@/lib/arrange";
 import { interviewLink } from "@/lib/interviews";
 import { formatWhen } from "@/lib/dates";
 import { factDate } from "@/lib/fact-labels";
-import { messageComposeUrl } from "@/lib/linkedin";
-import { profileHref } from "@/lib/urls";
 import { ARRANGE_DURATIONS, ARRANGE_ZONES, MAX_OFFER_TIMES, arrangeMessage, tomorrowIn, whenText } from "@/lib/arrange-core.mjs";
 import { offerInterviewTimes, setInterviewTime, withdrawInterviewOffer } from "@/app/actions/arrange-interview";
 import { cancelBooking } from "@/app/actions/booking";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
-import { ArrangeMessage } from "@/components/ArrangeMessage";
+import { ClientEmailComposer } from "@/components/ClientEmailComposer";
 
 export const dynamic = "force-dynamic";
 
@@ -65,20 +63,21 @@ export default async function ArrangeInterviewPage({ params }: { params: { id: s
   const location = candidate.role.interviewLocation ?? settings.meetingLink ?? "";
   const day = tomorrowIn(zone, now);
   const link = interviewLink(candidate.id, now) ?? "";
-  const compose = messageComposeUrl(candidate.memberId);
-  const openUrl = compose || profileHref(candidate.profileUrl) || "";
   const lastSent = candidate.outreach[0] ? formatWhen(candidate.outreach[0].sentAt) : null;
   const backHref = `/roles/${candidate.role.id}#candidate-${candidate.id}`;
   const openOffer = offer && offer.open.length ? offer : null;
 
   const message = (kind: "booked" | "offered", when?: string) => (
-    <ArrangeMessage
+    <ClientEmailComposer
       key={`${kind}-${booking?.id ?? openOffer?.offer.id ?? ""}`}
-      candidateId={candidate.id}
+      idPrefix="candidate-email"
+      recipientLabel={`${firstName}’s email address`}
+      initialRecipient={candidate.person?.email ?? ""}
+      initialSubject={kind === "booked" ? `Your interview with ${client}: ${candidate.role.title}` : `Interview with ${client}: please choose a time`}
       initialBody={arrangeMessage({ kind, firstName, client, roleTitle: candidate.role.title, when, link, recruiterName })}
-      openUrl={openUrl}
-      opensMessageBox={Boolean(compose)}
-      lastSent={lastSent}
+      rows={12}
+      disabled={readOnly}
+      recordFor={{ candidateId: candidate.id, lastSent }}
     />
   );
 
@@ -107,7 +106,7 @@ export default async function ArrangeInterviewPage({ params }: { params: { id: s
             <div><dt>Length</dt><dd>{Math.round((booking.endsAt.getTime() - booking.startsAt.getTime()) / 60_000)} minutes</dd></div>
             <div><dt>Where</dt><dd>{booking.meetingUrl ?? booking.place ?? candidate.role.interviewLocation ?? "To be confirmed"}</dd></div>
           </dl>
-          <p className="text-sm text-ink-soft">{client} sees it on their page, with a calendar file. Let {firstName} know:</p>
+          <p className="text-sm text-ink-soft">{client} sees it on their page, with a calendar file. Let {firstName} know by email:</p>
           {message("booked", whenText(booking.startsAt.getTime(), booking.timeZone ?? zone))}
           <form action={cancelBooking}>
             <input type="hidden" name="bookingId" value={booking.id} />
@@ -121,7 +120,7 @@ export default async function ArrangeInterviewPage({ params }: { params: { id: s
             {openOffer.open.map((at) => <li key={at}>{whenText(at, openOffer.offer.timeZone)}</li>)}
           </ul>
           <p className="text-sm text-ink-soft">
-            {openOffer.offer.durationMins} minutes{openOffer.offer.location ? `, ${openOffer.offer.location}` : ""}. Send {firstName} this message; the link shows these times, and the one they pick is booked straight away and appears on {client}&rsquo;s page.
+            {openOffer.offer.durationMins} minutes{openOffer.offer.location ? `, ${openOffer.offer.location}` : ""}. Email {firstName}; the link in it shows these times, and the one they pick is booked straight away and appears on {client}&rsquo;s page.
           </p>
           {message("offered")}
           <div className="flex flex-wrap items-center gap-2">

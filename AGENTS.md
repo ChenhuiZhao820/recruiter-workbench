@@ -539,9 +539,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   clashing); booking one claims the offer by its state (`bookingId`), and a
   set time or a new offer withdraws an open one. Offered times must be two
   hours ahead at least.
-- After either, the message to the candidate is ready on the page
-  (`ArrangeMessage`, `arrangeMessage`): editable, copied with LinkedIn
-  opened in one click, recorded by Mark as sent through `markAsSent`. Capture
+- After either, the email to the candidate is ready on the page, the same
+  composer as the client email (`ClientEmailComposer`, body from
+  `arrangeMessage`): the address Capture has for them filled in but not a
+  form field, subject and body editable, "Open in email" a `mailto:` (past
+  `MAILTO_LIMIT` the subject only, with the body copied), and Mark as sent
+  recording subject and body in their outreach through `markAsSent`. Capture
   sends nothing, to the candidate or the client. Cancel the interview is the
   existing `cancelBooking`; "Withdraw these times" closes an offer.
 - `20261022000000_interview_offers` adds `InterviewOffer` and the nullable

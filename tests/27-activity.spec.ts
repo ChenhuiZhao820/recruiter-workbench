@@ -2,11 +2,12 @@ import { test, expect, type Browser } from "@playwright/test";
 import { randomBytes, randomUUID } from "node:crypto";
 import { db } from "./helpers";
 import { hashToken } from "../lib/auth-crypto";
-import { CURRENT_RELEASE } from "../lib/release";
+import { CURRENT_RELEASE, RELEASES, currentRelease } from "../lib/release";
 import { newNonce, shortlistToken } from "../lib/shortlist-core.mjs";
 
-// Activity: what a client does on a link reaches the recruiter as a red count
-// on the bell, a New mark on the row, and a line on /activity. A fresh account
+// Notifications: what a client does on a link reaches the recruiter as a red
+// count on the bell, a New mark on the row, and a line on /notifications, as
+// does each new version of Capture. A fresh account
 // of its own keeps the counts exact; fictional people, disposable database.
 
 test.describe.configure({ mode: "serial" });
@@ -78,7 +79,7 @@ test("A1 a client opening the link and answering shows on the bell, the row and 
     await me.page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
     await expect(bell).toHaveAttribute("data-unread", "2");
     await expect(bell.locator(".unread-badge")).toHaveText("2");
-    await expect(me.page.locator(".nav-item", { hasText: "Activity" }).locator(".unread-badge")).toHaveText("2");
+    await expect(me.page.locator(".nav-item", { hasText: "Notifications" }).locator(".unread-badge")).toHaveText("2");
     await me.page.locator(".workspace-topbar").screenshot({ path: testInfo.outputPath("activity-bell.png") });
 
     // The row says what is new, and opening the role is reading it.
@@ -89,12 +90,16 @@ test("A1 a client opening the link and answering shows on the bell, the row and 
     await expect(bell).toHaveAttribute("data-unread", "0");
     expect(await db.notification.count({ where: { userId, readAt: null } })).toBe(0);
 
-    await me.page.goto("/activity");
+    await me.page.goto("/notifications");
     const entries = me.page.getByTestId("activity-entry");
     await expect(entries).toHaveCount(2);
     await expect(entries.first()).toContainText("Brightwater Group Ltd wants to meet Saoirse Okonkwo (Activity Test Analytics Lead)");
     await expect(entries.nth(1)).toContainText("opened Activity Test Analytics Lead for the first time");
     await expect(me.page.locator(".activity-entry.is-unread")).toHaveCount(0);
+    // Activity was renamed; an address kept from before still arrives.
+    await me.page.goto("/activity");
+    await expect(me.page).toHaveURL(`${BASE}/notifications`);
+    await expect(me.page.getByRole("heading", { level: 1 })).toHaveText("Notifications");
   } finally {
     await me.close();
   }
@@ -109,7 +114,7 @@ test("A2 rendering is not reading: Activity marks only once on screen, and the c
     const response = await me.page.request.get("/api/notifications/unread");
     expect(await response.json()).toEqual({ unread: 1 });
     expect(await db.notification.count({ where: { userId, readAt: null } })).toBe(1);
-    await me.page.goto("/activity");
+    await me.page.goto("/notifications");
     const fresh = me.page.locator(".activity-entry.is-unread");
     await expect(fresh).toHaveCount(1);
     await expect(fresh).toContainText("Brightwater Group Ltd set their interview hours for Activity Test Analytics Lead");
@@ -180,7 +185,7 @@ test("A4 a read-only view shows the count but marks nothing as read", async ({ b
   await context.addCookies([{ name: "capture_session", value: token, domain: "localhost", path: "/", httpOnly: true, secure: false, sameSite: "Lax" }]);
   try {
     const page = await context.newPage();
-    await page.goto("/activity");
+    await page.goto("/notifications");
     await expect(page.locator(".activity-entry.is-unread")).toHaveCount(1);
     await page.goto(`/roles/${roleId}`);
     await expect(page.locator(".activity-bell")).toHaveAttribute("data-unread", "1");
@@ -208,7 +213,7 @@ test("A5 a shortlist answer is brought onto the role from its line on Activity, 
   }
   const me = await recruiter(browser);
   try {
-    await me.page.goto("/activity");
+    await me.page.goto("/notifications");
     const line = me.page.locator(".activity-item", { hasText: "wants to meet Ines Halvorsen" });
     // The open of the link is news too, but only the answer can be brought across.
     await expect(me.page.locator(".activity-item", { hasText: "opened More analytics people" }).getByRole("button")).toHaveCount(0);
@@ -219,5 +224,58 @@ test("A5 a shortlist answer is brought onto the role from its line on Activity, 
     expect(onRole.candidateId).toBe(candidate.id);
   } finally {
     await me.close();
+  }
+});
+
+test("A6 a new version is a notification: counted on the bell until Got it, with What's new and, when needed, the extension", async ({ browser }) => {
+  // Newest first, one per day, so "current" and "since the account was made" mean what they say.
+  expect(RELEASES.map((release) => release.id)).toEqual([...RELEASES.map((release) => release.id)].sort().reverse());
+  expect(currentRelease.id).toBe(CURRENT_RELEASE);
+  const oldest = RELEASES[RELEASES.length - 1].id;
+  const established = (await db.user.create({ data: {
+    email: `release-note-${randomUUID()}@test.capture.invalid`, name: "Release Recruiter", role: "recruiter",
+    createdAt: new Date(`${oldest}T00:00:00Z`),
+    settings: { create: { recruiterName: "Release Recruiter", seenRelease: oldest === CURRENT_RELEASE ? null : oldest } },
+    extensionAccess: { create: { activatedAt: new Date() } },
+  } })).id;
+  const token = randomBytes(32).toString("base64url");
+  await db.session.create({ data: { tokenHash: hashToken(token), userId: established, authVersion: 0, expiresAt: new Date(Date.now() + 3_600_000) } });
+  const context = await browser.newContext({ baseURL: BASE, storageState: { cookies: [], origins: [] } });
+  await context.addCookies([{ name: "capture_session", value: token, domain: "localhost", path: "/", httpOnly: true, secure: false, sameSite: "Lax" }]);
+  try {
+    const page = await context.newPage();
+    expect(await (await page.request.get("/api/notifications/unread")).json()).toEqual({ unread: 1 });
+    await page.goto("/notifications");
+    await expect(page.getByText("What your clients did on the links you sent them")).toHaveCount(0);
+    await expect(page.locator(".activity-bell")).toHaveAttribute("data-unread", "1");
+    const releases = page.getByTestId("release-entry");
+    await expect(releases).toHaveCount(RELEASES.length);
+    const current = page.locator(`[data-release="${CURRENT_RELEASE}"]`);
+    await expect(current.locator(".activity-entry.is-unread")).toContainText(currentRelease.title);
+    // Only the current release links to What's new and offers the download.
+    await expect(page.getByRole("link", { name: "See what’s new" })).toHaveCount(1);
+    await expect(page.getByRole("link", { name: /Download the new extension/ })).toHaveCount(currentRelease.extension ? 1 : 0);
+    await expect(current.getByText("generate a new capture key")).toHaveCount(currentRelease.extension ? 1 : 0);
+    if (currentRelease.extension) await expect(current.getByRole("link", { name: /Download the new extension/ })).toHaveAttribute("href", "/api/extension/download");
+    // Opening Notifications is not reading the release.
+    await page.reload();
+    await expect(current.locator(".activity-entry.is-unread")).toHaveCount(1);
+    expect((await db.settings.findUniqueOrThrow({ where: { userId: established } })).seenRelease).not.toBe(CURRENT_RELEASE);
+
+    await current.getByRole("link", { name: "See what’s new" }).click();
+    await expect(page).toHaveURL(`${BASE}/whats-new`);
+    await page.getByRole("button", { name: "Got it" }).click();
+    await expect(page).toHaveURL(`${BASE}/`);
+    await expect(page.locator(".activity-bell")).toHaveAttribute("data-unread", "0");
+    await page.goto("/notifications");
+    await expect(page.locator(`[data-release="${CURRENT_RELEASE}"] .activity-entry.is-unread`)).toHaveCount(0);
+
+    // An account made after a release is not told about it.
+    await db.user.update({ where: { id: established }, data: { createdAt: new Date(`${CURRENT_RELEASE}T12:00:00Z`) } });
+    await page.reload();
+    await expect(page.getByTestId("release-entry")).toHaveCount(1);
+  } finally {
+    await context.close();
+    await db.session.deleteMany({ where: { userId: established } });
   }
 });

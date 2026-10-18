@@ -205,7 +205,7 @@ export async function deleteShortlists(_prev: FormState, formData: FormData): Pr
     return count;
   });
   revalidatePath("/shortlists");
-  revalidatePath("/activity");
+  revalidatePath("/notifications");
   if (!deleted) return { error: "Only closed or expired shortlists can be deleted. Close it first." };
   return { notice: deleted === 1 ? "Deleted 1 shortlist." : `Deleted ${deleted} shortlists.` };
 }

@@ -3,6 +3,9 @@ import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
 import { activeShortlistLimit } from "@/lib/features";
 import { dismissRelease } from "@/app/actions/release";
+import { currentRelease } from "@/lib/release";
+import { canUseExtension } from "@/lib/extension-access";
+import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +17,8 @@ export default async function WhatsNewPage() {
   const { owner, readOnly } = await getWorkspace();
   const limit = activeShortlistLimit(owner);
   const openRole = await db.role.findFirst({ where: { userId: owner.id, status: "open" }, orderBy: { updatedAt: "desc" }, select: { id: true, title: true } });
+  const access = currentRelease.extension ? await db.extensionAccess.findUnique({ where: { userId: owner.id }, select: { activatedAt: true } }) : null;
+  const canDownload = !readOnly && canUseExtension({ ...owner, extensionAccess: access });
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 max-w-3xl">
@@ -81,9 +86,25 @@ export default async function WhatsNewPage() {
         </li>
       </ol>
 
-      <p className="mt-6 text-sm text-ink-soft">
-        No new copy of the browser extension is needed this time.
-      </p>
+      {currentRelease.extension ? (
+        <div className="mt-6 card space-y-2">
+          <h2 className="text-lg">This version needs a new copy of the browser extension</h2>
+          <p className="text-ink/80">
+            Chrome does not update an extension you loaded yourself. Download the new copy, load it in{" "}
+            <code className="font-mono">chrome://extensions</code>, then generate a new capture key in{" "}
+            <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension.
+          </p>
+          {canDownload && (
+            <p>
+              <a href="/api/extension/download" download className="btn-quiet">Download the new extension<Icon name="down" size={15} /></a>
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="mt-6 text-sm text-ink-soft">
+          No new copy of the browser extension is needed this time.
+        </p>
+      )}
       {!readOnly && (
         <form action={dismissRelease} className="mt-6">
           <button type="submit" className="btn-primary">

@@ -17,7 +17,7 @@ const navigation = [
   { href: "/searches", label: "Searches", icon: "search" },
   { href: "/templates", label: "Templates", icon: "message" },
   { href: "/followups", label: "Follow-ups", icon: "clock" },
-  { href: "/activity", label: "Activity", icon: "bell" },
+  { href: "/notifications", label: "Notifications", icon: "bell" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ] as const;
 
@@ -87,7 +87,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
         <div className="workspace-switcher"><span className="workspace-symbol"><Icon name="grid" size={17} /></span><div><strong>{viewing ? viewing.name : "My workspace"}</strong><span>{viewing ? "Read-only view" : "Recruiting, in focus"}</span></div><Icon name="lock" size={14} /></div>
         <p className="nav-label">Workspace</p>
         <nav aria-label="Main" className="workspace-navigation">
-          {items.map((item) => <Link key={item.href} href={item.href} className={active(item.href) ? "nav-item is-active" : "nav-item"} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} size={19} /><span>{item.label}</span>{item.href === "/activity" && <UnreadBadge count={unread} />}{active(item.href) && <span className="nav-active-dot" aria-hidden="true" />}</Link>)}
+          {items.map((item) => <Link key={item.href} href={item.href} className={active(item.href) ? "nav-item is-active" : "nav-item"} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} size={19} /><span>{item.label}</span>{item.href === "/notifications" && <UnreadBadge count={unread} />}{active(item.href) && <span className="nav-active-dot" aria-hidden="true" />}</Link>)}
           {user.role === "admin" && <><p className="nav-label admin-nav-label">Administration</p><Link href="/admin" className={pathname.startsWith("/admin") ? "nav-item is-active" : "nav-item"} aria-current={pathname.startsWith("/admin") ? "page" : undefined}><Icon name="shield" size={19} /><span>Accounts</span></Link></>}
         </nav>
         <div className="sidebar-bottom">

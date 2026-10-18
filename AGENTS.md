@@ -233,9 +233,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 ## Telling people what changed
 
-- There is one current release, not an archive: `CURRENT_RELEASE` in
-  `lib/release.ts` and the `/whats-new` page that describes it. Bumping the id
-  and rewriting the page is the whole of "tell everyone again". Keep it coarse -
+- There is one current release with a page: `RELEASES[0]` in `lib/release.ts`
+  (`CURRENT_RELEASE` is its id) and the `/whats-new` page that describes it.
+  Adding a release to the front of `RELEASES` and rewriting the page is the
+  whole of "tell everyone again". Earlier entries keep only their one-line
+  title, and set `extension` when that release needed a new copy of the
+  extension. Keep it coarse -
   a notice that fires for changes nobody has to act on gets dismissed unread,
   and it is the only channel that reaches a recruiter who does not read this
   repository.
@@ -245,6 +248,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   setting up goes to the guide instead, because what changed since a version
   they never used is not news. An account already signed in gets one "What's
   new" link in the workspace top bar until they read it.
+- Every release is also a line on Notifications (`releaseNotices`), for the
+  releases shipped since the account was created. Only the current one can be
+  unread, by the same rule (`releaseIsNews` in `lib/onboarding.ts`), and it
+  counts one on the bell, in the layout and in `GET /api/notifications/unread`
+  alike, never for a read-only view. Its line links to `/whats-new`; when it
+  needs a new extension it also offers the download (only to an account that
+  may download, never a read-only view) and says to generate a new capture key
+  in Settings after loading it. Opening Notifications does not read a release;
+  Got it on What's new does, as before.
 - Reading is recorded when the recruiter presses Got it, never by the page
   rendering, and through `requireWritableWorkspace`, so a read-only view cannot
   mark somebody else's release as read. `tests/11-whats-new.spec.ts` covers who
@@ -495,8 +507,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts`, `tests/25-named-access.spec.ts` and `tests/26-interviews.spec.ts` play the client (and the candidate) in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
 
-## Activity
+## Notifications
 
+- Formerly Activity: `/notifications`, with `/activity` redirecting to it. It
+  carries client news (below) and each Capture release (see Telling people
+  what changed), newest first.
 - What a client does on a link reaches the recruiter inside Capture, never by
   email: a `Notification` row (`lib/notifications.ts`) written in the same
   transaction as the action - a client's answer (`decideShortlistItem`; a
@@ -507,13 +522,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   the sentence is written when it is read, so it follows renames and goes
   (cascade) with whatever it points at.
 - The signal is a red count: the bell in the workspace top bar and the
-  Activity item in the sidebar (`components/ActivityBell.tsx`). The layout
+  Notifications item in the sidebar (`components/ActivityBell.tsx`). The layout
   renders the count; the bell asks `GET /api/notifications/unread` again
   every minute while the tab is visible and when it comes back into view, and
   never marks anything. Red is used only for "new"; cobalt stays the accent.
 - Seen is recorded by `MarkSeen` (an effect after the page is on screen,
   through `markActivitySeen` and `requireWritableWorkspace`), never by
-  rendering, so a prefetch or a read-only view marks nothing. `/activity`
+  rendering, so a prefetch or a read-only view marks nothing. `/notifications`
   marks everything up to when it rendered, a role page that role's, the
   shortlists library the custom shortlists'. The page keeps its New marks
   until it is next opened; only the bell counts again.
@@ -524,7 +539,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   the shortlist recorded and copies the answer, so the usual "Client wants to
   meet" and `{{interview_link}}` see it. Follow-ups lists Interview answers
   on custom shortlists not yet brought across, pointing at the matching role.
-  The same button sits on that answer's line on `/activity` (one per
+  The same button sits on that answer's line on `/notifications` (one per
   matching role, named when there is more than one), and goes once it is used.
 - `20261021000000_client_notifications` adds the table (additive; see Hosting
   for when it was applied). It is not

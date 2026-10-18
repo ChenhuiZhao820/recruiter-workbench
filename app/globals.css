@@ -765,6 +765,7 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .activity-dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; }
 .activity-entry.is-unread .activity-dot { background: #e5484d; }
 .activity-when { color: #71717a; font-size: 12px; white-space: nowrap; }
+.activity-note { padding: 0 16px 12px 38px; color: #52525b; font-size: 13px; line-height: 1.5; }
 @media (max-width: 760px) { .activity-entry { grid-template-columns: 10px minmax(0, 1fr); } .activity-when { grid-column: 2; } }
 
 /* Client email: the screened candidate, put forward from the recruiter's own inbox. */

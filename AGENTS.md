@@ -1082,6 +1082,18 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   received the table and the three columns in place (`ADD COLUMN`, not Prisma's
   SQLite rebuild) after a backup copy and a rehearsal, every existing table's
   content unchanged and Prisma reporting no difference.
+- On 2026-10-18, `20261020000000_client_shortlists` (`Shortlist`,
+  `ShortlistItem`, `ShortlistAccess`, `InterviewSlot`; the role's client
+  review switch and interview hours, `Candidate.submittedAt`, `Booking.kind`)
+  was applied and registered on the hosted database the same way, through
+  WSL as on 2026-10-14 (`prisma/private-local/migrate-hosted-client-shortlists.mjs`),
+  checked against the reviewed file's SHA-256: a custom-format dump from a
+  locked snapshot, restored into a disposable database and rehearsed, then one
+  transaction. Every existing table came out unchanged, the four new tables
+  empty, every role reviewing first with no interview hours, no candidate
+  submitted and every booking a screening call; Prisma reports 10 migrations
+  and no difference. Deploying the code also needs `SHORTLIST_LINK_SECRET` on
+  the service. The local account database has not received this migration.
 
 ## Searches and LinkedIn industry filters
 

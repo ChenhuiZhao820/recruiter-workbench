@@ -345,6 +345,9 @@ test("B9 booking works before the page's script has loaded, and a post from nowh
     expect(opened!.headers()["referrer-policy"]).toBe("same-origin");
     await expect(page.locator('meta[name="referrer"]')).toHaveAttribute("content", "same-origin");
     await page.locator(".booking-slot").first().click();
+    // The chosen time shows as chosen from the checked radio itself, not React state.
+    await expect(page.locator(".booking-slot").first()).toHaveCSS("color", "rgb(255, 255, 255)");
+    await expect(page.locator(".booking-slot").nth(1)).not.toHaveCSS("color", "rgb(255, 255, 255)");
     await page.getByLabel("Email address").fill("ottoline@example.test");
     await page.getByLabel(/I have read how my details are used/).check();
     await page.getByRole("button", { name: "Book this call" }).click();

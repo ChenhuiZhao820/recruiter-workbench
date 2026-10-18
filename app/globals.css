@@ -778,10 +778,10 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .booking-slot { display: flex; align-items: center; justify-content: center; min-height: 42px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); font-size: 14px; cursor: pointer; transition: border-color .15s, background-color .15s, color .15s; }
 .booking-slot:hover { border-color: rgb(var(--rgb-ink) / .3); }
 .booking-slot:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.booking-slot[data-chosen="true"] { border-color: var(--color-accent); background: var(--color-accent); color: white; }
+.booking-slot[data-chosen="true"], .booking-slot:has(input:checked) { border-color: var(--color-accent); background: var(--color-accent); color: white; }
 .booking-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .booking-mode { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); font-size: 14px; cursor: pointer; }
-.booking-mode[data-chosen="true"] { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.booking-mode[data-chosen="true"], .booking-mode:has(input:checked) { border-color: var(--color-accent); background: var(--color-accent-soft); }
 .booking-notice { border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); }
 .booking-notice > summary { padding: 11px 14px; font-size: 13px; cursor: pointer; }
 .booking-notice > p { margin: 0 14px 14px; font-size: 13px; line-height: 1.65; color: var(--color-ink-soft); white-space: pre-line; }

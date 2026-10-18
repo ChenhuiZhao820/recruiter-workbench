@@ -358,10 +358,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `docs/plans/client-shortlist.en.md`.
 - Custom shortlists (`kind` `custom`, `app/actions/custom-shortlists.ts`):
   any people, for one client, open 60 days from creation or from "Keep open
-  60 more days". `/shortlists` is a library like `/templates`; building one is
-  `/shortlists/new`, reached from People (tick rows, "Put ticked people on a
-  shortlist"), a person's page, or a role's "From your database" matches, with
-  the people (`p`) and the client in the address. The client is settled by
+  60 more days". `/shortlists` is a library to read and manage, with no New
+  shortlist button of its own; building one is `/shortlists/new`, started
+  from the New shortlist button on People (which has no row checkboxes: the
+  people are found by name on the new page), a person's page, or a role's
+  "From your database" matches, with the people (`p`) and the client in the
+  address. Its back link returns to People. The client is settled by
   the GET form before anything is saved, so each person's consent is worked
   out for that client: consent Capture already has for it (`knownConsentAt`)
   shows as "Agreed before", anyone else needs the tick, and do-not-contact
@@ -374,6 +376,18 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   refuses: links already sent keep working after a downgrade or a trial ends.
   The limit is shown ("2 of 3 active"), because it is a limit, not a hidden
   Pro feature.
+- The library lists open shortlists, then "Closed and expired", most recent
+  first. A closed or expired one has Reopen: a closed one through
+  `newShortlistLink` (same people, new address; the old one stays dead), an
+  expired one through `keepShortlistOpen` (the same address for 60 days).
+  At the limit Reopen is disabled with "3 of 3 open on your plan" beside it,
+  so the refusal is read before a click; the server still refuses. Closed and
+  expired ones can be deleted (`deleteShortlists`): Delete in the row, or
+  ticked together with Select all and "Delete N selected" (row checkboxes
+  join the bar's form through `form=`), each behind a confirmation. It
+  removes the links, items and answers (cascade) and a nameless
+  `shortlist.deleted` audit event per shortlist; people stay. An open one is
+  never deleted, even by a forged request: close it first.
 - What a client sees is `clientProfile` in `lib/client-profile.ts` and nothing
   else, shared with the client email. Every `Person` and `Candidate` column is
   classified there as shown or hidden, and `tests/client-profile.test.mjs`

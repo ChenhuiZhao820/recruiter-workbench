@@ -181,7 +181,7 @@ test("N4 a named-only shortlist never grows a public link: closing and reopening
   await row.getByRole("button", { name: "Close the link" }).click();
   await row.locator("summary").first().click().catch(() => {});
   await page.goto(`/shortlists?open=${custom.id}`);
-  await row.getByRole("button", { name: "Make a new link" }).click();
+  await row.getByRole("button", { name: "Reopen" }).click();
   await expect(row.getByRole("list", { name: "People it is shared with" }).locator(".client-link-address input")).not.toHaveValue(before);
   const after = await row.getByRole("list", { name: "People it is shared with" }).locator(".client-link-address input").inputValue();
   expect(await db.shortlistAccess.count({ where: { shortlistId: custom.id, email: null } })).toBe(0);

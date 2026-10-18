@@ -84,9 +84,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
   const people = filters.q && !features.peopleSearch
     ? found.filter((person) => `${person.fullName} ${person.headline ?? ""}`.toLowerCase().includes(needle))
     : found;
-  // Ticking people here and pressing the button starts a shortlist with them,
-  // through the address: nothing is saved until the shortlist page says so.
-  const picking = features.clientShortlists && !readOnly;
+  // A shortlist starts here, from one button: the people are chosen on the
+  // shortlist page itself, so this list stays a list to read.
+  const canShortlist = features.clientShortlists && !readOnly;
 
   return (
     <div className="min-w-0">
@@ -100,10 +100,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
               : "Everyone you have saved, once each, with every role you considered them for."}
           </p>
         </div>
-        {!readOnly && (features.peopleImport || toReview > 0) && (
+        {!readOnly && (features.peopleImport || toReview > 0 || canShortlist) && (
           <div className="flex flex-wrap gap-2">
-            {features.peopleImport && <Link href="/people/import" className="btn-secondary">Import people</Link>}
             {toReview > 0 && <Link href="/people/review" className="btn-secondary">Review old records <span className="person-count tabular">{toReview}</span></Link>}
+            {features.peopleImport && <Link href="/people/import" className="btn-secondary">Import people</Link>}
+            {canShortlist && <Link href="/shortlists/new" className="btn-primary"><Icon name="plus" size={16} />New shortlist</Link>}
           </div>
         )}
       </header>
@@ -159,7 +160,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
           )}
         </div>
       ) : (
-        <form method="get" action="/shortlists/new">
         <ul className="people-list" aria-label="People">
           {people.map((person) => {
             const latest = person.candidates[0];
@@ -167,11 +167,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             return (
               <li key={person.id} className="person-row">
                 <div className="person-row-identity">
-                  {picking && !person.doNotContact && (
-                    <label className="people-pick">
-                      <input type="checkbox" name="p" value={person.id} aria-label={`Choose ${person.fullName}`} />
-                    </label>
-                  )}
                   <Link href={`/people/${person.id}`} className="person-row-name">{person.fullName}</Link>
                   {person.headline && <p className="person-row-headline">{person.headline}</p>}
                   {!person.profileUrl && <p className="person-row-headline">No profile link</p>}
@@ -205,13 +200,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             );
           })}
         </ul>
-        {picking && (
-          <div className="people-pick-bar">
-            <span>Tick people above to put them in front of a client together.</span>
-            <button type="submit" className="btn-primary">Put ticked people on a shortlist</button>
-          </div>
-        )}
-        </form>
       )}
       {!searching && total > PAGE_SIZE && (
         <p className="section-caption mt-4">Showing the {PAGE_SIZE} most recently updated of {total}. Search to find anyone else.</p>

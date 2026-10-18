@@ -67,20 +67,26 @@ function rowOf(page: Page, title: string | RegExp) {
   return page.locator("details.shortlist-row", { has: page.locator(".shortlist-row-title", { hasText: title }) });
 }
 
-test("S1 people ticked on People become a shortlist for one client; consent already given to that client is reused", async ({ browser, page }, testInfo) => {
+test("S1 New shortlist on People starts one for a client, with people found by name; consent already given to that client is reused", async ({ browser, page }, testInfo) => {
   await person(`Aoife Brennan ${tag}`, { consentFor: "Marsh and Pike Ltd" });
   await person(`Bilal Rahman ${tag}`);
   await person(`Do Not ${tag}`, { doNotContact: true });
 
+  // People is a list to read: no boxes to tick, one button to start a shortlist.
   await page.goto(`/people?q=${tag}`);
-  await expect(page.getByLabel(`Choose Do Not ${tag}`)).toHaveCount(0);
-  await page.getByLabel(`Choose Aoife Brennan ${tag}`).check();
-  await page.getByLabel(`Choose Bilal Rahman ${tag}`).check();
-  await page.getByRole("button", { name: "Put ticked people on a shortlist" }).click();
+  await expect(page.getByRole("list", { name: "People" }).getByRole("checkbox")).toHaveCount(0);
+  await page.getByRole("link", { name: "New shortlist" }).click();
 
   await expect(page.getByRole("heading", { level: 1, name: "New shortlist" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back to People" })).toBeVisible();
   await page.getByLabel("For which client").fill("Marsh & Pike");
+  await page.getByLabel("Find people by name or headline").fill(tag);
   await page.getByRole("button", { name: "Find and update" }).click();
+  const found = page.getByRole("list", { name: "People found" });
+  await expect(found.getByText(`Do Not ${tag}`)).toHaveCount(0);
+  await found.locator("li", { hasText: `Aoife Brennan ${tag}` }).getByRole("checkbox").check();
+  await found.locator("li", { hasText: `Bilal Rahman ${tag}` }).getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Add ticked people" }).click();
   const chosen = page.locator(".shortlist-chosen");
   // "Marsh & Pike" and "Marsh and Pike Ltd" are one client.
   await expect(chosen.locator("li", { hasText: "Aoife Brennan" }).getByText("Agreed before to Marsh & Pike")).toBeVisible();
@@ -98,7 +104,7 @@ test("S1 people ticked on People become a shortlist for one client; consent alre
   await expect(page).toHaveURL(/\/shortlists\?open=/);
   const row = rowOf(page, `Data people ${tag}`);
   await expect(row).toHaveAttribute("open", "");
-  await expect(row.getByText("Open until")).toBeVisible();
+  await expect(row.locator(".shortlist-row-side")).toContainText(/Open\s*Until/);
   await page.screenshot({ path: testInfo.outputPath("shortlists-library.png"), fullPage: true });
   const link = await row.locator(".client-link-address input").inputValue();
   const saved = await db.shortlist.findFirstOrThrow({ where: { title: `Data people ${tag}` }, include: { items: { include: { person: true } } } });
@@ -153,7 +159,7 @@ test("S2 people are added and removed later, it can be renamed but not moved to 
   await expect(page.getByRole("button", { name: "Add them" })).toBeDisabled();
 });
 
-test("S3 Basic keeps three open at once: the fourth is refused, closing or expiry frees a place, and links already sent keep working", async ({ browser }) => {
+test("S3 Basic keeps three open at once: the fourth is refused, closing or expiry frees a place, and links already sent keep working", async ({ browser }, testInfo) => {
   const basic = await basicAccount();
   const open = await Promise.all([1, 2, 3].map((n) => customShortlist(basic.id, `Basic open ${n}`)));
   await customShortlist(basic.id, "Basic expired", { expiresAt: new Date(Date.now() - DAY) });
@@ -163,7 +169,8 @@ test("S3 Basic keeps three open at once: the fourth is refused, closing or expir
   try {
     const page = recruiter.page;
     await page.goto("/shortlists");
-    await expect(page.getByText("3 of 3")).toBeVisible();
+    await expect(page.locator(".shortlist-limit")).toContainText("3 of 3");
+    // The library manages; starting one is on People.
     await expect(page.getByRole("link", { name: "New shortlist" })).toHaveCount(0);
 
     await page.goto(`/shortlists/new?client=Elsewhere&p=${someone.id}`);
@@ -176,23 +183,31 @@ test("S3 Basic keeps three open at once: the fourth is refused, closing or expir
     await expect(page.locator('[data-form-message="error"]')).toContainText("You already have 3 active shortlists");
     expect(await db.shortlist.count({ where: { userId: basic.id } })).toBe(5);
 
-    // Reopening an expired one needs a place too.
+    // Reopening needs a place too, and says so before anything is pressed.
     await page.goto("/shortlists");
     const expired = rowOf(page, "Basic expired");
     await expired.locator("summary").first().click();
-    await expired.getByRole("button", { name: "Keep open 60 more days" }).click();
-    await expect(expired.locator('[data-form-message="error"]')).toContainText("You already have 3 active shortlists");
+    await expect(expired.getByRole("button", { name: "Reopen" })).toBeDisabled();
+    await expect(expired.locator(".shortlist-reopen-note")).toContainText("3 of 3 open on your plan. Close an open shortlist to reopen this one.");
+    const closed = rowOf(page, "Basic closed");
+    await closed.locator("summary").first().click();
+    await expect(closed.getByRole("button", { name: "Reopen" })).toBeDisabled();
+    await closed.screenshot({ path: testInfo.outputPath("shortlist-reopen-at-limit.png") });
 
     page.once("dialog", (dialog) => dialog.accept());
     const first = rowOf(page, "Basic open 1");
     await first.locator("summary").first().click();
     await first.getByRole("button", { name: "Close the link" }).click();
-    await expect(page.getByText("2 of 3")).toBeVisible();
+    await expect(page.locator(".shortlist-limit")).toContainText("2 of 3");
+    const freed = rowOf(page, "Basic expired");
+    if ((await freed.getAttribute("open")) === null) await freed.locator("summary").first().click();
+    await expect(freed.getByRole("button", { name: "Reopen" })).toBeEnabled();
+    await expect(freed.locator(".shortlist-reopen-note")).toHaveCount(0);
     await page.goto(`/shortlists/new?client=Elsewhere&p=${someone.id}`);
     await page.getByLabel("Agreed to be put forward to Elsewhere").check();
     await page.getByRole("button", { name: "Create shortlist" }).click();
     await expect(page).toHaveURL(/\/shortlists\?open=/);
-    await expect(page.getByText("3 of 3")).toBeVisible();
+    await expect(page.locator(".shortlist-limit")).toContainText("3 of 3");
 
     // A Pro account with five open, moved to Basic, opens no sixth, and every
     // link it already sent still opens.
@@ -248,4 +263,90 @@ test("S5 the export carries shortlists and who is on them, never their link secr
   const nonces = (await db.shortlistAccess.findMany({ where: { shortlist: { userId: TEST_ADMIN_ID } } })).map((access) => access.nonce);
   for (const nonce of nonces) expect(text).not.toContain(nonce);
   expect(text).not.toContain("Their shortlist");
+});
+
+test("S6 closed and expired shortlists can be reopened, or deleted one at a time or ticked together; open ones cannot be deleted", async ({ browser }, testInfo) => {
+  const owner = await basicAccount();
+  const keep = await customShortlist(owner.id, "Still open");
+  const closedOne = await customShortlist(owner.id, "Closed one", { revokedAt: new Date(Date.now() - DAY) });
+  const closedTwo = await customShortlist(owner.id, "Closed two", { revokedAt: new Date(Date.now() - 2 * DAY) });
+  const expiredOne = await customShortlist(owner.id, "Expired one", { expiresAt: new Date(Date.now() - 3 * DAY) });
+  const reopenMe = await customShortlist(owner.id, "Reopen me", { revokedAt: new Date(Date.now() - 4 * DAY) });
+  const someone = await person(`Rafa Ostrowski ${tag}`, { userId: owner.id });
+  await db.shortlistItem.create({ data: { shortlistId: closedOne.id, personId: someone.id, consentAt: new Date(), position: 0, decision: "interview", decisionAt: new Date() } });
+  const recruiter = await signedInAs(browser, owner.id);
+  try {
+    const page = recruiter.page;
+    await page.goto("/shortlists");
+    const open = page.getByRole("list", { name: "Open shortlists" });
+    const inactive = page.getByRole("list", { name: "Closed and expired shortlists" });
+    await expect(open.locator("details.shortlist-row")).toHaveCount(1);
+    await expect(inactive.locator("details.shortlist-row")).toHaveCount(4);
+    // Only closed and expired rows can be ticked.
+    await expect(open.getByRole("checkbox")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Delete selected" })).toBeDisabled();
+    await rowOf(page, "Closed one").locator("summary").first().click();
+    await page.getByRole("checkbox", { name: "Select Expired one" }).check();
+    await page.screenshot({ path: testInfo.outputPath("shortlists-closed-group.png"), fullPage: true });
+    await page.getByRole("checkbox", { name: "Select Expired one" }).uncheck();
+    await rowOf(page, "Closed one").locator("summary").first().click();
+
+    // Reopening a closed one gives it a new address and moves it to Open.
+    const reopen = rowOf(page, "Reopen me");
+    await reopen.locator("summary").first().click();
+    await expect(reopen).toContainText("Reopening gives it a new address with the same people; the old link stays closed.");
+    await reopen.getByRole("button", { name: "Reopen" }).click();
+    await expect(open.locator("details.shortlist-row")).toHaveCount(2);
+    const reopened = await db.shortlist.findUniqueOrThrow({ where: { id: reopenMe.id }, include: { accesses: true } });
+    expect(reopened.revokedAt).toBeNull();
+    // Same access, new nonce: the address sent before the close stays dead.
+    expect(reopened.accesses.find((access) => access.id === reopenMe.accesses[0].id)?.nonce).not.toBe(reopenMe.accesses[0].nonce);
+
+    // One at a time, from inside the row.
+    const single = rowOf(page, "Closed two");
+    await single.locator("summary").first().click();
+    page.once("dialog", (dialog) => { expect(dialog.message()).toContain('Delete "Closed two" for good?'); dialog.accept(); });
+    await single.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(rowOf(page, "Closed two")).toHaveCount(0);
+    expect(await db.shortlist.count({ where: { id: closedTwo.id } })).toBe(0);
+
+    // Ticked together: select all, then the count is on the button.
+    await page.getByLabel("Select all").check();
+    await expect(page.getByRole("button", { name: "Delete 2 selected" })).toBeEnabled();
+    await page.getByRole("checkbox", { name: "Select Expired one" }).uncheck();
+    await expect(page.getByLabel("Select all")).not.toBeChecked();
+    // Declining the confirmation deletes nothing.
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.getByRole("button", { name: "Delete 1 selected" }).click();
+    expect(await db.shortlist.count({ where: { id: closedOne.id } })).toBe(1);
+    await page.getByRole("checkbox", { name: "Select Expired one" }).check();
+    page.once("dialog", (dialog) => { expect(dialog.message()).toContain("Delete 2 shortlists for good?"); dialog.accept(); });
+    await page.getByRole("button", { name: "Delete 2 selected" }).click();
+    await expect(page.getByRole("list", { name: "Closed and expired shortlists" })).toHaveCount(0);
+    expect(await db.shortlist.count({ where: { id: { in: [closedOne.id, expiredOne.id] } } })).toBe(0);
+    // The client's answer went with it; the person did not.
+    expect(await db.shortlistItem.count({ where: { shortlistId: closedOne.id } })).toBe(0);
+    expect(await db.person.count({ where: { id: someone.id } })).toBe(1);
+    expect(await db.auditEvent.count({ where: { actorId: owner.id, action: "shortlist.deleted" } })).toBe(3);
+
+    // A forged delete naming an open shortlist and another account's closed one removes nothing.
+    const other = await basicAccount();
+    const theirs = await customShortlist(other.id, "Theirs closed", { revokedAt: new Date() });
+    await customShortlist(owner.id, "Bait closed", { revokedAt: new Date() });
+    await page.goto("/shortlists");
+    await page.evaluate(({ ids }) => {
+      for (const id of ids) {
+        const input = document.createElement("input");
+        input.type = "hidden"; input.name = "id"; input.value = id;
+        document.getElementById("delete-shortlists")?.append(input);
+      }
+    }, { ids: [keep.id, theirs.id] });
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("checkbox", { name: "Select Bait closed" }).check();
+    await page.getByRole("button", { name: "Delete 1 selected" }).click();
+    await expect(rowOf(page, "Bait closed")).toHaveCount(0);
+    expect(await db.shortlist.count({ where: { id: { in: [keep.id, theirs.id] } } })).toBe(2);
+  } finally {
+    await recruiter.close();
+  }
 });

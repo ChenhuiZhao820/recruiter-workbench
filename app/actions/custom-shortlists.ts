@@ -187,3 +187,25 @@ export async function newShortlistLink(_prev: FormState, formData: FormData): Pr
   revalidatePath("/shortlists");
   return {};
 }
+
+// Deletes closed and expired shortlists for good: their links, the people on
+// them and the client's answers go; the people themselves stay in People. An
+// open one is never deleted from here: it is closed first, so a link someone
+// is reading does not vanish by a slip of a checkbox.
+export async function deleteShortlists(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableFeature("clientShortlists");
+  const now = new Date();
+  const ids = Array.from(new Set(formData.getAll("id").map(String))).slice(0, 200);
+  if (!ids.length) return { error: "Choose at least one shortlist." };
+  const deleted = await db.$transaction(async (tx) => {
+    const { count } = await tx.shortlist.deleteMany({
+      where: { id: { in: ids }, userId: user.id, kind: "custom", OR: [{ revokedAt: { not: null } }, { expiresAt: { lte: now } }] },
+    });
+    if (count) await tx.auditEvent.createMany({ data: Array.from({ length: count }, () => ({ actorId: user.id, targetUserId: user.id, action: "shortlist.deleted" })) });
+    return count;
+  });
+  revalidatePath("/shortlists");
+  revalidatePath("/activity");
+  if (!deleted) return { error: "Only closed or expired shortlists can be deleted. Close it first." };
+  return { notice: deleted === 1 ? "Deleted 1 shortlist." : `Deleted ${deleted} shortlists.` };
+}

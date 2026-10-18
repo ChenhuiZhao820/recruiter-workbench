@@ -34,6 +34,7 @@ model User {
   integrations     IntegrationConnection[]
   suppressions     Suppression[]
   importBatches    ImportBatch[]
+  shortlists       Shortlist[]
 }
 
 model ExtensionAccess {
@@ -100,12 +101,23 @@ model Role {
   budgetMin      Int?
   budgetMax      Int?
   budgetCurrency String?
+  // Whether the client reviews candidates before interviews. Off, a candidate
+  // put forward may book the client interview straight away.
+  clientReviewFirst     Boolean @default(true)
+  // The client's interview hours. Windows are JSON [{day, startMin, endMin}],
+  // as in Settings.bookingWindows, read in interviewTimezone; "[]" means none
+  // yet, and no interview link is offered until there are some.
+  interviewWindows      String  @default("[]")
+  interviewTimezone     String?
+  interviewDurationMins Int?
+  interviewLocation     String?   // a meeting link or an address
   briefing    Briefing?
   candidates  Candidate[]
   searches    SavedSearch[]
   // Set when a People import created this role, so the import can be undone.
   importBatchId String?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  shortlist   Shortlist?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -169,6 +181,8 @@ model Candidate {
   lastActivityAt DateTime @default(now())
   lastNudgeAt    DateTime?
   nudgeCount     Int      @default(0)
+  // When they were first put forward to the client (on the role's client link).
+  submittedAt    DateTime?
   // The person this candidacy belongs to. One person can be a candidate on
   // several roles; deleting the person removes every candidacy. Null only for
   // rows written before people existed, which are linked when next touched.
@@ -181,6 +195,7 @@ model Candidate {
   // Set when a People import created this candidacy, so the import can be undone.
   importBatchId  String?
   importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  shortlistItems ShortlistItem[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -284,6 +299,7 @@ model Person {
   // Set when a People import created this person, so the import can be undone.
   importBatchId    String?
   importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  shortlistItems   ShortlistItem[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -327,7 +343,9 @@ model Booking {
   consentAt     DateTime
   noticeVersion String
   status        String    @default("booked")   // booked | cancelled
+  kind          String    @default("screening") // screening | interview
   slot          BookedSlot?
+  interviewSlot InterviewSlot?
   createdAt     DateTime  @default(now())
 
   @@index([candidateId])
@@ -343,6 +361,86 @@ model BookedSlot {
   booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@id([userId, startsAt])
+}
+
+// The same lock for client interviews, kept apart from BookedSlot because the
+// interviewer is the client, not the recruiter: two interviews with one client
+// cannot start together, across all of that client's roles.
+model InterviewSlot {
+  userId    String
+  clientKey String   // clientKey() of the role's client, or "role:<roleId>"
+  startsAt  DateTime
+  bookingId String   @unique
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, clientKey, startsAt])
+}
+
+// What a recruiter shows a client: a role's own client link (kind "role", one
+// per role, roleKey = roleId) or a shortlist they put together (kind "custom",
+// expiring). Read live by /s/<token>, so what is on screen follows the people.
+model Shortlist {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  kind      String    // role | custom
+  // Set for kind "role" only. A custom shortlist reaches roles through its
+  // items' candidacies, never through this.
+  roleId    String?   @unique
+  role      Role?     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  title     String
+  client    String?
+  access    String    @default("link")   // link | people
+  expiresAt DateTime? // custom only
+  revokedAt DateTime?
+  items     ShortlistItem[]
+  accesses  ShortlistAccess[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, kind])
+}
+
+// One person on a shortlist, with the agreement to put them forward to this
+// client and what the client decided.
+model ShortlistItem {
+  id               String     @id @default(cuid())
+  shortlistId      String
+  shortlist        Shortlist  @relation(fields: [shortlistId], references: [id], onDelete: Cascade)
+  personId         String
+  person           Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
+  candidateId      String?
+  candidate        Candidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  consentAt        DateTime
+  pitch            String?
+  position         Int        @default(0)
+  decision         String?    // interview | declined
+  decisionReason   String?    // salary | experience | location | notice | other
+  decisionNote     String?
+  decisionAt       DateTime?
+  decisionAccessId String?
+  addedAt          DateTime   @default(now())
+
+  @@unique([shortlistId, personId])
+  @@index([personId])
+  @@index([candidateId])
+}
+
+// A way into a shortlist: the one "anyone with the link" access (email null)
+// or one per named person. The link is /s/<id>.<nonce>.<hmac>; replacing the
+// nonce kills the old address, and revokedAt closes it for good.
+model ShortlistAccess {
+  id           String    @id @default(cuid())
+  shortlistId  String
+  shortlist    Shortlist @relation(fields: [shortlistId], references: [id], onDelete: Cascade)
+  email        String?
+  nonce        String
+  lastViewedAt DateTime?
+  viewCount    Int       @default(0)
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([shortlistId])
 }
 
 model CalendarConnection {

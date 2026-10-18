@@ -266,3 +266,14 @@ test("forged account classification requests cannot grant admin or bypass actor 
     assert.equal(h.audits.length, 0);
   }
 });
+
+test("the custom shortlist limit follows the effective tier, not the stored one", () => {
+  const limit = (account) => features.activeShortlistLimit(account, now);
+  assert.equal(limit(user()), features.SHORTLIST_LIMITS.basic);
+  assert.equal(limit(user("pro")), null);
+  assert.equal(limit(user("trial", new Date(now.getTime() + 1))), null);
+  assert.equal(limit(user("trial", now)), features.SHORTLIST_LIMITS.basic, "a trial ending now is Basic");
+  assert.equal(limit(user("basic", null, "admin")), null);
+  assert.equal(limit(user("pro", null, "recruiter", false)), features.SHORTLIST_LIMITS.basic);
+  assert.equal(features.SHORTLIST_LIMITS.basic, 3);
+});

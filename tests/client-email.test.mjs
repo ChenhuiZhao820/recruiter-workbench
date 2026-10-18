@@ -7,6 +7,7 @@ import path from "node:path";
 import vm from "node:vm";
 import ts from "typescript";
 import * as screeningCore from "../lib/screening-core.mjs";
+import * as talent from "../lib/talent.mjs";
 
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -24,6 +25,7 @@ function load(file) {
   loaded.set(filename, module.exports);
   const local = (id) => {
     if (id.endsWith("screening-core.mjs")) return screeningCore;
+    if (id.endsWith("talent.mjs")) return talent;
     if (id.startsWith("./")) {
       const target = path.join(path.dirname(file), id);
       return load(existsSync(path.join(root, `${target}.ts`)) ? `${target}.ts` : target);

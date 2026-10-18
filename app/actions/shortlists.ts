@@ -84,6 +84,7 @@ export async function adoptShortlistAnswer(_prev: FormState, formData: FormData)
     await tx.auditEvent.create({ data: { actorId: user.id, targetUserId: user.id, action: "shortlist.answer_adopted" } });
   });
   revalidateRole(candidate.role.id, candidate.personId);
+  revalidatePath("/activity");
   return {};
 }
 

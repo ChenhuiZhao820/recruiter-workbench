@@ -147,7 +147,7 @@ test("A3 an answer on a custom shortlist shows on the role's row and Follow-ups,
     const row = me.page.locator("li.card", { hasText: "Tobiah Lindqvist" });
     await expect(row.getByTestId("answer-elsewhere")).toContainText("Brightwater Group Ltd wants to meet");
     await expect(row.getByTestId("answer-elsewhere")).toContainText("Analytics people for Brightwater");
-    await row.getByRole("button", { name: /Add to this role.s client link with this answer/ }).click();
+    await row.getByRole("button", { name: "Add to client link" }).click();
     await expect(row.getByText("On the client link")).toBeVisible();
     await expect(row.getByTestId("answer-elsewhere")).toHaveCount(0);
     await expect(row.locator(".chip.client-said-yes")).toContainText("Brightwater Group Ltd wants to meet");
@@ -188,5 +188,36 @@ test("A4 a read-only view shows the count but marks nothing as read", async ({ b
     expect(await db.notification.count({ where: { userId, readAt: null } })).toBe(1);
   } finally {
     await context.close();
+  }
+});
+
+test("A5 a shortlist answer is brought onto the role from its line on Activity, and the button then goes", async ({ browser }) => {
+  const { person, candidate } = await candidateOn("Ines Halvorsen");
+  const shortlist = await db.shortlist.create({ data: {
+    userId, kind: "custom", title: "More analytics people", client: "Brightwater Group", access: "link",
+    expiresAt: new Date(Date.now() + 30 * DAY), accesses: { create: { nonce: newNonce() } },
+    items: { create: { personId: person.id, consentAt: new Date(Date.now() - DAY), position: 0 } },
+  }, include: { accesses: true } });
+  const client = await guest(browser);
+  try {
+    await client.page.goto(`/s/${shortlistToken(SECRET, shortlist.accesses[0].id, shortlist.accesses[0].nonce)}`);
+    await client.page.locator(".client-entry", { hasText: "Ines Halvorsen" }).getByRole("button", { name: "Interview Ines" }).click();
+    await expect(client.page.getByText("You asked to meet Ines.")).toBeVisible();
+  } finally {
+    await client.close();
+  }
+  const me = await recruiter(browser);
+  try {
+    await me.page.goto("/activity");
+    const line = me.page.locator(".activity-item", { hasText: "wants to meet Ines Halvorsen" });
+    // The open of the link is news too, but only the answer can be brought across.
+    await expect(me.page.locator(".activity-item", { hasText: "opened More analytics people" }).getByRole("button")).toHaveCount(0);
+    await line.getByRole("button", { name: "Add to client link" }).click();
+    await expect(line.getByRole("button", { name: "Add to client link" })).toHaveCount(0);
+    const onRole = await db.shortlistItem.findFirstOrThrow({ where: { personId: person.id, shortlist: { roleId } } });
+    expect(onRole.decision).toBe("interview");
+    expect(onRole.candidateId).toBe(candidate.id);
+  } finally {
+    await me.close();
   }
 });

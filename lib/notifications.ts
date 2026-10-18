@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { db } from "./db";
+import { clientKey } from "./shortlist-core.mjs";
 
 // The recruiter's activity: what clients did on their links, and interviews
 // candidates booked with them. Written by the public actions as it happens,
@@ -39,7 +40,9 @@ export async function unreadCount(ownerId: string) {
   return db.notification.count({ where: { userId: ownerId, readAt: null } });
 }
 
-export type ActivityEntry = { id: string; at: Date; unread: boolean; text: string; href: string; tone: "yes" | "no" | "neutral" };
+// A role the answer can be brought onto, from the activity line itself.
+export type AdoptTarget = { candidateId: string; itemId: string; roleTitle: string };
+export type ActivityEntry = { id: string; at: Date; unread: boolean; text: string; href: string; tone: "yes" | "no" | "neutral"; adopt: AdoptTarget[] };
 
 const placeOf = (shortlist: { id: string; kind: string; roleId: string | null } | null, roleId: string | null) =>
   roleId ? `/roles/${roleId}` : shortlist ? `/shortlists?open=${shortlist.id}#shortlist-${shortlist.id}` : "/shortlists";
@@ -51,7 +54,7 @@ export async function listActivity(ownerId: string, limit = 60): Promise<Activit
     take: limit,
     include: {
       shortlist: { select: { id: true, kind: true, title: true, client: true, roleId: true } },
-      item: { select: { candidateId: true, person: { select: { fullName: true } } } },
+      item: { select: { id: true, personId: true, decision: true, decisionAt: true, candidateId: true, person: { select: { fullName: true } } } },
       booking: { select: { startsAt: true, candidate: { select: { id: true, fullName: true } } } },
       role: { select: { id: true, title: true, client: true } },
     },
@@ -61,6 +64,7 @@ export async function listActivity(ownerId: string, limit = 60): Promise<Activit
     ? await db.shortlistAccess.findMany({ where: { id: { in: accessIds }, shortlist: { userId: ownerId } }, select: { id: true, email: true } })
     : [];
   const emailOf = new Map(accesses.map((access) => [access.id, access.email]));
+  const adoptable = await adoptTargets(ownerId, rows);
   const when = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/London" });
 
   return rows.map((row) => {
@@ -68,7 +72,7 @@ export async function listActivity(ownerId: string, limit = 60): Promise<Activit
     const who = (row.accessId && emailOf.get(row.accessId)) || client;
     const where = row.shortlist ? (row.shortlist.kind === "role" ? row.role?.title ?? row.shortlist.title : row.shortlist.title) : row.role?.title ?? "";
     const person = row.item?.person.fullName ?? row.booking?.candidate.fullName ?? "Someone";
-    const base = { id: row.id, at: row.createdAt, unread: !row.readAt };
+    const base = { id: row.id, at: row.createdAt, unread: !row.readAt, adopt: (row.item && adoptable.get(row.item.id)) || [] };
     const href = row.roleId && (row.item?.candidateId || row.booking?.candidate.id)
       ? `/roles/${row.roleId}#candidate-${row.item?.candidateId ?? row.booking?.candidate.id}`
       : placeOf(row.shortlist, row.roleId);
@@ -93,6 +97,30 @@ export async function listActivity(ownerId: string, limit = 60): Promise<Activit
 
 // Marks everything up to a moment as read, so news arriving while the page is
 // open stays new. Only ever the owner's own.
+// For each Interview answer on a custom shortlist, the open roles for the
+// same client the person is a candidate on, where that role's own link does
+// not already hold this answer or a later one. The same rule as Follow-ups;
+// `adoptShortlistAnswer` checks it all again.
+async function adoptTargets(ownerId: string, rows: { kind: string; shortlist: { kind: string; client: string | null } | null; item: { id: string; personId: string; decision: string | null; decisionAt: Date | null } | null }[]) {
+  const answers = rows.filter((row) => row.kind === "client_answered" && row.shortlist?.kind === "custom" && row.item?.decision === "interview");
+  const targets = new Map<string, AdoptTarget[]>();
+  if (!answers.length) return targets;
+  const candidates = await db.candidate.findMany({
+    where: { personId: { in: answers.map((row) => row.item!.personId) }, role: { userId: ownerId, status: "open" }, stage: { notIn: ["rejected", "placed"] }, person: { doNotContact: false } },
+    select: { id: true, personId: true, role: { select: { id: true, title: true, client: true, shortlist: { select: { items: { select: { personId: true, decision: true, decisionAt: true } } } } } } },
+  });
+  for (const row of answers) {
+    const item = row.item!;
+    const key = clientKey(row.shortlist!.client, "");
+    const found = candidates
+      .filter((candidate) => candidate.personId === item.personId && clientKey(candidate.role.client, candidate.role.id) === key)
+      .filter((candidate) => !candidate.role.shortlist?.items.some((own) => own.personId === item.personId && own.decision && own.decisionAt && item.decisionAt && own.decisionAt >= item.decisionAt))
+      .map((candidate) => ({ candidateId: candidate.id, itemId: item.id, roleTitle: candidate.role.title }));
+    if (found.length) targets.set(item.id, found);
+  }
+  return targets;
+}
+
 // Opening the role a notification is about is reading it.
 export async function markRoleRead(ownerId: string, roleId: string, upTo: Date) {
   await db.notification.updateMany({ where: { userId: ownerId, roleId, readAt: null, createdAt: { lte: upTo } }, data: { readAt: new Date() } });

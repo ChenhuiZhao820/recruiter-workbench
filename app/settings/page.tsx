@@ -25,6 +25,8 @@ const exportTables = [
   { id: "outreach", label: "Messages" },
   { id: "templates", label: "Templates" },
   { id: "searches", label: "Searches" },
+  { id: "shortlists", label: "Shortlists" },
+  { id: "shortlistPeople", label: "Shortlist entries" },
 ] as const;
 
 export default async function SettingsPage({ searchParams }: { searchParams: { notion?: string } }) {
@@ -119,7 +121,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { n
           <div className="card space-y-4">
             <div>
               <a href="/api/export?format=json" className="btn-secondary" download>Download everything (JSON)</a>
-              <p className="section-caption">One file with people, roles, candidates, screenings, bookings, messages, templates and searches.</p>
+              <p className="section-caption">One file with people, roles, candidates, screenings, bookings, messages, templates, searches and shortlists.</p>
             </div>
             <div>
               <p className="text-sm font-medium">Or one spreadsheet (CSV) per table</p>

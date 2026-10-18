@@ -655,6 +655,14 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   People you already know who are not on this role, matched on the briefing&rsquo;s key skills and job titles
                   {role.budgetMax !== null ? ", leaving out anyone whose confirmed salary is above the budget" : ""}. Their details are their own words from a screening call, not checked.
                 </p>
+                {features.clientShortlists && !readOnly && (
+                  <Link
+                    href={`/shortlists/new?${new URLSearchParams([...(role.client ? [["client", role.client]] : []), ...matches.map(({ person }) => ["p", person.id])]).toString()}`}
+                    className="btn-quiet mt-3"
+                  >
+                    Put these on a shortlist{role.client ? ` for ${role.client}` : ""}
+                  </Link>
+                )}
                 <ul className="people-list mt-3">
                   {matches.map(({ person, hits, budget }) => {
                     const facts = [

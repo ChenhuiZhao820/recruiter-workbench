@@ -15,7 +15,7 @@ export default async function ShortlistPreviewPage({ params }: { params: { id: s
   const preview = await loadPreview(params.id, owner.id);
   if (!preview) notFound();
   const shortlist = await db.shortlist.findUniqueOrThrow({ where: { id: params.id }, select: { roleId: true, client: true } });
-  const back = shortlist.roleId ? `/roles/${shortlist.roleId}` : "/";
+  const back = shortlist.roleId ? `/roles/${shortlist.roleId}` : `/shortlists?open=${params.id}#shortlist-${params.id}`;
   return (
     <div className="space-y-2">
       <div role="status" className="client-preview-bar">
@@ -24,7 +24,7 @@ export default async function ShortlistPreviewPage({ params }: { params: { id: s
             ? <>This is what {shortlist.client || "the client"} sees on their link. Opening it here is not counted as them reading it.</>
             : <>This link is {preview.status}, so {shortlist.client || "the client"} sees only that it is no longer active. This is what was on it.</>}
         </p>
-        <Link href={back} className="btn-quiet">Back to the role</Link>
+        <Link href={back} className="btn-quiet">{shortlist.roleId ? "Back to the role" : "Back to shortlists"}</Link>
       </div>
       <ClientShortlist view={preview.view} token={null} />
     </div>

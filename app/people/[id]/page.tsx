@@ -97,6 +97,9 @@ export default async function PersonPage({ params }: { params: { id: string } })
               Open profile<Icon name="external" size={16} />
             </a>
           )}
+          {features.clientShortlists && !readOnly && !person.doNotContact && (
+            <Link href={`/shortlists/new?p=${person.id}`} className="btn-secondary">Put on a shortlist</Link>
+          )}
         </div>
       </header>
 

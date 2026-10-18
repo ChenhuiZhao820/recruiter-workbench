@@ -354,10 +354,26 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Every plan (`clientShortlists` in `FEATURE_TIERS`). A role has one client
   link: a `Shortlist` of kind `role`, made the first time someone is put
   forward, listing everyone put forward on one page the client opens without
-  signing in. Custom shortlists, named recipients and interview booking are
-  planned in `docs/plans/client-shortlist.en.md`; Basic
-  will have at most `SHORTLIST_LIMITS.basic` active custom shortlists, and a
-  role's own link never counts.
+  signing in. Named recipients and interview booking are planned in
+  `docs/plans/client-shortlist.en.md`.
+- Custom shortlists (`kind` `custom`, `app/actions/custom-shortlists.ts`):
+  any people, for one client, open 60 days from creation or from "Keep open
+  60 more days". `/shortlists` is a library like `/templates`; building one is
+  `/shortlists/new`, reached from People (tick rows, "Put ticked people on a
+  shortlist"), a person's page, or a role's "From your database" matches, with
+  the people (`p`) and the client in the address. The client is settled by
+  the GET form before anything is saved, so each person's consent is worked
+  out for that client: consent Capture already has for it (`knownConsentAt`)
+  shows as "Agreed before", anyone else needs the tick, and do-not-contact
+  people stop the save. The client cannot be edited afterwards, only the name:
+  everyone on it agreed to that client.
+- Below Pro at most `SHORTLIST_LIMITS.basic` (3) custom shortlists are active
+  (not closed, not expired) at once; a role's own link never counts. The count
+  and the insert share one serializable transaction, on creating, reopening an
+  expired one and making a new link for a closed one. Reaching the limit only
+  refuses: links already sent keep working after a downgrade or a trial ends.
+  The limit is shown ("2 of 3 active"), because it is a limit, not a hidden
+  Pro feature.
 - What a client sees is `clientProfile` in `lib/client-profile.ts` and nothing
   else, shared with the client email. Every `Person` and `Candidate` column is
   classified there as shown or hidden, and `tests/client-profile.test.mjs`
@@ -400,7 +416,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Follow-ups lists "Client wants to meet" (only when it has anyone) for an
   Interview answer on a role link with no message logged since and no
   interview booked; it is its own group, `m`, in the follow-up run.
-- `tests/23-client-links.spec.ts` plays the client in a second browser context
+- `tests/23-client-links.spec.ts` and `tests/24-custom-shortlists.spec.ts` play the client in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
 
 ## Booking page

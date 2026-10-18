@@ -2,9 +2,9 @@ import { db } from "./db";
 
 // Everything a recruiter has recorded, in a form they can take elsewhere. No
 // secrets or hashes are included: capture keys, session data, suppression
-// hashes and calendar tokens stay behind.
+// hashes, calendar tokens and shortlist link nonces and recipients stay behind.
 
-export const EXPORT_TABLES = ["people", "notes", "candidates", "roles", "screenings", "bookings", "outreach", "templates", "searches"] as const;
+export const EXPORT_TABLES = ["people", "notes", "candidates", "roles", "screenings", "bookings", "outreach", "templates", "searches", "shortlists", "shortlistPeople"] as const;
 export type ExportTable = (typeof EXPORT_TABLES)[number];
 
 export function isExportTable(value: string): value is ExportTable {
@@ -26,7 +26,7 @@ function rows<T extends Record<string, unknown>>(items: T[], columns: (keyof T &
 
 export async function buildExport(ownerId: string): Promise<Record<ExportTable, Row[]>> {
   const now = new Date();
-  const [people, notes, roles, candidates, screenings, bookings, outreach, templates, searches] = await Promise.all([
+  const [people, notes, roles, candidates, screenings, bookings, outreach, templates, searches, shortlists, shortlistPeople] = await Promise.all([
     db.person.findMany({ where: { userId: ownerId }, orderBy: { createdAt: "asc" } }),
     db.personNote.findMany({ where: { person: { userId: ownerId } }, orderBy: { createdAt: "asc" } }),
     db.role.findMany({ where: { userId: ownerId }, include: { briefing: true }, orderBy: { createdAt: "asc" } }),
@@ -36,6 +36,8 @@ export async function buildExport(ownerId: string): Promise<Record<ExportTable, 
     db.outreachLog.findMany({ where: { candidate: { role: { userId: ownerId } } }, orderBy: { sentAt: "asc" } }),
     db.messageTemplate.findMany({ where: { userId: ownerId }, orderBy: { createdAt: "asc" } }),
     db.savedSearch.findMany({ where: { userId: ownerId }, orderBy: { createdAt: "asc" } }),
+    db.shortlist.findMany({ where: { userId: ownerId }, orderBy: { createdAt: "asc" } }),
+    db.shortlistItem.findMany({ where: { shortlist: { userId: ownerId } }, orderBy: { addedAt: "asc" } }),
   ]);
 
   return {
@@ -48,7 +50,7 @@ export async function buildExport(ownerId: string): Promise<Record<ExportTable, 
     notes: rows(notes, ["id", "personId", "candidateId", "body", "createdAt", "updatedAt"]),
     candidates: rows(candidates, [
       "id", "personId", "roleId", "fullName", "profileUrl", "headline", "notes", "stage",
-      "lastActivityAt", "lastNudgeAt", "nudgeCount", "createdAt", "updatedAt",
+      "lastActivityAt", "lastNudgeAt", "nudgeCount", "submittedAt", "createdAt", "updatedAt",
     ]),
     roles: roles.map((role) => ({
       ...rows([role], ["id", "title", "client", "jobDesc", "status", "budgetMin", "budgetMax", "budgetCurrency", "createdAt", "updatedAt"])[0],
@@ -81,6 +83,11 @@ export async function buildExport(ownerId: string): Promise<Record<ExportTable, 
     searches: rows(searches, [
       "id", "name", "roleId", "groupLabel", "titles", "keywords", "industries", "locations",
       "filterNotes", "searchUrl", "lastUsedAt", "createdAt",
+    ]),
+    shortlists: rows(shortlists, ["id", "kind", "roleId", "title", "client", "access", "expiresAt", "revokedAt", "createdAt", "updatedAt"]),
+    shortlistPeople: rows(shortlistPeople, [
+      "id", "shortlistId", "personId", "candidateId", "consentAt", "pitch", "position",
+      "decision", "decisionReason", "decisionNote", "decisionAt", "addedAt",
     ]),
   };
 }

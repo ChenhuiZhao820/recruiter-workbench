@@ -11,7 +11,7 @@
 
 const el = (id) => document.getElementById(id);
 
-const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "" };
+const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "", filled: { name: "", headline: "" }, waiting: false, leftName: "", settleUrl: "", settleTries: 0 };
 const fields = ["role", "name", "headline", "profile", "notes"];
 const controls = ["settings", "open-role", "reread"];
 // Where Capture actually lives. A package built by scripts/package-extension.mjs
@@ -44,16 +44,22 @@ function readProfile() {
   const match = location.pathname.match(/^\/in\/([^/]+)/);
   const isProfile = /(^|\.)linkedin\.com$/.test(location.hostname) && Boolean(match);
   const profileUrl = isProfile ? `https://${location.hostname}/in/${match[1]}/` : "";
-  if (!isProfile) return { profileUrl, name: "", headline: "", memberId: "", isProfile };
+  if (!isProfile) return { profileUrl, name: "", headline: "", memberId: "", isProfile, settled: true };
 
   const heading = document.querySelector("main h1") || document.querySelector("h1");
   let name = clean(heading && heading.textContent);
 
-  // Fallback: the tab title is "Name | LinkedIn", sometimes with a leading
-  // notification count.
-  if (!name) {
-    name = clean(document.title.replace(/^\(\d+\+?\)\s*/, "").split("|")[0]);
-  }
+  // The tab title is "Name | LinkedIn", sometimes with a leading notification
+  // count.
+  const titleName = clean(document.title.replace(/^\(\d+\+?\)\s*/, "").split("|")[0]);
+  if (!name) name = titleName;
+
+  // Between two profiles the address already names the next person while the
+  // heading or the title still shows the last one. When the two disagree the
+  // page is half drawn, and whatever is on it may be somebody else's.
+  const fold = (text) => text.toLocaleLowerCase();
+  const settled = !document.title.includes("|") || !titleName ||
+    fold(titleName).includes(fold(name)) || fold(name).includes(fold(titleName));
 
   let headline = "";
   const headlineNode = document.querySelector("main .text-body-medium");
@@ -74,7 +80,7 @@ function readProfile() {
     if (recipient && /^[A-Za-z0-9_-]{5,60}$/.test(recipient)) memberId = recipient;
   }
 
-  return { profileUrl, name, headline, memberId, isProfile };
+  return { profileUrl, name, headline, memberId, isProfile, settled };
 }
 
 async function readActiveTab() {
@@ -287,9 +293,13 @@ function watchTabs() {
   } catch {
     watchingTabs = false;
   }
+  // LinkedIn walks from one profile to the next without loading a page: the
+  // address changes first and the person on it is drawn a moment later, with
+  // the tab's title last. So a new address, a new title or a finished load in
+  // the tab being read is each a reason to look again.
   try {
     chrome.tabs.onUpdated.addListener((tabId, info) => (
-      info && info.status === "complete" && tabId === state.tabId ? moved() : undefined
+      info && tabId === state.tabId && (info.status === "complete" || info.url || info.title) ? moved() : undefined
     ));
   } catch {
     // One of the two is enough to notice most moves; neither is a silent save.
@@ -302,11 +312,13 @@ function applyProfile(profile, { quiet = false } = {}) {
   state.savedRoleId = "";
   state.profileUrl = profile.profileUrl || "";
   state.memberId = profile.memberId || "";
+  state.waiting = false;
   el("open-role").hidden = true;
   el("reread").hidden = true;
   el("name").value = profile.name || "";
   el("headline").value = profile.headline || "";
   el("profile").value = profile.profileUrl || "";
+  state.filled = { name: el("name").value, headline: el("headline").value };
   el("save").disabled = false;
   if (!profile.isProfile) {
     // While the panel follows along, most pages are not profiles: a search
@@ -336,12 +348,88 @@ function markStale(message, { clear = false } = {}) {
   if (clear) {
     state.profileUrl = "";
     state.memberId = "";
+    state.filled = { name: "", headline: "" };
+    state.waiting = false;
+    pageSettled();
     for (const id of ["name", "headline", "profile"]) el(id).value = "";
   }
   say(el("message"), message, "bad");
 }
 
-async function refreshProfile() {
+// One move reports itself several times - a new address, a new title, a
+// finished load - so reads are taken one at a time, and a move reported during
+// a read is looked at again once it is done rather than raced against it.
+let refreshing = null;
+let refreshAgain = false;
+
+function refreshProfile() {
+  if (refreshing) {
+    refreshAgain = true;
+    return refreshing;
+  }
+  refreshing = (async () => {
+    do {
+      refreshAgain = false;
+      await refreshOnce();
+    } while (refreshAgain);
+  })().finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+// A half-drawn profile is looked at again shortly, a few times at most, and
+// only for the page the recruiter has just moved to. If it never settles the
+// choice goes back to them: Read this profile takes the page as it is.
+const SETTLE_DELAY = 700;
+const SETTLE_TRIES = 3;
+let settleTimer = null;
+
+function waitForPage(profileUrl) {
+  if (state.settleUrl !== profileUrl) {
+    state.settleUrl = profileUrl;
+    state.settleTries = 0;
+  }
+  clearTimeout(settleTimer);
+  if (state.settleTries >= SETTLE_TRIES) {
+    el("reread").hidden = false;
+    say(el("message"), "This profile has not finished loading. Check the name, or press Read this profile.", "bad");
+    return;
+  }
+  state.settleTries += 1;
+  settleTimer = setTimeout(() => refreshProfile(), SETTLE_DELAY);
+}
+
+function pageSettled() {
+  clearTimeout(settleTimer);
+  state.settleUrl = "";
+  state.settleTries = 0;
+}
+
+// The same person, read again once the page has finished drawing them. Only
+// what still reads as it was filled in is replaced: a name the recruiter
+// corrected is theirs, and so is the note.
+function updateProfile(profile) {
+  let changed = false;
+  for (const id of ["name", "headline"]) {
+    const value = profile[id] || "";
+    if (el(id).value === state.filled[id] && value !== state.filled[id]) {
+      el(id).value = value;
+      state.filled[id] = value;
+      changed = true;
+    }
+  }
+  // Not a field anyone types, so it is always the page's: an id kept from an
+  // earlier read could open the last person's message box.
+  state.memberId = profile.memberId || "";
+  if (state.waiting) {
+    state.waiting = false;
+    el("reread").hidden = true;
+    say(el("message"), profile.name ? "" : "No name found on the page. Type one in.", profile.name ? "" : "bad");
+  } else if (changed && !state.saved) {
+    say(el("message"), "", "");
+  }
+}
+
+async function refreshOnce() {
   if (el("capture").hidden || state.saving) return;
   const following = await followingEnabled();
   await showFollowState();
@@ -360,7 +448,33 @@ async function refreshProfile() {
     }
     return;
   }
-  if (profile.profileUrl && profile.profileUrl === state.profileUrl && !state.stale) return;
+  const samePerson = Boolean(profile.profileUrl) && profile.profileUrl === state.profileUrl && !state.stale;
+  // The heading and the title can both still show the last person while the
+  // address already names the next, and then they agree with each other. A new
+  // address with the last person's name on it is that moment, not a namesake;
+  // a real namesake is one Read this profile away.
+  const lastName = state.waiting ? state.leftName : state.filled.name;
+  const lagging = profile.isProfile && Boolean(profile.name) && profile.name === lastName &&
+    (samePerson ? state.waiting : Boolean(state.profileUrl));
+  if (profile.isProfile && (!profile.settled || lagging)) {
+    // Nothing from a half-drawn page is trusted except its address. The fields
+    // are emptied rather than left describing the last person.
+    if (!samePerson) {
+      state.leftName = lastName;
+      applyProfile({ ...profile, name: "", headline: "", memberId: "" }, { quiet: true });
+      el("notes").value = "";
+      state.waiting = true;
+      say(el("message"), "Reading this profile...", "");
+      await checkExisting();
+    }
+    waitForPage(profile.profileUrl);
+    return;
+  }
+  pageSettled();
+  if (samePerson) {
+    updateProfile(profile);
+    return;
+  }
   applyProfile(profile, { quiet: true });
   el("notes").value = "";
   await checkExisting();
@@ -374,6 +488,9 @@ function markIdle(message) {
   state.savedRoleId = "";
   state.profileUrl = "";
   state.memberId = "";
+  state.filled = { name: "", headline: "" };
+  state.waiting = false;
+  pageSettled();
   el("open-role").hidden = true;
   el("reread").hidden = true;
   el("save").disabled = false;
@@ -720,6 +837,8 @@ el("reread").addEventListener("click", async () => {
     markStale("Chrome only lets Capture read a page just after you click its toolbar icon. Click the icon, then press Read this profile again.");
     return;
   }
+  // Asked for by name, so the page is taken as it is, finished drawing or not.
+  pageSettled();
   applyProfile(profile);
   await checkExisting();
 });

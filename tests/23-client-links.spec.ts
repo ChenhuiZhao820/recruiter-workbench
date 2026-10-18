@@ -47,7 +47,7 @@ function row(page: Page, name: string) {
 
 async function openPanel(page: Page) {
   const panel = page.locator("details.client-link");
-  if (!(await panel.getAttribute("open").then((v) => v !== null))) await panel.locator("summary").click();
+  if (!(await panel.getAttribute("open").then((v) => v !== null))) await panel.locator("summary").first().click();
   return panel;
 }
 
@@ -337,7 +337,7 @@ test("L8 the client answers on the page - interview, or not for us with a reason
   await expect(row(page, "Imogen Achterberg").getByText("Halden Systems Ltd wants to meet")).toBeVisible();
   await expect(row(page, "Priya Raman").getByText("Not for Halden Systems Ltd · Experience")).toBeVisible();
   await expect(row(page, "Priya Raman").getByRole("button", { name: "Mark rejected" })).toBeVisible();
-  await expect((await openPanel(page)).getByText(/Halden Systems Ltd wants to meet/)).toBeVisible();
+  await expect((await openPanel(page)).locator(".client-link-stats").getByText(/Halden Systems Ltd wants to meet/)).toBeVisible();
 
   // The preview shows the answers and offers nothing to press.
   await (await openPanel(page)).getByRole("link", { name: "See what Halden Systems Ltd sees" }).click();

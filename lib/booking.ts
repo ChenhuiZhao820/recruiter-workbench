@@ -77,9 +77,11 @@ export function privacyNoticeText(settings: Pick<BookingSettings, "privacyNotice
   return settings.privacyNotice.trim() || defaultPrivacyNotice(settings.recruiterName, settings.privacyContactEmail || accountEmail);
 }
 
-// Everything the public page and its action need, from the link alone.
+// Everything the public page and its action need, from the link alone. The
+// link's kind says whether this is a call with the recruiter or an interview
+// with the client, and only a booking of that kind counts as this link's.
 export async function loadBookingContext(token: string, now = new Date()) {
-  const read = readBookingToken(bookingSecret(), token, now);
+  const read = readBookingToken(bookingSecret(), token, now) as { candidateId: string; issuedDay: number; expiresAt: Date; kind: "screening" | "interview" } | null;
   if (!read) return null;
   const candidate = await db.candidate.findUnique({
     where: { id: read.candidateId },
@@ -88,9 +90,16 @@ export async function loadBookingContext(token: string, now = new Date()) {
       fullName: true,
       stage: true,
       personId: true,
-      role: { select: { id: true, title: true, status: true, userId: true, user: { select: { id: true, email: true, name: true, active: true } } } },
+      role: {
+        select: {
+          id: true, title: true, status: true, userId: true, client: true, clientReviewFirst: true,
+          interviewWindows: true, interviewTimezone: true, interviewDurationMins: true, interviewLocation: true,
+          user: { select: { id: true, email: true, name: true, active: true } },
+        },
+      },
       person: { select: { id: true, doNotContact: true } },
-      bookings: { where: { status: "booked", endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 1 },
+      bookings: { where: { status: "booked", kind: read.kind, endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 1 },
+      shortlistItems: { where: { shortlist: { kind: "role", revokedAt: null } }, select: { candidateId: true, consentAt: true, decision: true }, take: 1 },
     },
   });
   if (!candidate || !candidate.role.user.active) return null;
@@ -103,7 +112,8 @@ export async function loadBookingContext(token: string, now = new Date()) {
 export async function freeSlots(ownerId: string, settings: BookingSettings, now = new Date()) {
   const horizonEnd = new Date(now.getTime() + (settings.bookingHorizonDays + 1) * 86_400_000);
   const booked = await db.booking.findMany({
-    where: { userId: ownerId, status: "booked", endsAt: { gt: now }, startsAt: { lt: horizonEnd } },
+    // Client interviews are the client's time, not the recruiter's.
+    where: { userId: ownerId, kind: "screening", status: "booked", endsAt: { gt: now }, startsAt: { lt: horizonEnd } },
     select: { startsAt: true, endsAt: true },
   });
   // Busy time in the recruiter's own calendar, when one is connected. If it

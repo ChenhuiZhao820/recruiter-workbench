@@ -1242,3 +1242,20 @@ label > .im-editor-note { margin-top: 6px; }
 .recipient-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .recipient-email { font-size: 14px; font-weight: 550; overflow-wrap: anywhere; }
 .recipient-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+
+/* A role's client interview hours, folded inside the Client link panel. */
+.interview-hours { border-top: 1px solid var(--color-line); padding-top: 12px; }
+.interview-hours > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; list-style: none; cursor: pointer; font-size: 14px; font-weight: 550; }
+.interview-hours > summary::-webkit-details-marker { display: none; }
+.interview-hours > form { margin-top: 14px; }
+
+/* Interviews booked with people on a client's page, above the people. */
+.client-interviews { margin-top: 32px; }
+.client-interviews > h2 { font-size: 18px; font-weight: 600; letter-spacing: -.03em; }
+.client-interviews > ul { display: grid; margin-top: 12px; border: 1px solid #d9e1ff; border-radius: 8px; background: var(--color-accent-soft); }
+.client-interviews > ul > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 16px 20px; }
+.client-interviews > ul > li + li { border-top: 1px solid #d9e1ff; }
+.client-interview-who { font-size: 16px; font-weight: 600; letter-spacing: -.02em; }
+.client-interview-when { margin-top: 2px; font-size: 14px; color: var(--color-ink); }
+.client-interview-where { margin-top: 2px; font-size: 13px; color: var(--color-ink-soft); overflow-wrap: anywhere; }
+.client-interview-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

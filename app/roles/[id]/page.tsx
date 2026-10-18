@@ -31,6 +31,9 @@ import { CLOSED_STAGES, consentPersonSelect, knownConsentAt } from "@/lib/shortl
 import { DECISION_REASON_LABELS, shortlistStatus } from "@/lib/shortlist-core.mjs";
 import { newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
 import { ShortlistSharing } from "@/components/ShortlistSharing";
+import { InterviewHoursForm } from "@/components/InterviewHoursForm";
+import { interviewHoursPrefill } from "@/lib/interviews";
+import { hasInterviewHours } from "@/lib/shortlist-core.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +90,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
   const answeredBy = new Map((clientList?.accesses ?? []).filter((access) => access.email).map((access) => [access.id, access.email!]));
   const onLinkCount = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).length;
   const clientName = role.client || "the client";
+  const interviewHours = features.clientShortlists ? await interviewHoursPrefill(owner.id, role, settings) : null;
   const lastViewed = openAccesses.reduce<Date | null>((latest, access) => (access.lastViewedAt && (!latest || access.lastViewedAt > latest) ? access.lastViewedAt : latest), null);
   const visibleItems = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).map((c) => onLink.get(c.id)!);
   const wantToMeet = visibleItems.filter((item) => item.decision === "interview").length;
@@ -357,6 +361,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                     />
                   </>
                 )}
+                {clientList && linkStatus === "active" && interviewHours && (
+                  <InterviewHoursForm roleId={role.id} client={clientName} hours={interviewHours} saved={hasInterviewHours(role)} />
+                )}
                 {clientList && (
                   <p className="client-link-stats">
                     <span><strong className="tabular">{onLinkCount}</strong> on the page</span>
@@ -496,9 +503,13 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                       {c.bookings[0] ? (
                         <div className="booking-on-card">
                           <p className="text-sm">
-                            <span className="chip screening-chip-done">Call booked</span>{" "}
+                            <span className="chip screening-chip-done">{c.bookings[0].kind === "interview" ? `Interview with ${clientName}` : "Call booked"}</span>{" "}
                             <span className="tabular">{callTime.format(c.bookings[0].startsAt)}</span>
-                            <span className="text-ink-soft">{c.bookings[0].mode === "phone" ? `, phone ${c.bookings[0].phone}` : ", video"}</span>
+                            <span className="text-ink-soft">
+                              {c.bookings[0].kind === "interview"
+                                ? (c.bookings[0].meetingUrl ? ", video" : role.interviewLocation ? `, ${role.interviewLocation}` : "")
+                                : c.bookings[0].mode === "phone" ? `, phone ${c.bookings[0].phone}` : ", video"}
+                            </span>
                           </p>
                           {!readOnly && (
                             <div className="flex flex-wrap items-center gap-2">
@@ -506,9 +517,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                                 href={googleCalendarUrl({
                                   start: c.bookings[0].startsAt.getTime(),
                                   end: c.bookings[0].endsAt.getTime(),
-                                  title: `Screening call: ${c.fullName} (${role.title})`,
-                                  details: c.bookings[0].mode === "phone" ? `Call ${c.fullName} on ${c.bookings[0].phone}` : c.bookings[0].meetingUrl ?? "",
-                                  location: c.bookings[0].meetingUrl ?? undefined,
+                                  title: c.bookings[0].kind === "interview" ? `Interview: ${c.fullName} with ${clientName} (${role.title})` : `Screening call: ${c.fullName} (${role.title})`,
+                                  details: c.bookings[0].kind === "interview" ? c.bookings[0].meetingUrl ?? role.interviewLocation ?? "" : c.bookings[0].mode === "phone" ? `Call ${c.fullName} on ${c.bookings[0].phone}` : c.bookings[0].meetingUrl ?? "",
+                                  location: c.bookings[0].meetingUrl ?? (c.bookings[0].kind === "interview" ? role.interviewLocation ?? undefined : undefined),
                                 })}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -519,7 +530,12 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                               <a href={`/api/bookings/${c.bookings[0].id}/ics`} className="btn-quiet" download>Calendar file</a>
                               <form action={cancelBooking}>
                                 <input type="hidden" name="bookingId" value={c.bookings[0].id} />
-                                <ConfirmSubmitButton label="Cancel call" confirmText={`Cancel the call with ${c.fullName}? The time becomes free again. Capture does not tell them, so let them know yourself.`} />
+                                <ConfirmSubmitButton
+                                  label={c.bookings[0].kind === "interview" ? "Cancel interview" : "Cancel call"}
+                                  confirmText={c.bookings[0].kind === "interview"
+                                    ? `Cancel ${c.fullName}'s interview with ${clientName}? The time becomes free again and they go back to Submitted. Capture tells neither of them, so let them both know yourself.`
+                                    : `Cancel the call with ${c.fullName}? The time becomes free again. Capture does not tell them, so let them know yourself.`}
+                                />
                               </form>
                             </div>
                           )}

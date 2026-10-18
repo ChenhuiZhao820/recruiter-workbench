@@ -26,7 +26,9 @@ export function ClientDecision({ token, itemId, firstName, decision, canDecide }
   const status = decision ? (
     <p className={`client-decision-status${decision.decision === "interview" ? " is-yes" : ""}`}>
       {decision.decision === "interview"
-        ? <>You asked to meet {firstName}. The recruiter will arrange it.</>
+        ? canDecide
+          ? <>You asked to meet {firstName}. The recruiter will arrange it.</>
+          : <>Your interview with {firstName} is booked.</>
         : <>Not for you{decision.reason ? <> &middot; {DECISION_REASON_LABELS[decision.reason as keyof typeof DECISION_REASON_LABELS] ?? decision.reason}</> : null}{decision.note ? <>: <span className="client-decision-note">{decision.note}</span></> : null}</>}
     </p>
   ) : null;

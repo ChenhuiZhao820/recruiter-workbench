@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useFormState } from "react-dom";
 import { bookSlot } from "@/app/actions/booking";
+import { bookInterview } from "@/app/actions/interviews";
 import { EMPTY_FORM_STATE } from "@/lib/formState";
 import { SubmitButton } from "@/components/SubmitButton";
 
@@ -11,7 +12,8 @@ const VISIBLE_DAYS = 5;
 // The candidate's side of the booking page. Times arrive as instants and are
 // shown in the candidate's own time zone, read from their browser and
 // changeable, because a recruiter in London and a candidate in Lisbon should
-// both see the right hour.
+// both see the right hour. The interview variant books a time with the client:
+// how it happens is the client's, so there is nothing to choose but the time.
 export function SlotPicker({
   token,
   slots,
@@ -20,6 +22,7 @@ export function SlotPicker({
   offerPhone,
   recruiterZone,
   notice,
+  variant = "call",
 }: {
   token: string;
   slots: number[];
@@ -28,8 +31,10 @@ export function SlotPicker({
   offerPhone: boolean;
   recruiterZone: string;
   notice: string;
+  variant?: "call" | "interview";
 }) {
-  const [state, action] = useFormState(bookSlot, EMPTY_FORM_STATE);
+  const interview = variant === "interview";
+  const [state, action] = useFormState(interview ? bookInterview : bookSlot, EMPTY_FORM_STATE);
   const [zone, setZone] = useState(recruiterZone);
   const [mode, setMode] = useState(offerVideo ? "video" : "phone");
   const [chosen, setChosen] = useState<number | null>(null);
@@ -111,7 +116,7 @@ export function SlotPicker({
           <label htmlFor="booking-email" className="field-label">Email address</label>
           <input id="booking-email" name="email" type="email" required autoComplete="email" className="field-input" />
         </div>
-        {offerVideo && offerPhone && (
+        {!interview && offerVideo && offerPhone && (
           <div role="radiogroup" aria-label="How would you like to talk?" className="booking-modes">
             <label className="booking-mode" data-chosen={mode === "video"}>
               <input type="radio" name="mode" value="video" checked={mode === "video"} onChange={() => setMode("video")} className="screening-check" />
@@ -123,8 +128,8 @@ export function SlotPicker({
             </label>
           </div>
         )}
-        {!(offerVideo && offerPhone) && <input type="hidden" name="mode" value={mode} />}
-        {mode === "phone" && (
+        {!interview && !(offerVideo && offerPhone) && <input type="hidden" name="mode" value={mode} />}
+        {!interview && mode === "phone" && (
           <div>
             <label htmlFor="booking-phone" className="field-label">Phone number to call you on</label>
             <input id="booking-phone" name="phone" type="tel" required autoComplete="tel" className="field-input" placeholder="+44 7700 900123" />
@@ -132,15 +137,15 @@ export function SlotPicker({
         )}
         <label className="screening-consent">
           <input type="checkbox" name="consent" required className="screening-check" />
-          <span>I have read how my details are used, below, and agree that notes or a transcript of the call may be kept.</span>
+          <span>{interview ? "I have read how my details are used, below." : "I have read how my details are used, below, and agree that notes or a transcript of the call may be kept."}</span>
         </label>
-        <label className="screening-consent">
+        {!interview && <label className="screening-consent">
           <input type="checkbox" name="keep" className="screening-check" />
           <span>
             Keep my details for future roles
             <span className="block text-xs text-ink-soft">Optional. Without it, your details are kept only for this role.</span>
           </span>
-        </label>
+        </label>}
         <details className="booking-notice">
           <summary>How your details are used</summary>
           <p>{notice}</p>
@@ -148,7 +153,7 @@ export function SlotPicker({
       </fieldset>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SubmitButton pendingLabel="Booking...">Book this call</SubmitButton>
+        <SubmitButton pendingLabel="Booking...">{interview ? "Book this interview" : "Book this call"}</SubmitButton>
         <p className="text-xs text-ink-soft" role="status">{chosen ? `${new Intl.DateTimeFormat("en-GB", { timeZone: zone, weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(chosen))}` : "Choose a time above."}</p>
       </div>
     </form>

@@ -162,17 +162,34 @@ export type ClientDecision = { decision: "interview" | "declined"; reason: strin
 
 export type ClientShortlistEntry = { itemId: string; profile: ClientProfile; addedAt: Date; decision: ClientDecision; canDecide: boolean };
 
+// An interview booked with someone on the page, still to come. Where it is
+// comes from the role's interview hours: a meeting link or an address.
+export type ClientInterview = {
+  bookingId: string;
+  itemId: string;
+  candidateId: string;
+  fullName: string;
+  startsAt: Date;
+  endsAt: Date;
+  meetingUrl: string | null;
+  place: string | null;
+  // The client's own zone, from the role's interview hours.
+  timeZone: string;
+  roleTitle: string;
+};
+
 export type ClientShortlistView = {
   title: string;
   client: string | null;
   roleTitle: string | null;
   recruiterName: string;
   entries: ClientShortlistEntry[];
+  interviews: ClientInterview[];
 };
 
 // The entries a client sees, read live: whoever has since become do not
 // contact, been rejected or moved off the role is left out.
-async function visibleEntries(shortlist: { id: string; kind: string; roleId: string | null }, now: Date): Promise<ClientShortlistEntry[]> {
+async function visibleEntries(shortlist: { id: string; kind: string; roleId: string | null }, now: Date): Promise<{ entries: ClientShortlistEntry[]; interviews: ClientInterview[] }> {
   const items = await db.shortlistItem.findMany({
     where: { shortlistId: shortlist.id },
     orderBy: [{ position: "asc" }, { addedAt: "asc" }],
@@ -181,22 +198,34 @@ async function visibleEntries(shortlist: { id: string; kind: string; roleId: str
       candidate: {
         select: {
           id: true, roleId: true, personId: true, stage: true, fullName: true, headline: true,
-          bookings: { where: { kind: "interview", status: "booked" }, select: { id: true }, take: 1 },
+          role: { select: { title: true, interviewLocation: true, interviewTimezone: true } },
+          bookings: { where: { kind: "interview", status: "booked" }, orderBy: { startsAt: "desc" }, select: { id: true, startsAt: true, endsAt: true, meetingUrl: true }, take: 1 },
         },
       },
     },
   });
-  return items
-    .filter((item) => itemVisible({ shortlist, item, person: item.person, candidate: item.candidate }))
+  const visible = items.filter((item) => itemVisible({ shortlist, item, person: item.person, candidate: item.candidate }));
+  const interviews: ClientInterview[] = visible.flatMap((item) => {
+    const booking = item.candidate?.bookings[0];
+    if (!booking || booking.endsAt <= now) return [];
+    const where = (item.candidate!.role.interviewLocation ?? "").trim();
+    return [{
+      bookingId: booking.id, itemId: item.id, candidateId: item.candidate!.id, fullName: item.person.fullName,
+      startsAt: booking.startsAt, endsAt: booking.endsAt, meetingUrl: booking.meetingUrl, place: booking.meetingUrl ? null : where || null,
+      timeZone: item.candidate!.role.interviewTimezone ?? "Europe/London", roleTitle: item.candidate!.role.title,
+    }];
+  }).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  const entries: ClientShortlistEntry[] = visible
     .map((item) => ({
       itemId: item.id,
       addedAt: item.addedAt,
       profile: clientProfile({ person: item.person, candidate: item.candidate, pitch: item.pitch, now }),
       decision: item.decision === "interview" || item.decision === "declined"
-        ? { decision: item.decision, reason: item.decisionReason, note: item.decisionNote, at: item.decisionAt ?? item.addedAt }
+        ? { decision: item.decision as "interview" | "declined", reason: item.decisionReason, note: item.decisionNote, at: item.decisionAt ?? item.addedAt }
         : null,
       canDecide: canDecide({ interviewBooked: Boolean(item.candidate?.bookings.length) }),
     }));
+  return { entries, interviews };
 }
 
 function recruiterName(settings: { recruiterName: string } | null, owner: { name: string }) {
@@ -253,7 +282,7 @@ export async function loadClientPage(token: string, now = new Date(), gateCookie
       client: shortlist.client,
       roleTitle: shortlist.role?.title ?? null,
       recruiterName: name,
-      entries: await visibleEntries(shortlist, now),
+      ...(await visibleEntries(shortlist, now)),
     },
   };
 }
@@ -287,7 +316,7 @@ export async function loadPreview(shortlistId: string, ownerId: string, now = ne
       client: shortlist.client,
       roleTitle: shortlist.role?.title ?? null,
       recruiterName: recruiterName(shortlist.user.settings, shortlist.user),
-      entries: await visibleEntries(shortlist, now),
+      ...(await visibleEntries(shortlist, now)),
     },
   };
 }

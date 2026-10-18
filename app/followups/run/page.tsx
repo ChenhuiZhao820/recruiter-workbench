@@ -19,6 +19,8 @@ import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
 import { RememberRun, StartRunButton, TemplateSelect } from "@/components/FollowUpRun";
 
+import { interviewLinkFor } from "@/lib/interviews";
+
 export const dynamic = "force-dynamic";
 
 // Everyone due a follow-up, across roles, walked through one person at a time.
@@ -67,14 +69,19 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
 
   // The message for one person in a group, from the chosen template or the
   // built-in one.
-  const messageFor = (
+  const messageFor = async (
     group: Group,
     candidate: { id: string; fullName: string; stage: string; role: { title: string; status: string }; person: { doNotContact: boolean } | null },
   ) => {
     if (group === "r") return { body: "", kind: "message", templateId: "" };
     const template = templates.find((t) => t.id === chosen[group]);
     const booking = bookingLinkFor(candidate, settings);
-    const source = template?.body ?? (group === "b" && !booking ? BUILT_IN_TEMPLATES.bNoLink : BUILT_IN_TEMPLATES[group]);
+    const interview = (await interviewLinkFor(candidate.id, owner.id)).link;
+    const source = template?.body ?? (
+      group === "b" && !booking ? BUILT_IN_TEMPLATES.bNoLink
+        : group === "m" && interview ? BUILT_IN_TEMPLATES.mLink
+          : BUILT_IN_TEMPLATES[group]
+    );
     return {
       body: renderTemplate(source, {
         first_name: firstName(candidate.fullName),
@@ -83,6 +90,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
         recruiter_name: settings.recruiterName,
         booking_link: booking,
         privacy_notice: privacyNoticeLine(settings.privacyContactEmail || owner.email),
+        interview_link: interview,
       }),
       kind: template?.kind ?? "message",
       templateId: template?.id ?? "",
@@ -106,6 +114,17 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
       include: { role: true, person: { select: { doNotContact: true } } },
     });
     const byId = new Map(people.map((p) => [p.id, p]));
+    // The preview under each group's template, for its first ticked person,
+    // worked out before rendering because a message may carry a link that is
+    // looked up per person.
+    const previews = new Map<Group, string>();
+    for (const group of GROUPS as Group[]) {
+      if (group === "r") continue;
+      const rows = planned.filter((row: { group: string }) => row.group === group);
+      const first = rows.find((row: { checked: boolean }) => row.checked) ?? rows[0];
+      const candidate = first ? byId.get(first.row.candidateId) : undefined;
+      if (candidate) previews.set(group, (await messageFor(group, candidate)).body);
+    }
     const templateOptions = [
       { value: "", label: "Capture's follow-up" },
       ...templates.map((t) => ({ value: t.id, label: `${t.name} - ${templateKindLabel(t.kind)}` })),
@@ -135,7 +154,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
             if (rows.length === 0) return null;
             const first = rows.find((row: { checked: boolean }) => row.checked) ?? rows[0];
             const firstCandidate = byId.get(first.row.candidateId);
-            const preview = group !== "r" && firstCandidate ? messageFor(group, firstCandidate).body : "";
+            const preview = previews.get(group) ?? "";
             return (
               <section key={group} aria-labelledby={`run-${group}`} className="workspace-section space-y-4">
                 <div>
@@ -238,7 +257,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
   }
 
   const { group, candidate } = run[index];
-  const message = messageFor(group, candidate);
+  const message = await messageFor(group, candidate);
   const compose = messageComposeUrl(candidate.memberId);
   const openUrl = compose || profileHref(candidate.profileUrl) || "";
   const next = runHref(kept, { templates: templateIds, index: index + 1 });

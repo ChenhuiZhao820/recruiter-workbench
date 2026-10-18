@@ -118,7 +118,7 @@ export default async function FollowUpsPage() {
     db.booking.findMany({
       where: { userId: owner.id, status: "booked", endsAt: { gt: now }, startsAt: { lt: new Date(now.getTime() + 7 * 86_400_000) }, candidate: { role: { userId: owner.id } } },
       orderBy: { startsAt: "asc" },
-      select: { id: true, startsAt: true, mode: true, phone: true, candidate: { select: { id: true, fullName: true, role: { select: { id: true, title: true } } } } },
+      select: { id: true, startsAt: true, mode: true, phone: true, kind: true, candidate: { select: { id: true, fullName: true, role: { select: { id: true, title: true, client: true } } } } },
     }),
     // People the recruiter chose to come back to, due within the week or overdue.
     features.revisitReminders
@@ -153,14 +153,16 @@ export default async function FollowUpsPage() {
       {calls.length > 0 && (
         <section aria-labelledby="calls-heading" className="workspace-section">
           <h2 id="calls-heading" className="section-heading">Calls this week</h2>
-          <p className="section-caption mb-4">Booked by candidates through your booking page.</p>
+          <p className="section-caption mb-4">Booked by candidates through your booking page, and client interviews they booked.</p>
           <ul className="space-y-2">
             {calls.map((call) => (
               <li key={call.id} className="card flex flex-wrap items-baseline justify-between gap-2">
                 <span>
                   <span className="font-medium tabular">{callTime.format(call.startsAt)}</span>{" "}
                   <span>{call.candidate.fullName}</span>
-                  <span className="text-ink-soft">{call.mode === "phone" ? `, phone ${call.phone}` : ", video"}</span>
+                  <span className="text-ink-soft">
+                    {call.kind === "interview" ? `, interview with ${call.candidate.role.client || "the client"}` : call.mode === "phone" ? `, phone ${call.phone}` : ", video"}
+                  </span>
                 </span>
                 <Link href={`/roles/${call.candidate.role.id}`} className="text-sm text-ink/60 underline">{call.candidate.role.title}</Link>
               </li>

@@ -3,6 +3,10 @@ import { ClientDecision } from "@/components/ClientDecision";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { openNamedLink } from "@/app/actions/shortlist-access";
+import { clientCannotMakeIt } from "@/app/actions/interviews";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { LocalTime } from "@/components/SlotPicker";
+import { googleCalendarUrl } from "@/lib/booking-core.mjs";
 
 // The page a client reads: the people a recruiter has put forward, as
 // ClientProfile allows and nothing more. Shared by /s/<token> and the
@@ -32,6 +36,54 @@ export function ClientShortlist({ view, token }: { view: ClientShortlistView; to
           location and right to work is in their own words and has not been checked.
         </p>
       </header>
+
+      {view.interviews.length > 0 && (
+        <section aria-labelledby="client-interviews" className="client-interviews">
+          <h2 id="client-interviews">Interviews</h2>
+          <ul>
+            {view.interviews.map((interview) => (
+              <li key={interview.bookingId}>
+                <div className="min-w-0">
+                  <p className="client-interview-who">{interview.fullName}</p>
+                  <p className="client-interview-when"><LocalTime at={interview.startsAt.getTime()} recruiterZone={interview.timeZone} /></p>
+                  <p className="client-interview-where">
+                    {interview.meetingUrl
+                      ? <>Video call: <a href={interview.meetingUrl} rel="noopener noreferrer" className="underline underline-offset-2">{interview.meetingUrl}</a></>
+                      : interview.place ?? `${view.recruiterName} will send the details.`}
+                  </p>
+                </div>
+                {token && (
+                  <div className="client-interview-actions">
+                    <a
+                      href={googleCalendarUrl({
+                        start: interview.startsAt.getTime(),
+                        end: interview.endsAt.getTime(),
+                        title: `Interview: ${interview.fullName} (${interview.roleTitle})`,
+                        details: interview.meetingUrl ?? interview.place ?? "",
+                        location: interview.meetingUrl ?? interview.place ?? undefined,
+                      })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-quiet"
+                    >
+                      Add to Google Calendar
+                    </a>
+                    <a href={`/s/${token}/interviews/${interview.bookingId}`} className="btn-quiet" download>Calendar file</a>
+                    <ActionForm action={clientCannotMakeIt} className="contents">
+                      <input type="hidden" name="token" value={token} />
+                      <input type="hidden" name="bookingId" value={interview.bookingId} />
+                      <ConfirmSubmitButton
+                        label="Can't make this time"
+                        confirmText={`Cancel the interview with ${interview.fullName}? The time is freed and ${view.recruiterName} will find a new one with them.`}
+                      />
+                    </ActionForm>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {view.entries.length === 0 ? (
         <div className="client-empty">

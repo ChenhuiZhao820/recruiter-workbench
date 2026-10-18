@@ -89,7 +89,7 @@ const primaryFor = (table) => primaryKeys[table] ?? ["id"];
 const keyPart = (value) => value instanceof Date ? value.toISOString() : String(value);
 const keyOf = (table, row) => primaryFor(table).map((column) => keyPart(row[column])).join("|");
 const passwordPattern = /^scrypt\$32768\$8\$3\$[a-f0-9]{32}\$[a-f0-9]{128}$/;
-const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", "screened", "submitted", "rejected", "placed"];
+const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", "screened", "submitted", "interview", "rejected", "placed"];
 // Columns added after the first multi-account databases were written. A source
 // made before one of these groups existed has none of that group's columns and
 // imports with the defaults below; a source with some of a group but not all of

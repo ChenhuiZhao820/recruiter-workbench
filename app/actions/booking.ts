@@ -77,7 +77,7 @@ export async function bookSlot(_prev: FormState, formData: FormData): Promise<Fo
   const token = String(formData.get("token") ?? "");
   const now = new Date();
   const context = await loadBookingContext(token, now);
-  if (!context) return { error: "This booking link has expired or is not valid. Ask for a new one." };
+  if (!context || context.read.kind !== "screening") return { error: "This booking link has expired or is not valid. Ask for a new one." };
   const { candidate, owner, settings } = context;
   const who = settings.recruiterName || owner.name;
   if (!bookingReadiness(settings).ready || !candidateCanBook(candidate)) return { error: `This booking link is no longer active. Reply to ${who} to arrange a time.` };
@@ -109,7 +109,7 @@ export async function bookSlot(_prev: FormState, formData: FormData): Promise<Fo
   try {
     await db.$transaction(async (tx) => {
       const clash = await tx.booking.count({
-        where: { userId: owner.id, status: "booked", startsAt: { lt: end }, endsAt: { gt: start } },
+        where: { userId: owner.id, kind: "screening", status: "booked", startsAt: { lt: end }, endsAt: { gt: start } },
       });
       if (clash > 0) throw new SlotTakenError();
       const booking = await tx.booking.create({
@@ -155,7 +155,8 @@ export async function bookSlot(_prev: FormState, formData: FormData): Promise<Fo
 class SlotTakenError extends Error {}
 
 // The recruiter cancels a call. The time is free again and the candidate goes
-// back to "booking pending" if the call was what moved them on.
+// back to "booking pending" if the call was what moved them on - or, for a
+// client interview, back to Submitted, still on the client's page.
 export async function cancelBooking(formData: FormData) {
   const user = await requireWritableFeature("booking");
   const booking = await db.booking.findFirst({
@@ -166,8 +167,10 @@ export async function cancelBooking(formData: FormData) {
   await db.$transaction(async (tx) => {
     await tx.booking.update({ where: { id: booking.id }, data: { status: "cancelled" } });
     await tx.bookedSlot.deleteMany({ where: { bookingId: booking.id } });
-    if (booking.candidate.stage === "booked") {
-      await tx.candidate.update({ where: { id: booking.candidate.id }, data: { stage: "booking_pending", lastActivityAt: new Date() } });
+    await tx.interviewSlot.deleteMany({ where: { bookingId: booking.id } });
+    const back = booking.kind === "interview" ? { from: "interview", to: "submitted" } : { from: "booked", to: "booking_pending" };
+    if (booking.candidate.stage === back.from) {
+      await tx.candidate.update({ where: { id: booking.candidate.id }, data: { stage: back.to, lastActivityAt: new Date() } });
     }
     await tx.auditEvent.create({ data: { actorId: user.id, targetUserId: user.id, action: "booking.cancelled" } });
   });

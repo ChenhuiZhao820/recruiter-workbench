@@ -67,12 +67,13 @@ test("people a client asked to meet come straight after replies, name the client
   const entries = readRunEntries(["m.abcdefgh1", "q.abcdefgh2"]);
   assert.deepEqual(entries, [{ group: "m", candidateId: "abcdefgh1" }, { group: "q", candidateId: "abcdefgh2" }]);
   assert.equal(runHref(entries, { templates: { m: "tmpl9" } }), "/followups/run?c=m.abcdefgh1&c=q.abcdefgh2&tm=tmpl9&i=0");
-  assert.doesNotMatch(BUILT_IN_TEMPLATES.m, /booking_link/);
+  assert.doesNotMatch(BUILT_IN_TEMPLATES.m, /booking_link|interview_link/);
+  assert.match(BUILT_IN_TEMPLATES.mLink, /{{interview_link}}/);
 });
 
 test("the built-in follow-ups ask only for what the app can fill", () => {
   for (const body of Object.values(BUILT_IN_TEMPLATES)) {
-    for (const [, name] of body.matchAll(/\{\{(\w+)\}\}/g)) assert.ok(["first_name", "role_title", "recruiter_name", "booking_link"].includes(name), name);
+    for (const [, name] of body.matchAll(/\{\{(\w+)\}\}/g)) assert.ok(["first_name", "role_title", "recruiter_name", "booking_link", "interview_link"].includes(name), name);
   }
   assert.doesNotMatch(BUILT_IN_TEMPLATES.bNoLink, /booking_link/);
 });

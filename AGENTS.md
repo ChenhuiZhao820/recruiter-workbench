@@ -354,7 +354,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Every plan (`clientShortlists` in `FEATURE_TIERS`). A role has one client
   link: a `Shortlist` of kind `role`, made the first time someone is put
   forward, listing everyone put forward on one page the client opens without
-  signing in. Interview booking is planned in
+  signing in. What is still to come (the "client reviews first" switch) is in
   `docs/plans/client-shortlist.en.md`.
 - Custom shortlists (`kind` `custom`, `app/actions/custom-shortlists.ts`):
   any people, for one client, open 60 days from creation or from "Keep open
@@ -423,6 +423,34 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   no code, and the panel says so. Recipients' addresses are never exported.
 - An answer records the access it came from, so a named person's answer shows
   their address beside it on the role page and in the library.
+- Client interviews (`lib/interviews.ts`, `app/actions/interviews.ts`). A
+  role carries the client's interview hours (`interviewWindows`,
+  `interviewTimezone`, `interviewDurationMins`, `interviewLocation`: a
+  meeting link or an address), set in the Client link panel and opened
+  pre-filled from this role, the last role for the same `clientKey`, or the
+  recruiter's booking hours at 45 minutes.
+- `{{interview_link}}` becomes `/book/<candidateId>.<day>.i.<sig>`: the booking
+  token with its kind inside the signature, so a screening link cannot become
+  an interview one and old links read as before. It is a gap unless
+  `interviewLinkState` allows it: the role is open with hours, the candidate
+  is not rejected, placed or do not contact, they are on the role's link with
+  consent, and the client answered Interview. The follow-up run's
+  client-wants-to-meet message uses it when it exists and asks for times when
+  it does not.
+- The interview page names the client (the candidate agreed to them) and
+  offers the role's hours from a day ahead to three weeks, less every
+  interview booked with the same `clientKey` on any role. `bookInterview`
+  re-reads everything from the link, books only a time still offered, and
+  inserts `Booking` (kind `interview`, mode `video` or `in_person`) with an
+  `InterviewSlot` whose (owner, client, start) key refuses a double booking
+  under a race. The candidate moves to the new `interview` stage ("Client
+  interview"). The recruiter's own screening slots ignore interviews.
+- The client's page lists upcoming interviews (their zone, a meeting link or
+  address, Add to Google Calendar, an `.ics` behind the same link) with
+  "Can't make this time": it cancels, frees the slot, puts the candidate back
+  to Submitted and refreshes the client's Interview answer so they reappear
+  under "Client wants to meet". An answer cannot change once an interview is
+  booked. The recruiter sees and cancels it on the role page like a call.
 - The client answers per person: "Interview <name>", or "Not for us" with an
   optional reason chip and a line of at most 280 characters
   (`decideShortlistItem`, constants in `lib/shortlist-decisions.mjs`, which the
@@ -436,7 +464,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Follow-ups lists "Client wants to meet" (only when it has anyone) for an
   Interview answer on a role link with no message logged since and no
   interview booked; it is its own group, `m`, in the follow-up run.
-- `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts` and `tests/25-named-access.spec.ts` play the client in a second browser context
+- `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts`, `tests/25-named-access.spec.ts` and `tests/26-interviews.spec.ts` play the client (and the candidate) in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
 
 ## Booking page
@@ -476,7 +504,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Slots are the weekly hours stepped by the call length, from the notice to the
   horizon, less booked calls, computed in the recruiter's zone with `Intl`:
   a wall-clock time skipped when the clocks go forward has no slot, and one
-  repeated when they go back counts once (`tests/booking.test.mjs`).
+  repeated when they go back counts once (`tests/booking.test.mjs`). Only
+  screening calls count: a client interview is the client's time, not the
+  recruiter's (see Client links), and `bookSlot` refuses an interview link.
 - The candidate gets an `.ics` behind the same link; the recruiter gets the call
   on the role page and under Calls this week in Follow-ups, an Add to Google
   Calendar link, an authenticated `.ics` from `/api/bookings/[id]/ics` (own

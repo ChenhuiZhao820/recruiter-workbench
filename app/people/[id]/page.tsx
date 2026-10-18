@@ -34,7 +34,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
           role: { select: { id: true, title: true, client: true, status: true } },
           outreach: { orderBy: { sentAt: "desc" } },
           screenings: { orderBy: { createdAt: "desc" }, select: { id: true, status: true, createdAt: true, confirmedAt: true, representConsentAt: true, clientEmailSentAt: true } },
-          bookings: { orderBy: { startsAt: "desc" }, select: { id: true, startsAt: true, mode: true, phone: true, status: true } },
+          bookings: { orderBy: { startsAt: "desc" }, select: { id: true, startsAt: true, mode: true, phone: true, status: true, kind: true } },
         },
       },
       notes: {
@@ -233,7 +233,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
                         <p className="person-row-name tabular">{callTime.format(call.startsAt)}</p>
                         <p className="person-row-headline">
                           <Link href={`/roles/${call.roleId}`} className="person-row-role">{call.roleTitle}</Link>
-                          {call.mode === "phone" ? `, phone ${call.phone}` : ", video"}
+                          {call.kind === "interview" ? ", client interview" : call.mode === "phone" ? `, phone ${call.phone}` : ", video"}
                         </p>
                       </div>
                       <span className={`chip${state === "Upcoming" ? " screening-chip-done" : ""}`}>{state}</span>

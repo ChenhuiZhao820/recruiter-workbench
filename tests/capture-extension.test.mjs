@@ -305,6 +305,99 @@ test("staying on the same profile does not disturb a note being typed", async ()
   assert.equal(p.elements.name.value, "Priya Kaur");
 });
 
+// LinkedIn moves between profiles without loading a page: the address names
+// the next person first, and the heading and title follow when it has drawn
+// them. Each step reports itself as a change to the tab, not a finished load.
+const halfDrawn = (nodes, title = "Priya Kaur | LinkedIn") => ({ url: otherProfile.url, title, nodes });
+async function tabChanged(p, options, profile, change) {
+  options.profile = profile;
+  for (const fn of p.listeners.updated) await fn(7, change);
+}
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test("moving within LinkedIn never leaves the last person's name under the next address", async () => {
+  const options = { sidePanel: true, hash: "#panel", linkedInGranted: true };
+  const p = await popup(options);
+  assert.equal(p.elements.name.value, "Priya Kaur");
+  await p.edit("notes", "Worth a call.");
+
+  // The address has moved on; heading, title and Message link have not.
+  await tabChanged(p, options, halfDrawn({
+    "main h1": " Priya Kaur ",
+    "main .text-body-medium": " Finance Analyst ",
+    'a[href*="/messaging/compose/"]': "/messaging/compose/?recipient=ACoAAB1234xyz",
+  }), { url: otherProfile.url });
+  assert.equal(p.elements.name.value, "");
+  assert.equal(p.elements.headline.value, "");
+  assert.equal(p.elements.profile.value, otherProfile.url);
+  assert.equal(p.elements.notes.value, "");
+  assert.match(p.elements.message.textContent, /Reading this profile/);
+
+  // The title changing is LinkedIn saying the next person is drawn.
+  await tabChanged(p, options, otherProfile, { title: "Sam Okafor | LinkedIn" });
+  assert.equal(p.elements.name.value, "Sam Okafor");
+  assert.equal(p.elements.headline.value, "Plant Manager");
+  assert.equal(p.elements.message.textContent, "");
+  assert.equal(p.elements.reread.hidden, true);
+
+  // Saved as Sam, without Priya's member id.
+  await p.click("save");
+  const saved = JSON.parse(p.requests.find((r) => r.method === "POST").body);
+  assert.equal(saved.fullName, "Sam Okafor");
+  assert.equal(saved.profileUrl, otherProfile.url);
+  assert.equal(saved.memberId, "");
+});
+
+test("a heading drawn before the title is not trusted until they agree", async () => {
+  const options = { sidePanel: true, hash: "#panel", linkedInGranted: true };
+  const p = await popup(options);
+  await tabChanged(p, options, halfDrawn({ "main h1": " Sam Okafor ", "main .text-body-medium": " Plant Manager " }), { url: otherProfile.url });
+  assert.equal(p.elements.name.value, "");
+  await tabChanged(p, options, otherProfile, { title: "Sam Okafor | LinkedIn" });
+  assert.equal(p.elements.name.value, "Sam Okafor");
+});
+
+test("a page that settles without telling the tab is looked at again, a few times at most", async () => {
+  const options = { sidePanel: true, hash: "#panel", linkedInGranted: true, timeout: 1 };
+  const p = await popup(options);
+  await tabChanged(p, options, halfDrawn({ "main h1": " Priya Kaur " }), { status: "complete" });
+  assert.equal(p.elements.name.value, "");
+  const before = p.reads;
+  // Drawn now, with no event to say so: the panel's own second look finds it.
+  options.profile = otherProfile;
+  await wait(50);
+  assert.equal(p.elements.name.value, "Sam Okafor");
+  assert.equal(p.reads, before + 1);
+
+  // One that never settles stops being looked at and hands back to the recruiter.
+  await tabChanged(p, options, { ...halfDrawn({ "main h1": " Sam Okafor " }), url: "https://www.linkedin.com/in/ada-obi/" }, { url: "https://www.linkedin.com/in/ada-obi/" });
+  await wait(100);
+  const settledReads = p.reads;
+  await wait(50);
+  assert.equal(p.reads, settledReads, "no more reads once the tries run out");
+  assert.equal(p.elements.name.value, "");
+  assert.equal(p.elements.reread.hidden, false);
+  assert.match(p.elements.message.textContent, /has not finished loading/);
+
+  // A namesake, or a page that really is like that, is one click away.
+  await p.click("reread");
+  assert.equal(p.elements.name.value, "Sam Okafor");
+  assert.equal(p.elements.profile.value, "https://www.linkedin.com/in/ada-obi/");
+});
+
+test("a name the recruiter corrected is not replaced when the page finishes drawing", async () => {
+  const options = { sidePanel: true, hash: "#panel", linkedInGranted: true };
+  const p = await popup(options);
+  await tabChanged(p, options, { ...otherProfile, nodes: { "main h1": " Sam Okafor ", "main .text-body-medium": " Plant " } }, { url: otherProfile.url });
+  assert.equal(p.elements.headline.value, "Plant");
+  await p.edit("name", "Samuel Okafor");
+  await p.edit("notes", "Met at the plant tour.");
+  await tabChanged(p, options, otherProfile, { status: "complete" });
+  assert.equal(p.elements.name.value, "Samuel Okafor");
+  assert.equal(p.elements.headline.value, "Plant Manager");
+  assert.equal(p.elements.notes.value, "Met at the plant tour.");
+});
+
 test("a panel refused a read after navigation empties the fields rather than guessing", async () => {
   const options = { sidePanel: true, hash: "#panel" };
   const p = await popup(options);

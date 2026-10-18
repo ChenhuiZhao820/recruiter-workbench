@@ -930,6 +930,17 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   supported answer and must stay one.
 - A page that is not a profile - a search result list, an inbox - is a quiet
   wait in the panel, not an error. While following, most pages are not profiles.
+- LinkedIn moves between profiles without loading a page: the address names
+  the next person before the heading, title and Message link do. So the panel
+  re-reads on a new address, a new title or a finished load in the tab it
+  read, one read at a time, and treats a profile as half drawn when the heading
+  and the title disagree or a new address still carries the last person's
+  name. A half-drawn page fills only the address and empties the rest; it is
+  looked at again at most three times, 700 ms apart, for that one page and only
+  after the move, then handed back to Read this profile. That is a bounded
+  second look at the page already open, not polling. A later read of the same
+  address replaces only fields still as they were filled, never a corrected
+  name or the note, and the member id is always the page's own.
 - After a profile is read, the panel asks the workbench (never LinkedIn) whether
   this account already has that person, with `GET /api/capture?profileUrl=`.
   It is scoped to the account's own candidates and returns `existing: null` for

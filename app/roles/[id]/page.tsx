@@ -368,11 +368,10 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               </summary>
               <div className="client-link-panel">
                 {!clientList ? (
-                  <p>
-                    Put someone forward and they appear on one page {clientName} opens without signing in:
-                    their headline, the facts they confirmed with you, their skills and why they would move.
-                    Never their LinkedIn, contact details or your notes.
-                  </p>
+                  <div className="space-y-1">
+                    <p>A page {clientName} opens without signing in, to see who you put forward and choose who to interview.</p>
+                    <p className="text-ink-soft">To add someone, press <strong>Put forward to {clientName}</strong> on their row under <a href="#candidates-heading" className="underline">Candidates</a>.</p>
+                  </div>
                 ) : linkStatus === "closed" ? (
                   <p>This role is closed, so its client link shows {clientName} that it is no longer active.</p>
                 ) : linkStatus === "revoked" ? (

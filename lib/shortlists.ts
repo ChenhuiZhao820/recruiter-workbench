@@ -312,7 +312,9 @@ export async function recordClientView(accessId: string, now = new Date()) {
     where: { id: accessId, OR: [{ lastViewedAt: null }, { lastViewedAt: { lt: quiet } }] },
     data: { lastViewedAt: now, viewCount: { increment: 1 } },
   });
-  return count === 1;
+  if (count !== 1) return { counted: false, first: false };
+  const access = await db.shortlistAccess.findUnique({ where: { id: accessId }, select: { viewCount: true } });
+  return { counted: true, first: access?.viewCount === 1 };
 }
 
 // The same page for the recruiter, inside the app, without a token: what the

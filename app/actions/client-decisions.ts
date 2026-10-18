@@ -8,6 +8,7 @@ import { assertSameOrigin, takeAuthAttempt } from "@/lib/auth";
 import type { FormState } from "@/lib/formState";
 import { GATE_COOKIE, loadClientPage } from "@/lib/shortlists";
 import { parseDecision } from "@/lib/shortlist-core.mjs";
+import { notifyAnswer } from "@/lib/notifications";
 import { recordUsage } from "@/lib/usage";
 
 // The client's answer about one person on their page: interview, or not for
@@ -43,8 +44,10 @@ export async function decideShortlistItem(_prev: FormState, formData: FormData):
     if (count !== 1) return;
     await tx.auditEvent.create({ data: { actorId: page.ownerId, targetUserId: page.ownerId, action: "shortlist.decision" } });
     await recordUsage(tx, page.ownerId, "client_decision");
+    await notifyAnswer(tx, { userId: page.ownerId, itemId, shortlistId: page.shortlistId, roleId: page.roleId, decision: parsed.data!.decision, accessId: page.accessId });
   });
   if (page.roleId) revalidatePath(`/roles/${page.roleId}`);
   revalidatePath("/followups");
+  revalidatePath("/shortlists");
   redirect(`/s/${token}#entry-${itemId}`);
 }

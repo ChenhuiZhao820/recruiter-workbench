@@ -481,6 +481,39 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts`, `tests/25-named-access.spec.ts` and `tests/26-interviews.spec.ts` play the client (and the candidate) in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
 
+## Activity
+
+- What a client does on a link reaches the recruiter inside Capture, never by
+  email: a `Notification` row (`lib/notifications.ts`) written in the same
+  transaction as the action - a client's answer (`decideShortlistItem`; a
+  changed answer before it was seen updates the unread row instead of adding
+  one), the first ever open of an access (`recordClientView` reports it), a
+  candidate booking the client's interview, the client's "Can't make this
+  time", and the client setting their interview hours. A row holds ids only;
+  the sentence is written when it is read, so it follows renames and goes
+  (cascade) with whatever it points at.
+- The signal is a red count: the bell in the workspace top bar and the
+  Activity item in the sidebar (`components/ActivityBell.tsx`). The layout
+  renders the count; the bell asks `GET /api/notifications/unread` again
+  every minute while the tab is visible and when it comes back into view, and
+  never marks anything. Red is used only for "new"; cobalt stays the accent.
+- Seen is recorded by `MarkSeen` (an effect after the page is on screen,
+  through `markActivitySeen` and `requireWritableWorkspace`), never by
+  rendering, so a prefetch or a read-only view marks nothing. `/activity`
+  marks everything up to when it rendered, a role page that role's, the
+  shortlists library the custom shortlists'. The page keeps its New marks
+  until it is next opened; only the bell counts again.
+- A role page marks the rows with news (`New`) and, for a person also on a
+  custom shortlist for the same `clientKey`, shows that shortlist's newer
+  answer with "Add to this role's client link with this answer"
+  (`adoptShortlistAnswer`): it puts them on the role link with the consent
+  the shortlist recorded and copies the answer, so the usual "Client wants to
+  meet" and `{{interview_link}}` see it. Follow-ups lists Interview answers
+  on custom shortlists not yet brought across, pointing at the matching role.
+- `20261021000000_client_notifications` adds the table (additive; see Hosting
+  for when it was applied). It is not
+  exported or imported. `tests/27-activity.spec.ts`.
+
 ## Booking page
 
 - Available on every plan (`booking` in `FEATURE_TIERS`). The recruiter sets
@@ -1094,6 +1127,14 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   submitted and every booking a screening call; Prisma reports 10 migrations
   and no difference. Deploying the code also needs `SHORTLIST_LINK_SECRET` on
   the service. The local account database has not received this migration.
+- On 2026-10-18, `20261021000000_client_notifications` (`Notification`) was
+  applied and registered on the hosted database the same way, through WSL
+  (`prisma/private-local/migrate-hosted-client-notifications.mjs`), checked
+  against the reviewed file's SHA-256: a dump from a locked snapshot, restored
+  into a disposable database and rehearsed, then one transaction. Every
+  existing table came out unchanged and the new table empty; Prisma reports 11
+  migrations and no difference. The local account database has not received
+  it.
 
 ## Searches and LinkedIn industry filters
 

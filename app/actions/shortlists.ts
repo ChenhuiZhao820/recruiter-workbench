@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireWritableFeature } from "@/lib/feature-access";
 import type { FormState } from "@/lib/formState";
 import { ensureCandidatePerson } from "@/lib/people";
+import { clientKey } from "@/lib/shortlist-core.mjs";
 import { CLOSED_STAGES, consentPersonSelect, ensureRoleShortlist, knownConsentAt, putOnRoleShortlist, replaceLinks } from "@/lib/shortlists";
 
 // A role's client link: putting someone on it, taking them off, and closing
@@ -46,6 +47,43 @@ export async function putForward(_prev: FormState, formData: FormData): Promise<
     if (added) await tx.auditEvent.create({ data: { actorId: user.id, targetUserId: user.id, action: "shortlist.put_forward" } });
   });
   revalidateRole(found.role.id, personId);
+  return {};
+}
+
+// A client answered about someone on a custom shortlist, and that person is
+// also a candidate on a role for the same client. The recruiter brings the
+// answer onto the role: the person goes on the role's client link with the
+// consent the shortlist recorded, and the answer comes with them, so the row,
+// Follow-ups and {{interview_link}} all see it. Nothing happens on its own.
+export async function adoptShortlistAnswer(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableFeature("clientShortlists");
+  const candidate = await db.candidate.findFirst({
+    where: { id: String(formData.get("candidateId") ?? ""), role: { userId: user.id } },
+    select: { id: true, stage: true, submittedAt: true, personId: true, role: { select: { id: true, title: true, client: true, status: true } } },
+  });
+  if (!candidate?.personId) return { error: "That candidate could not be found." };
+  const item = await db.shortlistItem.findFirst({
+    where: { id: String(formData.get("itemId") ?? ""), personId: candidate.personId, decision: { not: null }, shortlist: { userId: user.id, kind: "custom" } },
+    select: { decision: true, decisionReason: true, decisionNote: true, decisionAt: true, decisionAccessId: true, consentAt: true, shortlist: { select: { client: true } } },
+  });
+  if (!item) return { error: "That answer could not be found." };
+  if (clientKey(item.shortlist.client, "") !== clientKey(candidate.role.client, candidate.role.id)) return { error: "That answer was for another client." };
+  if (candidate.role.status !== "open") return { error: "This role is closed. Reopen it to put anyone forward." };
+  if (CLOSED_STAGES.includes(candidate.stage)) return { error: "Rejected and placed candidates are not put forward." };
+  const person = await db.person.findFirst({ where: { id: candidate.personId, userId: user.id }, select: { doNotContact: true } });
+  if (!person || person.doNotContact) return { error: "This person is marked do not contact, so they are not put forward." };
+
+  const now = new Date();
+  await db.$transaction(async (tx) => {
+    const { shortlistId } = await putOnRoleShortlist(tx, { ownerId: user.id, role: candidate.role, candidate, personId: candidate.personId!, consentAt: item.consentAt ?? now, now });
+    // A later answer already on the role's own link is the one that stands.
+    await tx.shortlistItem.updateMany({
+      where: { shortlistId, personId: candidate.personId!, OR: [{ decisionAt: null }, { decisionAt: { lt: item.decisionAt ?? now } }] },
+      data: { decision: item.decision, decisionReason: item.decisionReason, decisionNote: item.decisionNote, decisionAt: item.decisionAt ?? now, decisionAccessId: item.decisionAccessId },
+    });
+    await tx.auditEvent.create({ data: { actorId: user.id, targetUserId: user.id, action: "shortlist.answer_adopted" } });
+  });
+  revalidateRole(candidate.role.id, candidate.personId);
   return {};
 }
 

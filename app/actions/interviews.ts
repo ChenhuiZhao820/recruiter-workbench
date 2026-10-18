@@ -14,6 +14,7 @@ import { INTERVIEW_DURATIONS, interviewPlace, interviewSlots } from "@/lib/inter
 import { GATE_COOKIE, loadClientPage } from "@/lib/shortlists";
 import { isTimeZone, noticeVersion, timeToMinutes } from "@/lib/booking-core.mjs";
 import { clientKey, interviewLinkState } from "@/lib/shortlist-core.mjs";
+import { notify } from "@/lib/notifications";
 import { recordUsage } from "@/lib/usage";
 
 // Booking and cancelling client interviews. Both are public, with no session:
@@ -87,6 +88,7 @@ export async function bookInterview(_prev: FormState, formData: FormData): Promi
       });
       await tx.auditEvent.create({ data: { actorId: owner.id, targetUserId: owner.id, action: "booking.created" } });
       await recordUsage(tx, owner.id, "interview_booked");
+      await notify(tx, { userId: owner.id, kind: "interview_booked", bookingId: booking.id, roleId: candidate.role.id });
     });
   } catch (error) {
     if (error instanceof SlotTakenError || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
@@ -122,6 +124,7 @@ export async function clientCannotMakeIt(_prev: FormState, formData: FormData): 
     // the recruiter under "Client wants to meet".
     await tx.shortlistItem.updateMany({ where: { id: interview.itemId, decision: "interview" }, data: { decisionAt: now } });
     await tx.auditEvent.create({ data: { actorId: page.ownerId, targetUserId: page.ownerId, action: "booking.cancelled" } });
+    await notify(tx, { userId: page.ownerId, kind: "interview_cancelled", bookingId, itemId: interview.itemId, shortlistId: page.shortlistId, roleId: page.roleId, accessId: page.accessId });
   });
   if (page.roleId) revalidatePath(`/roles/${page.roleId}`);
   revalidatePath("/followups");
@@ -162,7 +165,9 @@ export async function setHoursFromClient(_prev: FormState, formData: FormData): 
         interviewDurationMins: duration,
       },
     });
-    if (count) await tx.auditEvent.create({ data: { actorId: page.ownerId, targetUserId: page.ownerId, action: "role.interview_hours_from_client" } });
+    if (!count) return;
+    await tx.auditEvent.create({ data: { actorId: page.ownerId, targetUserId: page.ownerId, action: "role.interview_hours_from_client" } });
+    await notify(tx, { userId: page.ownerId, kind: "client_set_hours", shortlistId: page.shortlistId, roleId: page.roleId, accessId: page.accessId });
   });
   revalidatePath(`/roles/${page.roleId}`);
   revalidatePath("/followups");

@@ -26,7 +26,7 @@ const ephemeralTables = ["Session", "ActivationToken", "LoginThrottle"];
 // Accepted in a source, never copied: calendar tokens, AI counters, slot
 // locks (rebuilt from bookings), shortlist links (issued again) and import
 // batches (undone only where they ran).
-const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch", "InterviewSlot", "ShortlistAccess"];
+const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch", "InterviewSlot", "ShortlistAccess", "Notification"];
 // Tables a source written before them may lack.
 const optionalTables = ["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "PersonNote", "Shortlist", "ShortlistItem"];
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
@@ -605,6 +605,7 @@ test("every nonempty target model is refused without modifying existing rows", a
     ImportBatch: { id: "fixture-import-batch", userId: "fixture-user-admin", fileName: "fixture.xlsx", createdCount: 0, roleCount: 0, fills: "[]", createdAt: createdAt.getTime() },
     InterviewSlot: { userId: "fixture-user-admin", clientKey: "admin client", startsAt: updatedAt.getTime(), bookingId: "fixture-booking-admin" },
     ShortlistAccess: { id: "fixture-access-x", shortlistId: "fixture-shortlist-admin", email: null, nonce: "x", viewCount: 0, createdAt: createdAt.getTime() },
+    Notification: { id: "fixture-notification-x", userId: "fixture-user-admin", kind: "client_opened", createdAt: createdAt.getTime() },
   };
   for (const table of [...tables, ...ephemeralTables, ...notImportedTables]) await t.test(table, async () => {
     await withTarget(async (db) => {

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { GATE_COOKIE, loadClientPage, recordClientView } from "@/lib/shortlists";
+import { notify } from "@/lib/notifications";
 import { recordUsage } from "@/lib/usage";
 import { ClientLinkGate, ClientLinkInactive, ClientShortlist } from "@/components/ClientShortlist";
 
@@ -30,8 +31,11 @@ export default async function ClientShortlistPage({ params }: { params: { token:
 
   // The recruiter opening their own link is not the client reading it.
   const session = await getSession();
-  if (session?.user.id !== page.ownerId && (await recordClientView(page.accessId, now))) {
-    await recordUsage(db, page.ownerId, "shortlist_viewed");
+  if (session?.user.id !== page.ownerId) {
+    const view = await recordClientView(page.accessId, now);
+    if (view.counted) await recordUsage(db, page.ownerId, "shortlist_viewed");
+    // The first time a link is opened is news; every later visit is a count.
+    if (view.first) await notify(db, { userId: page.ownerId, kind: "client_opened", shortlistId: page.shortlistId, roleId: page.roleId, accessId: page.accessId });
   }
   return <ClientShortlist view={page.view} token={params.token} />;
 }

@@ -13,6 +13,7 @@ import { ActionForm } from "@/components/ActionForm";
 import { REVISIT_SOON_DAYS } from "@/lib/talent.mjs";
 import { factDate } from "@/lib/fact-labels";
 import { ResumeRun } from "@/components/FollowUpRun";
+import { clientKey } from "@/lib/shortlist-core.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -130,6 +131,40 @@ export default async function FollowUpsPage() {
         })
       : Promise.resolve([]),
   ]);
+  // Interview answers on custom shortlists. A custom shortlist is not a role,
+  // so these are not in the run; each points at the role for the same client
+  // where the answer can be brought across, or says there is none yet.
+  const shortlistAnswers = features.clientShortlists
+    ? (await db.shortlistItem.findMany({
+        where: { decision: "interview", shortlist: { userId: owner.id, kind: "custom" }, person: { doNotContact: false } },
+        orderBy: { decisionAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          decisionAt: true,
+          shortlist: { select: { id: true, title: true, client: true } },
+          person: {
+            select: {
+              id: true,
+              fullName: true,
+              headline: true,
+              candidates: {
+                where: { role: { status: "open" }, stage: { notIn: ["rejected", "placed"] } },
+                select: { id: true, role: { select: { id: true, title: true, client: true, shortlist: { select: { items: { select: { personId: true, decision: true, decisionAt: true } } } } } } },
+              },
+            },
+          },
+        },
+      }))
+        .map((answer) => {
+          const key = clientKey(answer.shortlist.client, "");
+          const roles = answer.person.candidates.filter((candidate) => clientKey(candidate.role.client, candidate.role.id) === key);
+          // Already brought across: the role's own link holds this answer or a later one.
+          const settled = roles.some((candidate) => candidate.role.shortlist?.items.some((item) => item.personId === answer.person.id && item.decision && item.decisionAt && answer.decisionAt && item.decisionAt >= answer.decisionAt));
+          return settled ? null : { ...answer, roles };
+        })
+        .filter((answer): answer is NonNullable<typeof answer> => answer !== null)
+    : [];
   const due = features.followUpRuns ? buckets.repliedWaiting.length + buckets.clientWantsToMeet.length + buckets.saidYesNeverBooked.length + buckets.wentQuiet.length : 0;
   const callTime = new Intl.DateTimeFormat("en-GB", { timeZone: settings.bookingTimezone, weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
@@ -208,6 +243,33 @@ export default async function FollowUpsPage() {
             </>
           )}
         />
+      )}
+
+      {shortlistAnswers.length > 0 && (
+        <section aria-label="Wants to meet, from a shortlist" className="workspace-section">
+          <h2 className="section-heading">Wants to meet, from a shortlist</h2>
+          <p className="section-caption mb-4">A client pressed Interview on a shortlist you sent. Bring the answer onto the role for that client, then let the candidate know.</p>
+          <ul className="space-y-2">
+            {shortlistAnswers.map((answer) => (
+              <li key={answer.id} className="card flex flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0">
+                  <Link href={`/people/${answer.person.id}`} className="person-row-name">{answer.person.fullName}</Link>
+                  <span className="text-ink-soft"> · {answer.shortlist.client} wants to meet · {answer.shortlist.title}</span>
+                </span>
+                <span className="flex flex-wrap items-center gap-2">
+                  {answer.roles.length > 0
+                    ? answer.roles.map((candidate) => (
+                        <Link key={candidate.id} href={`/roles/${candidate.role.id}#candidate-${candidate.id}`} className="btn-quiet">Open on {candidate.role.title}</Link>
+                      ))
+                    : <>
+                        <span className="text-sm text-ink-soft">Not on an open role for {answer.shortlist.client}</span>
+                        <Link href={`/people/${answer.person.id}`} className="btn-quiet">Add to a role</Link>
+                      </>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <Bucket

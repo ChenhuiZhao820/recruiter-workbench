@@ -28,8 +28,10 @@ import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { ActionForm } from "@/components/ActionForm";
 import { OUTREACH_KIND_SUMMARY, isTemplateKind } from "@/lib/templates";
 import { CLOSED_STAGES, consentPersonSelect, knownConsentAt } from "@/lib/shortlists";
-import { DECISION_REASON_LABELS, shortlistStatus } from "@/lib/shortlist-core.mjs";
-import { newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
+import { DECISION_REASON_LABELS, clientKey, shortlistStatus } from "@/lib/shortlist-core.mjs";
+import { unreadOnRole } from "@/lib/notifications";
+import { MarkSeen } from "@/components/MarkSeen";
+import { adoptShortlistAnswer, newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
 import { ShortlistSharing } from "@/components/ShortlistSharing";
 import { InterviewHoursForm } from "@/components/InterviewHoursForm";
 import { setClientReviewFirst } from "@/app/actions/interview-hours";
@@ -96,6 +98,33 @@ export default async function RolePage({ params }: { params: { id: string } }) {
   const visibleItems = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).map((c) => onLink.get(c.id)!);
   const wantToMeet = visibleItems.filter((item) => item.decision === "interview").length;
   const notForThem = visibleItems.filter((item) => item.decision === "declined").length;
+  // What clients did here that the recruiter has not seen yet.
+  const unread = await unreadOnRole(owner.id, role.id);
+  // A client may have answered about one of these people on a custom
+  // shortlist for the same client. That answer is shown on their row, newest
+  // per person, so it is not lost on a page the role never reads.
+  const rolePersonIds = role.candidates.map((c) => c.personId).filter((id): id is string => Boolean(id));
+  const roleClientKey = clientKey(role.client, role.id);
+  const elsewhere = new Map<string, { id: string; decision: string; decisionReason: string | null; decisionAt: Date | null; shortlistTitle: string }>();
+  if (features.clientShortlists && rolePersonIds.length) {
+    const answers = await db.shortlistItem.findMany({
+      where: { personId: { in: rolePersonIds }, decision: { not: null }, shortlist: { userId: owner.id, kind: "custom" } },
+      orderBy: { decisionAt: "desc" },
+      select: { id: true, personId: true, decision: true, decisionReason: true, decisionAt: true, shortlist: { select: { title: true, client: true } } },
+    });
+    for (const answer of answers) {
+      if (elsewhere.has(answer.personId) || clientKey(answer.shortlist.client, "") !== roleClientKey) continue;
+      elsewhere.set(answer.personId, { id: answer.id, decision: answer.decision!, decisionReason: answer.decisionReason, decisionAt: answer.decisionAt, shortlistTitle: answer.shortlist.title });
+    }
+  }
+  // Shown only when it is newer than what the role's own link already says.
+  const answerElsewhere = (c: { id: string; personId: string | null }) => {
+    const answer = c.personId ? elsewhere.get(c.personId) : undefined;
+    if (!answer) return null;
+    const own = onLink.get(c.id);
+    if (own?.decision && own.decisionAt && answer.decisionAt && own.decisionAt >= answer.decisionAt) return null;
+    return answer;
+  };
 
   const briefing = role.briefing;
   const hasJobDesc = Boolean(role.jobDesc && role.jobDesc.trim());
@@ -142,6 +171,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 space-y-10">
+      {!readOnly && unread.count > 0 && <MarkSeen renderedAt={now.toISOString()} roleId={role.id} />}
       <header className="page-header">
         <div className="min-w-0 flex-1">
           <p className="page-eyebrow">Roles / Workspace</p>
@@ -447,7 +477,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                 </summary>
                 <ul className="space-y-2">
                   {inStage.map((c) => (
-                    <li key={c.id} className="card">
+                    <li key={c.id} id={`candidate-${c.id}`} className="card">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           {c.personId ? (
@@ -458,6 +488,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                           {c.headline && <span className="text-ink/70"> · {c.headline}</span>}
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
+                          {unread.candidates.has(c.id) && <span className="new-chip">New</span>}
                           <StageBadge stage={c.stage} />
                           {c.person?.doNotContact && <span className="chip person-flag">Do not contact</span>}
                           {c.outreach[0] && (
@@ -523,6 +554,26 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                           </details>
                         )
                       )}
+                      {answerElsewhere(c) && (() => {
+                        const answer = answerElsewhere(c)!;
+                        const canAdopt = features.clientShortlists && !readOnly && role.status === "open" && !CLOSED_STAGES.includes(c.stage) && !c.person?.doNotContact;
+                        return (
+                          <div className="put-forward" data-testid="answer-elsewhere">
+                            <span className={answer.decision === "interview" ? "chip client-said-yes" : "chip"}>
+                              {answer.decision === "interview" ? `${clientName} wants to meet` : `Not for ${clientName}`}
+                              {answer.decision !== "interview" && answer.decisionReason ? ` · ${DECISION_REASON_LABELS[answer.decisionReason as keyof typeof DECISION_REASON_LABELS] ?? answer.decisionReason}` : ""}
+                            </span>
+                            <span className="text-sm text-ink-soft">on the shortlist &ldquo;{answer.shortlistTitle}&rdquo;</span>
+                            {canAdopt && (
+                              <ActionForm action={adoptShortlistAnswer}>
+                                <input type="hidden" name="candidateId" value={c.id} />
+                                <input type="hidden" name="itemId" value={answer.id} />
+                                <button type="submit" className="btn-quiet">{onLink.has(c.id) ? "Use this answer for the role" : "Add to this role’s client link with this answer"}</button>
+                              </ActionForm>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {c.bookings[0] ? (
                         <div className="booking-on-card">
                           <p className="text-sm">

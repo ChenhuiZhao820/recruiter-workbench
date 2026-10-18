@@ -5,6 +5,7 @@ import { getOnboardingStatus } from "@/lib/onboarding";
 import { getWorkspace } from "@/lib/workspace";
 import { ApplicationShell } from "@/components/ApplicationShell";
 import { hasSeenCurrentRelease } from "@/lib/release";
+import { unreadCount } from "@/lib/notifications";
 import "./globals.css";
 
 // Vendored rather than fetched from Google at build time: next/font/google
@@ -44,6 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // A brand new account is still setting up; what changed since a version they
   // never used is not news to them.
   const unreadRelease = Boolean(setup && !setup.untouched && !(await hasSeenCurrentRelease(workspace!.owner.id)));
+  const unreadActivity = workspace ? await unreadCount(workspace.owner.id) : 0;
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body style={{
@@ -56,6 +58,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           viewing={workspace?.readOnly ? { name: workspace.owner.name, email: workspace.owner.email } : null}
           setupPending={Boolean(setup && !setup.complete)}
           releasePending={unreadRelease}
+          unreadActivity={unreadActivity}
           ownerId={workspace?.owner.id}
         >{children}</ApplicationShell>
       </body>

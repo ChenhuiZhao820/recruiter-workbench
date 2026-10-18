@@ -11,6 +11,8 @@ import { ActionForm } from "@/components/ActionForm";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { ShortlistSharing } from "@/components/ShortlistSharing";
 import { Icon } from "@/components/Icon";
+import { unreadShortlists } from "@/lib/notifications";
+import { MarkSeen } from "@/components/MarkSeen";
 
 export const dynamic = "force-dynamic";
 
@@ -41,9 +43,12 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
   const active = rows.filter((row) => row.status === "active").length;
   const limit = activeShortlistLimit(owner, now);
   const atLimit = limit !== null && active >= limit;
+  const unread = await unreadShortlists(owner.id);
+  const anyUnread = shortlists.some((shortlist) => unread.has(shortlist.id));
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 space-y-8">
+      {!readOnly && anyUnread && <MarkSeen renderedAt={now.toISOString()} scope="shortlists" />}
       <header className="page-header">
         <div>
           <h1>Shortlists</h1>
@@ -92,6 +97,7 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
                       </span>
                     </span>
                     <span className="shortlist-row-side">
+                      {unread.has(shortlist.id) && <span className="new-chip">New</span>}
                       <span className={`chip${status === "active" ? " screening-chip-done" : ""}`}>{STATUS_LABELS[status]}</span>
                       <span className="text-xs text-ink-soft">
                         {status === "active"

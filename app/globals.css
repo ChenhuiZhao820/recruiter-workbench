@@ -744,6 +744,26 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 /* An unread release: a link in the top bar, not an interruption. */
 .topbar-news { margin-right: 14px; color: var(--color-accent); font-weight: 550; text-decoration: none; }
 .topbar-news:hover { text-decoration: underline; }
+/* Activity. Red is used only to mean "new since you last looked"; the rest stays cobalt. */
+.unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px; background: #e5484d; color: white; font-family: var(--font-mono); font-size: 10px; font-weight: 600; line-height: 1; }
+.nav-item .unread-badge { margin-left: auto; }
+.activity-bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 6px; color: #52525b; }
+.activity-bell:hover { background: #f4f4f5; color: #18181b; }
+.activity-bell.has-unread { color: #18181b; }
+.activity-bell .unread-badge { position: absolute; top: -3px; right: -5px; min-width: 15px; height: 15px; padding: 0 4px; font-size: 9px; box-shadow: 0 0 0 2px white; }
+.new-chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; background: #fdecec; color: #b42318; padding: 2px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.new-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #e5484d; }
+.activity-list { display: grid; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }
+.activity-entry { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: baseline; gap: 12px; padding: 13px 16px; border-top: 1px solid var(--color-line); color: inherit; text-decoration: none; }
+.activity-entry:first-child { border-top: 0; }
+.activity-entry:hover { background: #fafafa; }
+.activity-entry.is-unread { background: #fff7f7; }
+.activity-entry .activity-text { overflow-wrap: anywhere; }
+.activity-entry.is-unread .activity-text { font-weight: 600; }
+.activity-dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; }
+.activity-entry.is-unread .activity-dot { background: #e5484d; }
+.activity-when { color: #71717a; font-size: 12px; white-space: nowrap; }
+@media (max-width: 760px) { .activity-entry { grid-template-columns: 10px minmax(0, 1fr); } .activity-when { grid-column: 2; } }
 
 /* Client email: the screened candidate, put forward from the recruiter's own inbox. */
 .client-email { display: grid; gap: 18px; padding: 20px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); }

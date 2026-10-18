@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { logout } from "@/app/actions/auth";
 import { stopViewing } from "@/app/actions/accounts";
 import { CaptureMark, Icon } from "@/components/Icon";
+import { ActivityBell, UnreadBadge, useUnreadActivity } from "@/components/ActivityBell";
 
 const setupNavigation = { href: "/getting-started", label: "Getting started", icon: "spark" } as const;
 
@@ -16,12 +17,13 @@ const navigation = [
   { href: "/searches", label: "Searches", icon: "search" },
   { href: "/templates", label: "Templates", icon: "message" },
   { href: "/followups", label: "Follow-ups", icon: "clock" },
+  { href: "/activity", label: "Activity", icon: "bell" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ] as const;
 
 type Identity = { name: string; email: string; role: string };
 
-export function ApplicationShell({ user, viewing, setupPending = false, releasePending = false, ownerId, children }: {
+export function ApplicationShell({ user, viewing, setupPending = false, releasePending = false, unreadActivity = 0, ownerId, children }: {
   user: Identity | null;
   viewing: { name: string; email: string } | null;
   // Setup is only advertised while it is unfinished; a finished workspace
@@ -31,12 +33,15 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
   // is one link in the top bar rather than an interruption, and it leaves as
   // soon as the release is read.
   releasePending?: boolean;
+  // What clients did that the recruiter has not looked at yet.
+  unreadActivity?: number;
   ownerId?: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => setMenuOpen(false), [pathname]);
+  const unread = useUnreadActivity(unreadActivity);
   const publicPage = !user || pathname === "/welcome";
   const active = (href: string) => href === "/" ? pathname === "/" || pathname.startsWith("/roles") : pathname.startsWith(href);
   const items = setupPending ? [setupNavigation, ...navigation] : navigation;
@@ -82,7 +87,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
         <div className="workspace-switcher"><span className="workspace-symbol"><Icon name="grid" size={17} /></span><div><strong>{viewing ? viewing.name : "My workspace"}</strong><span>{viewing ? "Read-only view" : "Recruiting, in focus"}</span></div><Icon name="lock" size={14} /></div>
         <p className="nav-label">Workspace</p>
         <nav aria-label="Main" className="workspace-navigation">
-          {items.map((item) => <Link key={item.href} href={item.href} className={active(item.href) ? "nav-item is-active" : "nav-item"} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} size={19} /><span>{item.label}</span>{active(item.href) && <span className="nav-active-dot" aria-hidden="true" />}</Link>)}
+          {items.map((item) => <Link key={item.href} href={item.href} className={active(item.href) ? "nav-item is-active" : "nav-item"} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} size={19} /><span>{item.label}</span>{item.href === "/activity" && <UnreadBadge count={unread} />}{active(item.href) && <span className="nav-active-dot" aria-hidden="true" />}</Link>)}
           {user.role === "admin" && <><p className="nav-label admin-nav-label">Administration</p><Link href="/admin" className={pathname.startsWith("/admin") ? "nav-item is-active" : "nav-item"} aria-current={pathname.startsWith("/admin") ? "page" : undefined}><Icon name="shield" size={19} /><span>Accounts</span></Link></>}
         </nav>
         <div className="sidebar-bottom">
@@ -93,7 +98,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
       </div>
     </header>
     <div className="workspace-body">
-      <div className="workspace-topbar"><div className="breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>{pageName}</strong></div><span className="workspace-status">{releasePending && <Link href="/whats-new" className="topbar-news">What&rsquo;s new</Link>}<span className="status-dot" />{viewing ? "Read-only" : "Private workspace"}</span></div>
+      <div className="workspace-topbar"><div className="breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>{pageName}</strong></div><span className="workspace-status">{releasePending && <Link href="/whats-new" className="topbar-news">What&rsquo;s new</Link>}{user && <ActivityBell unread={unread} />}<span className="status-dot" />{viewing ? "Read-only" : "Private workspace"}</span></div>
       {viewing && <div role="status" className="readonly-banner"><Icon name="eye" /><p>Read-only workspace: <strong>{viewing.name}</strong> ({viewing.email}). You are still signed in as {user.name}.</p><form action={stopViewing}><button type="submit" className="btn-secondary">Return to my workspace</button></form></div>}
       <main id="main-content" key={ownerId} className="workspace-main">{children}</main>
       <footer className="workspace-footer"><span>Capture — recruiting, in focus.</span><span>Prepared by software. Decided by you.</span></footer>

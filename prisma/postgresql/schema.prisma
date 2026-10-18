@@ -35,6 +35,7 @@ model User {
   suppressions     Suppression[]
   importBatches    ImportBatch[]
   shortlists       Shortlist[]
+  notifications    Notification[]
 }
 
 model ExtensionAccess {
@@ -118,6 +119,7 @@ model Role {
   importBatchId String?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   shortlist   Shortlist?
+  notifications Notification[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -346,6 +348,7 @@ model Booking {
   kind          String    @default("screening") // screening | interview
   slot          BookedSlot?
   interviewSlot InterviewSlot?
+  notifications Notification[]
   createdAt     DateTime  @default(now())
 
   @@index([candidateId])
@@ -394,6 +397,7 @@ model Shortlist {
   expiresAt DateTime? // custom only
   revokedAt DateTime?
   items     ShortlistItem[]
+  notifications Notification[]
   accesses  ShortlistAccess[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -420,6 +424,8 @@ model ShortlistItem {
   decisionAt       DateTime?
   decisionAccessId String?
   addedAt          DateTime   @default(now())
+
+  notifications    Notification[]
 
   @@unique([shortlistId, personId])
   @@index([personId])
@@ -537,5 +543,32 @@ model ImportBatch {
   roles        Role[]
   candidates   Candidate[]
 
+  @@index([userId, createdAt])
+}
+
+// Something a client did - or a candidate, booking the client's interview -
+// that the recruiter should look at: the bell in the top bar and the activity
+// page. It holds references only; the words are written when it is read, so it
+// follows a rename and goes with whatever it points at.
+model Notification {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        String         // client_answered | client_opened | interview_booked | interview_cancelled | client_set_hours
+  detail      String?        // client_answered: interview | declined
+  shortlistId String?
+  shortlist   Shortlist?     @relation(fields: [shortlistId], references: [id], onDelete: Cascade)
+  itemId      String?
+  item        ShortlistItem? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  bookingId   String?
+  booking     Booking?       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  roleId      String?
+  role        Role?          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  // The link it came through, so a named person's action can say who.
+  accessId    String?
+  createdAt   DateTime       @default(now())
+  readAt      DateTime?
+
+  @@index([userId, readAt])
   @@index([userId, createdAt])
 }

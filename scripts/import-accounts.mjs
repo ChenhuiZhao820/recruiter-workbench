@@ -56,7 +56,7 @@ export const accountColumns = {
   Suppression: { userId: "id", keyHash: "text", createdAt: "date" },
 };
 // Tables a source may not have yet: it was written before they existed.
-const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot"]);
+const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification"]);
 // Accepted in a source but never copied. Calendar and integration tokens are
 // encrypted with the source deployment's key and must be reconnected; monthly
 // AI counters start again; booked-slot and interview-slot locks are rebuilt
@@ -70,6 +70,8 @@ const notImportedColumns = {
   BookedSlot: { userId: "id", startsAt: "date", bookingId: "id" },
   ImportBatch: { id: "id", userId: "id", fileName: "text", createdCount: "int", roleCount: "int", fills: "text", createdAt: "date", completedAt: "date?", undoneAt: "date?" },
   InterviewSlot: { userId: "id", clientKey: "text", startsAt: "date", bookingId: "id" },
+  // What a client did, for the bell: about this deployment's links, so it stays behind.
+  Notification: { id: "id", userId: "id", kind: "text", detail: "text?", shortlistId: "id?", itemId: "id?", bookingId: "id?", roleId: "id?", accessId: "id?", createdAt: "date", readAt: "date?" },
   ShortlistAccess: { id: "id", shortlistId: "id", email: "text?", nonce: "text", lastViewedAt: "date?", viewCount: "int", revokedAt: "date?", createdAt: "date" },
 };
 const ephemeralColumns = {
@@ -350,7 +352,7 @@ async function verifyData(db, validated) {
     }
     if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess"]) {
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification"]) {
     if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar, usage-counter or shortlist-link state in target.");
   }
   const held = validated.data.booking.filter((booking) => booking.status === "booked");

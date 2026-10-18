@@ -24,15 +24,37 @@ export default async function WhatsNewPage() {
     <fieldset disabled={readOnly} className="min-w-0 max-w-3xl">
       <header className="page-header">
         <div>
-          <p className="page-eyebrow">Capture / 18 October</p>
+          <p className="page-eyebrow">Capture / 19 October</p>
           <h1>What&rsquo;s new</h1>
           <p className="page-description">
-            Your client can now see who you found, say who they want to meet, and have those people book the interview themselves,
-            without an account and without you passing emails back and forth.
+            The Capture panel now keeps up as you move from one LinkedIn profile to the next. It needs a new copy of the browser
+            extension, once.
           </p>
         </div>
       </header>
 
+      <section aria-label="This version" className="card space-y-3">
+        <h2 className="text-lg">The panel shows the person you are looking at</h2>
+        <p className="text-ink/80">
+          LinkedIn changes the address before it draws the next person, so the panel could show the new address under the last
+          person&rsquo;s name. It now waits for the profile to finish drawing and fills itself in again. Anything you corrected by hand,
+          and your note, stays as you left it.
+        </p>
+        {currentRelease.extension && <>
+          <p className="rounded border border-line bg-sunken p-3 text-sm">
+            <strong>One thing to do.</strong> Chrome does not update an extension you loaded yourself. Download the new copy, load it in{" "}
+            <code className="font-mono">chrome://extensions</code>, then generate a new capture key in{" "}
+            <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension.
+          </p>
+          {canDownload && (
+            <p>
+              <a href="/api/extension/download" download className="btn-primary">Download the new extension<Icon name="down" size={16} /></a>
+            </p>
+          )}
+        </>}
+      </section>
+
+      <h2 className="mt-8 mb-3 section-heading">From 18 October, in case you missed it</h2>
       <ol className="space-y-4">
         <li className="card space-y-2">
           <h2 className="text-lg">Show a client who you found, on one page</h2>
@@ -86,25 +108,6 @@ export default async function WhatsNewPage() {
         </li>
       </ol>
 
-      {currentRelease.extension ? (
-        <div className="mt-6 card space-y-2">
-          <h2 className="text-lg">This version needs a new copy of the browser extension</h2>
-          <p className="text-ink/80">
-            Chrome does not update an extension you loaded yourself. Download the new copy, load it in{" "}
-            <code className="font-mono">chrome://extensions</code>, then generate a new capture key in{" "}
-            <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension.
-          </p>
-          {canDownload && (
-            <p>
-              <a href="/api/extension/download" download className="btn-quiet">Download the new extension<Icon name="down" size={15} /></a>
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="mt-6 text-sm text-ink-soft">
-          No new copy of the browser extension is needed this time.
-        </p>
-      )}
       {!readOnly && (
         <form action={dismissRelease} className="mt-6">
           <button type="submit" className="btn-primary">
@@ -113,7 +116,7 @@ export default async function WhatsNewPage() {
         </form>
       )}
       <p className="mt-3 text-sm text-ink-soft">
-        This page stays put until you press Got it, and the link in the top bar disappears with it.
+        This page stays put until you press Got it or open Notifications, and the link in the top bar disappears with it.
       </p>
     </fieldset>
   );

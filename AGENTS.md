@@ -255,11 +255,14 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   alike, never for a read-only view. Its line links to `/whats-new`; when it
   needs a new extension it also offers the download (only to an account that
   may download, never a read-only view) and says to generate a new capture key
-  in Settings after loading it. Opening Notifications does not read a release;
-  Got it on What's new does, as before.
-- Reading is recorded when the recruiter presses Got it, never by the page
-  rendering, and through `requireWritableWorkspace`, so a read-only view cannot
-  mark somebody else's release as read. `tests/11-whats-new.spec.ts` covers who
+  in Settings after loading it. Once Notifications is on screen it is read
+  (through `markActivitySeen`, so a read-only view or a prefetch reads
+  nothing), the same as client news, and Got it on What's new still reads it
+  too. The page says so above the New list.
+- Reading is recorded when the recruiter presses Got it, or when Notifications
+  has been on screen, never by a page rendering, and through
+  `requireWritableWorkspace`, so a read-only view cannot mark somebody else's
+  release as read. `tests/11-whats-new.spec.ts` covers who
   is sent there, that rendering is not reading, and that it is news once.
 - The release page carries the extension instructions, because Chrome never
   updates an extension loaded by hand and the app is the only surface that

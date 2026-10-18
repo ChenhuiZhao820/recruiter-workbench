@@ -236,7 +236,7 @@ test("A5 a shortlist answer is brought onto the role from its line on Activity, 
   }
 });
 
-test("A6 a new version is a notification: counted on the bell until Got it, with What's new and, when needed, the extension", async ({ browser }) => {
+test("A6 a new version is a notification: counted on the bell until seen, with What's new and, when needed, the extension", async ({ browser }, testInfo) => {
   // Newest first, one per day, so "current" and "since the account was made" mean what they say.
   expect(RELEASES.map((release) => release.id)).toEqual([...RELEASES.map((release) => release.id)].sort().reverse());
   expect(currentRelease.id).toBe(CURRENT_RELEASE);
@@ -256,32 +256,38 @@ test("A6 a new version is a notification: counted on the bell until Got it, with
     expect(await (await page.request.get("/api/notifications/unread")).json()).toEqual({ unread: 1 });
     await page.goto("/notifications");
     await expect(page.getByText("What your clients did on the links you sent them")).toHaveCount(0);
-    await expect(page.locator(".activity-bell")).toHaveAttribute("data-unread", "1");
     const releases = page.getByTestId("release-entry");
     await expect(releases).toHaveCount(RELEASES.length);
     const current = page.locator(`[data-release="${CURRENT_RELEASE}"]`);
     await expect(current.locator(".activity-entry.is-unread")).toContainText(currentRelease.title);
+    await expect(page.getByText("Opening this page marks these as seen.")).toBeVisible();
     // Only the current release links to What's new and offers the download.
     await expect(page.getByRole("link", { name: "See what’s new" })).toHaveCount(1);
     await expect(page.getByRole("link", { name: /Download the new extension/ })).toHaveCount(currentRelease.extension ? 1 : 0);
     await expect(current.getByText("generate a new capture key")).toHaveCount(currentRelease.extension ? 1 : 0);
     if (currentRelease.extension) await expect(current.getByRole("link", { name: /Download the new extension/ })).toHaveAttribute("href", "/api/extension/download");
-    // Opening Notifications is not reading the release.
-    await page.reload();
-    await expect(current.locator(".activity-entry.is-unread")).toHaveCount(1);
-    expect((await db.settings.findUniqueOrThrow({ where: { userId: established } })).seenRelease).not.toBe(CURRENT_RELEASE);
+    await page.locator("section[aria-label='New']").screenshot({ path: testInfo.outputPath("release-new.png") });
 
-    await current.getByRole("link", { name: "See what’s new" }).click();
-    await expect(page).toHaveURL(`${BASE}/whats-new`);
-    await page.getByRole("button", { name: "Got it" }).click();
-    await expect(page).toHaveURL(`${BASE}/`);
+    // Having it on screen is reading it: the bell goes to nought now, the New
+    // mark stays until the page is next opened.
     await expect(page.locator(".activity-bell")).toHaveAttribute("data-unread", "0");
-    await page.goto("/notifications");
+    await expect.poll(async () => (await db.settings.findUniqueOrThrow({ where: { userId: established } })).seenRelease).toBe(CURRENT_RELEASE);
+    await expect(current.locator(".activity-entry.is-unread")).toHaveCount(1);
+    await page.reload();
     await expect(page.locator(`[data-release="${CURRENT_RELEASE}"] .activity-entry.is-unread`)).toHaveCount(0);
+    await expect(page.locator(".topbar-news")).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator("section[aria-label='Earlier']").screenshot({ path: testInfo.outputPath("release-seen-phone.png") });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.locator(`[data-release="${CURRENT_RELEASE}"]`).getByRole("link", { name: "See what’s new" }).click();
+    await expect(page).toHaveURL(`${BASE}/whats-new`);
+    await expect(page.getByRole("link", { name: /Download the new extension/ })).toHaveCount(currentRelease.extension ? 1 : 0);
 
     // An account made after a release is not told about it.
     await db.user.update({ where: { id: established }, data: { createdAt: new Date(`${CURRENT_RELEASE}T12:00:00Z`) } });
-    await page.reload();
+    await page.goto("/notifications");
     await expect(page.getByTestId("release-entry")).toHaveCount(1);
   } finally {
     await context.close();

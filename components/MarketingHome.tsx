@@ -40,7 +40,7 @@ export function MarketingHome({ signedIn = false }: { signedIn?: boolean }) {
 
     <header className="lp-site-header lp-wrap">
       <nav className="lp-site-nav" aria-label="Main">
-        <a href="#top" className="lp-brand" aria-label="Retrivr"><Image className="lp-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={742} height={215} unoptimized /></a>
+        <a href="#top" className="lp-brand" aria-label="Retrivr"><Image className="lp-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={953} height={215} unoptimized /></a>
         <div className="lp-nav-links">
           <a href="#how" className="lp-hide-sm">Features</a>
           <a href="#pricing" className="lp-hide-xs">Pricing</a>
@@ -253,7 +253,7 @@ export function MarketingHome({ signedIn = false }: { signedIn?: boolean }) {
 
     <div className="lp-wrap" style={{ borderTop: "1px solid var(--line)" }}>
       <footer className="lp-site-footer">
-        <a href="#top" className="lp-brand" aria-label="Retrivr"><Image className="lp-logo lp-logo-sm" src="/brand/retrivr-logo.png" alt="Retrivr" width={742} height={215} unoptimized /></a>
+        <a href="#top" className="lp-brand" aria-label="Retrivr"><Image className="lp-logo lp-logo-sm" src="/brand/retrivr-logo.png" alt="Retrivr" width={953} height={215} unoptimized /></a>
         <nav aria-label="Footer"><a href="#how">Features</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><a href="#contact">Contact</a><Link href={account.href}>{account.label}</Link></nav>
         <span>© 2026 Retrivr</span>
       </footer>

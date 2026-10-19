@@ -34,10 +34,6 @@ import { openOfferTimes } from "@/lib/arrange-core.mjs";
 import { MarkSeen } from "@/components/MarkSeen";
 import { adoptShortlistAnswer, newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
 import { ShortlistSharing } from "@/components/ShortlistSharing";
-import { InterviewHoursForm } from "@/components/InterviewHoursForm";
-import { setClientReviewFirst } from "@/app/actions/interview-hours";
-import { interviewHoursPrefill } from "@/lib/interviews";
-import { hasInterviewHours } from "@/lib/shortlist-core.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +90,6 @@ export default async function RolePage({ params }: { params: { id: string } }) {
   const answeredBy = new Map((clientList?.accesses ?? []).filter((access) => access.email).map((access) => [access.id, access.email!]));
   const onLinkCount = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).length;
   const clientName = role.client || "the client";
-  const interviewHours = features.clientShortlists ? await interviewHoursPrefill(owner.id, role, settings) : null;
   const lastViewed = openAccesses.reduce<Date | null>((latest, access) => (access.lastViewedAt && (!latest || access.lastViewedAt > latest) ? access.lastViewedAt : latest), null);
   const visibleItems = role.candidates.filter((c) => onLink.has(c.id) && c.stage !== "rejected" && !c.person?.doNotContact).map((c) => onLink.get(c.id)!);
   const wantToMeet = visibleItems.filter((item) => item.decision === "interview").length;
@@ -370,7 +365,8 @@ export default async function RolePage({ params }: { params: { id: string } }) {
               <summary className="btn-secondary inline-flex cursor-pointer items-center gap-2">
                 <Icon name="external" size={16} />
                 Client link
-                <span className="tabular text-ink-soft">{onLinkCount}</span>
+                {/* People on the page, not links: a role has one link. */}
+                <span className="tabular text-ink-soft">· {onLinkCount} {onLinkCount === 1 ? "person" : "people"}</span>
               </summary>
               <div className="client-link-panel">
                 {!clientList ? (
@@ -395,31 +391,6 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                       readOnly={readOnly}
                       recruiterName={settings.recruiterName || owner.name}
                     />
-                  </>
-                )}
-                {clientList && linkStatus === "active" && interviewHours && (
-                  <>
-                    {/* Whether the client answers before anyone books an interview. */}
-                    <div className="review-switch">
-                      <span className="text-sm font-medium">Before an interview</span>
-                      <div className="access-switch" role="group" aria-label="Before an interview">
-                        <form action={setClientReviewFirst}>
-                          <input type="hidden" name="roleId" value={role.id} />
-                          <input type="hidden" name="reviewFirst" value="on" />
-                          <button type={role.clientReviewFirst ? "button" : "submit"} className="access-option" aria-pressed={role.clientReviewFirst}>{clientName} reviews first</button>
-                        </form>
-                        <form action={setClientReviewFirst}>
-                          <input type="hidden" name="roleId" value={role.id} />
-                          <button type={role.clientReviewFirst ? "submit" : "button"} className="access-option" aria-pressed={!role.clientReviewFirst}>Candidates book straight away</button>
-                        </form>
-                      </div>
-                      <p className="text-xs text-ink-soft">
-                        {role.clientReviewFirst
-                          ? `${clientName} answers Interview or Not for us on the page, and only then can a candidate book.`
-                          : `Anyone you put forward can book ${clientName}'s interview at once; the page shows ${clientName} who is invited.`}
-                      </p>
-                    </div>
-                    <InterviewHoursForm roleId={role.id} client={clientName} hours={interviewHours} saved={hasInterviewHours(role)} open={!role.clientReviewFirst && !hasInterviewHours(role)} />
                   </>
                 )}
                 {clientList && (

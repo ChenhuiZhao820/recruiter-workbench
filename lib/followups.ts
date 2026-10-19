@@ -96,9 +96,8 @@ export async function getFollowUpBuckets(): Promise<FollowUpBuckets> {
 
   const wanted = await db.shortlistItem.findMany({
     where: {
-      // An Interview answer - or, where the client does not review first,
-      // simply being on the link without a "not for us".
-      OR: [{ decision: "interview" }, { decision: null, shortlist: { role: { clientReviewFirst: false } } }],
+      // An Interview answer: every client reviews first.
+      decision: "interview",
       shortlist: { userId: owner.id, kind: "role", revokedAt: null },
       person: { doNotContact: false },
       candidate: {

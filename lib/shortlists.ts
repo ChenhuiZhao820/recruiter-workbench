@@ -5,7 +5,6 @@ import { clientProfile, type ClientProfile } from "./client-profile";
 import {
   accessOpens,
   canDecide,
-  hasInterviewHours,
   readGateCookie,
   hasPriorConsent,
   itemVisible,
@@ -239,12 +238,13 @@ function recruiterName(settings: { recruiterName: string } | null, owner: { name
   return settings?.recruiterName.trim() || owner.name;
 }
 
-type RoleChoices = { clientReviewFirst: boolean; interviewWindows: string; interviewTimezone: string | null; interviewDurationMins: number | null } | null;
-
-function clientChoices(role: RoleChoices, entries: ClientShortlistEntry[]) {
-  const reviewFirst = role ? role.clientReviewFirst : true;
-  const wanted = reviewFirst ? entries.some((entry) => entry.decision?.decision === "interview") : entries.length > 0;
-  return { reviewFirst, needsHours: Boolean(role) && wanted && !hasInterviewHours(role!) };
+// Every client reviews first, and no client is asked for interview hours:
+// the "Candidates book straight away" switch and the client's own hours form
+// went when interviews came to be arranged by the recruiter. A role that set
+// either before reads as if it had not. Kept as fields so the page and the
+// answer action stay as they are.
+function clientChoices() {
+  return { reviewFirst: true, needsHours: false };
 }
 
 export type ClientPage =
@@ -297,7 +297,7 @@ export async function loadClientPage(token: string, now = new Date(), gateCookie
       title: shortlist.title,
       client: shortlist.client,
       roleTitle: shortlist.role?.title ?? null,
-      ...clientChoices(shortlist.role, visible.entries),
+      ...clientChoices(),
       recruiterName: name,
       ...visible,
     },
@@ -335,7 +335,7 @@ export async function loadPreview(shortlistId: string, ownerId: string, now = ne
       title: shortlist.title,
       client: shortlist.client,
       roleTitle: shortlist.role?.title ?? null,
-      ...clientChoices(shortlist.role, visible.entries),
+      ...clientChoices(),
       recruiterName: recruiterName(shortlist.user.settings, shortlist.user),
       ...visible,
     },

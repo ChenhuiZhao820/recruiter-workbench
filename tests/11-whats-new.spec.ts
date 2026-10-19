@@ -73,7 +73,7 @@ test("R1 signing in with an unread release lands on it, and reading it is a deci
   await expect(page.getByRole("heading", { name: /Show a client who you found, on one page/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /Shortlists for a client, beyond one role/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /Candidates book the client.s interview/ })).toBeVisible();
-  await expect(page.getByText("One thing to do per client.")).toBeVisible();
+  await expect(page.getByText("Nothing to set up per client.")).toBeVisible();
   // A Basic account is told the one limit its plan has.
   await expect(page.getByText("Your plan keeps 3 shortlists open at once; closed and expired ones do not count.")).toBeVisible();
   // Reading the page is not reading the release.

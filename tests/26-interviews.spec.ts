@@ -55,34 +55,22 @@ test.beforeAll(async () => {
   await db.settings.update({ where: { userId: TEST_ADMIN_ID }, data: { recruiterName: "Morven Ellis", bookingWindows: EVERY_DAY, bookingTimezone: "Europe/London", bookingMinNoticeHours: 0, bookingDurationMins: 45, bookingHorizonDays: 21, meetingLink: "https://meet.example/morven" } });
 });
 
-test("I1 interview hours open filled in, are saved on the role, and fill in the next role for the same client", async ({ page }) => {
+test("I1 a role's weekly hours set before still serve its interview link, and the Client link panel has no interview settings", async ({ page }) => {
+  // The hours form and the "book straight away" switch are gone: interviews
+  // are arranged on the candidate's own page. Hours a role already has still
+  // offer times through {{interview_link}}, so the links already sent work.
+  for (const id of [roleId, otherRoleId]) {
+    await db.role.update({ where: { id }, data: { interviewWindows: EVERY_DAY, interviewTimezone: "Europe/London", interviewDurationMins: 45, interviewLocation: ROOM } });
+  }
   await onLink(roleId, "Imogen Achterberg");
+  await onLink(otherRoleId, "Sam Okafor");
   await page.goto(`/roles/${roleId}`);
   const panel = page.locator("details.client-link");
+  await expect(panel.locator("summary").first()).toContainText(/Client link\s*· \d+ (person|people)/);
   await panel.locator("summary").first().click();
-  const hours = panel.locator("details.interview-hours");
-  await expect(hours.getByText("Not set yet")).toBeVisible();
-  await hours.locator("summary").click();
-  await expect(hours.getByText(/Filled in from your own booking hours/)).toBeVisible();
-  await hours.getByLabel("Interview length").selectOption("45");
-  await hours.getByLabel(/Where/).fill(ROOM);
-  await hours.getByRole("button", { name: "Save interview hours" }).click();
-  await expect(hours.locator('[data-form-message="notice"]')).toContainText("Saved");
-  const role = await db.role.findUniqueOrThrow({ where: { id: roleId } });
-  const byDay = (json: string) => (JSON.parse(json) as { day: number }[]).sort((x, y) => x.day - y.day);
-  expect(byDay(role.interviewWindows)).toEqual(byDay(EVERY_DAY));
-  expect([role.interviewTimezone, role.interviewDurationMins, role.interviewLocation]).toEqual(["Europe/London", 45, ROOM]);
-
-  // "Halden Systems Ltd" is the same client: its role offers these hours.
-  await onLink(otherRoleId, "Sam Okafor");
-  await page.goto(`/roles/${otherRoleId}`);
-  await page.locator("details.client-link summary").first().click();
-  const other = page.locator("details.interview-hours");
-  await expect(other.getByText(/ready to copy from another Halden Systems Ltd role/)).toBeVisible();
-  await other.locator("summary").click();
-  await expect(other.getByLabel(/Where/)).toHaveValue(ROOM);
-  await other.getByRole("button", { name: "Save interview hours" }).click();
-  await expect(other.locator('[data-form-message="notice"]')).toContainText("Saved");
+  await expect(panel.getByText("Interview hours")).toHaveCount(0);
+  await expect(panel.getByText("Before an interview")).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: /book straight away/ })).toHaveCount(0);
 });
 
 test("I2 {{interview_link}} is a gap until the client asks to meet them, and the follow-up offers the link", async ({ page }) => {
@@ -248,90 +236,4 @@ test("I7 the recruiter cancels an interview from the role page and the candidate
   await expect(page.locator("li.card", { hasText: "Sam Okafor" }).getByText("Interview with Halden Systems Ltd")).toHaveCount(0);
   expect((await db.candidate.findUniqueOrThrow({ where: { id: sam.id } })).stage).toBe("submitted");
   expect(await db.interviewSlot.count({ where: { booking: { candidateId: sam.id } } })).toBe(0);
-});
-
-test("I8 with 'Candidates book straight away', being put forward is enough: no answer is asked, the link works and Follow-ups lists them", async ({ browser, page }, testInfo) => {
-  const role = await db.role.create({ data: { userId: TEST_ADMIN_ID, title: "Interview Test Straight Away", client: "Marsh & Pike", interviewWindows: EVERY_DAY, interviewTimezone: "Europe/London", interviewDurationMins: 30 } });
-  const { candidate } = await onLink(role.id, "Tobias Lindqvist", null);
-  await page.goto(`/roles/${role.id}`);
-  await page.locator("details.client-link summary").first().click();
-  await page.getByRole("button", { name: "Candidates book straight away" }).click();
-  await expect(page.getByRole("button", { name: "Candidates book straight away" })).toHaveAttribute("aria-pressed", "true");
-  await page.locator("details.client-link .client-link-panel").screenshot({ path: testInfo.outputPath("review-switch.png") });
-  expect((await db.role.findUniqueOrThrow({ where: { id: role.id } })).clientReviewFirst).toBe(false);
-
-  await page.goto("/followups");
-  await expect(page.getByRole("region", { name: "Client wants to meet" }).getByText("Tobias Lindqvist")).toBeVisible();
-
-  const shortlist = await db.shortlist.findUniqueOrThrow({ where: { roleId: role.id }, include: { accesses: true } });
-  const client = await guest(browser);
-  try {
-    await client.page.goto(`/s/${shortlistToken(SHORTLIST_SECRET, shortlist.accesses[0].id, shortlist.accesses[0].nonce)}`);
-    await expect(client.page.getByText("Tobias is invited to book an interview with you.")).toBeVisible();
-    await expect(client.page.getByRole("button", { name: /Interview|Not for us/ })).toHaveCount(0);
-    await client.page.goto(interviewLink(candidate.id));
-    await expect(client.page.getByRole("button", { name: "Book this interview" })).toBeVisible();
-  } finally {
-    await client.close();
-  }
-
-  // Back to reviewing first: the same person now waits for an answer again.
-  await page.goto(`/roles/${role.id}`);
-  await page.locator("details.client-link summary").first().click();
-  await page.getByRole("button", { name: "Marsh & Pike reviews first" }).click();
-  await expect(page.getByRole("button", { name: "Marsh & Pike reviews first" })).toHaveAttribute("aria-pressed", "true");
-  const visitor = await guest(browser);
-  try {
-    await visitor.page.goto(interviewLink(candidate.id));
-    await expect(visitor.page.getByRole("heading", { name: "This link is no longer active" })).toBeVisible();
-  } finally {
-    await visitor.close();
-  }
-});
-
-test("I9 a client who wants to meet someone on a role without hours sets their own, once, and never over the recruiter's", async ({ browser }, testInfo) => {
-  const role = await db.role.create({ data: { userId: TEST_ADMIN_ID, title: "Interview Test Client Hours", client: "Fenwick Labs" } });
-  const { candidate } = await onLink(role.id, "Odile Marchetti");
-  const shortlist = await db.shortlist.findUniqueOrThrow({ where: { roleId: role.id }, include: { accesses: true } });
-  const link = `/s/${shortlistToken(SHORTLIST_SECRET, shortlist.accesses[0].id, shortlist.accesses[0].nonce)}`;
-  const client = await guest(browser);
-  try {
-    await client.page.goto(link);
-    const panel = client.page.getByRole("region", { name: "When could you interview?" });
-    await expect(panel).toBeVisible();
-    await expect(panel.getByText("Times are in Europe/London.")).toBeVisible();
-    await panel.screenshot({ path: testInfo.outputPath("client-hours.png") });
-    await panel.getByLabel("Friday", { exact: true }).uncheck();
-    await panel.getByLabel("An interview lasts").selectOption("60");
-    await panel.getByRole("button", { name: "Save these hours" }).click();
-    await expect(client.page.getByRole("region", { name: "When could you interview?" })).toHaveCount(0);
-  } finally {
-    await client.close();
-  }
-  const saved = await db.role.findUniqueOrThrow({ where: { id: role.id } });
-  expect(JSON.parse(saved.interviewWindows).map((w: { day: number }) => w.day)).toEqual([1, 2, 3, 4]);
-  expect([saved.interviewTimezone, saved.interviewDurationMins]).toEqual(["Europe/London", 60]);
-  expect(await db.auditEvent.count({ where: { action: "role.interview_hours_from_client" } })).toBe(1);
-  // The candidate can now book within them.
-  const candidatePage = await guest(browser);
-  try {
-    await candidatePage.page.goto(interviewLink(candidate.id));
-    await expect(candidatePage.page.getByText("60 minutes.")).toBeVisible();
-  } finally {
-    await candidatePage.close();
-  }
-
-  // A role with the recruiter's own hours never asks the client.
-  const recruiterSet = await db.role.create({ data: { userId: TEST_ADMIN_ID, title: "Interview Test Recruiter Hours", client: "Fenwick Labs", interviewWindows: EVERY_DAY, interviewTimezone: "Europe/Paris", interviewDurationMins: 45 } });
-  await onLink(recruiterSet.id, "Ravi Chandran");
-  const theirs = await db.shortlist.findUniqueOrThrow({ where: { roleId: recruiterSet.id }, include: { accesses: true } });
-  const other = await guest(browser);
-  try {
-    await other.page.goto(`/s/${shortlistToken(SHORTLIST_SECRET, theirs.accesses[0].id, theirs.accesses[0].nonce)}`);
-    await expect(other.page.getByRole("heading", { level: 2, name: "Ravi Chandran" })).toBeVisible();
-    await expect(other.page.getByRole("region", { name: "When could you interview?" })).toHaveCount(0);
-  } finally {
-    await other.close();
-  }
-  expect((await db.role.findUniqueOrThrow({ where: { id: recruiterSet.id } })).interviewTimezone).toBe("Europe/Paris");
 });

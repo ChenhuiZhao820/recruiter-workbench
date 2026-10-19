@@ -1,6 +1,6 @@
 import { test, expect, type Browser } from "@playwright/test";
 import { randomBytes, randomUUID } from "node:crypto";
-import { db } from "./helpers";
+import { db, skipNoCv } from "./helpers";
 import { hashToken } from "../lib/auth-crypto";
 import { CURRENT_RELEASE, RELEASES, currentRelease } from "../lib/release";
 import { releaseDay } from "../lib/releases.mjs";
@@ -155,6 +155,7 @@ test("A3 an answer on a custom shortlist shows on the role's row and Follow-ups,
     await expect(row.getByTestId("answer-elsewhere")).toContainText("Brightwater Group Ltd wants to meet");
     await expect(row.getByTestId("answer-elsewhere")).toContainText("Analytics people for Brightwater");
     await row.getByRole("button", { name: "Add to client link" }).click();
+    await skipNoCv(me.page);
     await expect(row.getByText("On the client link")).toBeVisible();
     await expect(row.getByTestId("answer-elsewhere")).toHaveCount(0);
     await expect(row.locator(".chip.client-said-yes")).toContainText("Brightwater Group Ltd wants to meet");

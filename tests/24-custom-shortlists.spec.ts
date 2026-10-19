@@ -1,6 +1,6 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import { randomBytes, randomUUID } from "node:crypto";
-import { db, TEST_ADMIN_ID } from "./helpers";
+import { db, TEST_ADMIN_ID, skipNoCv } from "./helpers";
 import { hashToken } from "../lib/auth-crypto";
 import { CURRENT_RELEASE } from "../lib/release";
 import { newNonce, shortlistToken } from "../lib/shortlist-core.mjs";
@@ -100,6 +100,7 @@ test("S1 New shortlist on People starts one for a client, with people found by n
   expect(await db.shortlist.count({ where: { title: `Data people ${tag}` } })).toBe(0);
   await bilal.getByLabel("Agreed to be put forward to Marsh & Pike").check();
   await page.getByRole("button", { name: "Create shortlist" }).click();
+  await skipNoCv(page);
 
   await expect(page).toHaveURL(/\/shortlists\?open=/);
   const row = rowOf(page, `Data people ${tag}`);
@@ -139,6 +140,7 @@ test("S2 people are added and removed later, it can be renamed but not moved to 
   await page.getByRole("button", { name: "Add ticked people" }).click();
   await page.getByLabel("Agreed to be put forward to Marsh & Pike").check();
   await page.getByRole("button", { name: "Add them" }).click();
+  await skipNoCv(page);
   await expect(rowOf(page, `Data people ${tag}`).getByRole("list", { name: /People on/ }).getByText(`Chidi Okonkwo ${tag}`)).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
@@ -180,6 +182,7 @@ test("S3 Basic keeps three open at once: the fourth is refused, closing or expir
     await page.getByLabel("Agreed to be put forward to Elsewhere").check();
     await page.getByRole("button", { name: "Create shortlist" }).evaluate((button) => { button.removeAttribute("disabled"); button.removeAttribute("aria-disabled"); });
     await page.getByRole("button", { name: "Create shortlist" }).click();
+    await skipNoCv(page);
     await expect(page.locator('[data-form-message="error"]')).toContainText("You already have 3 active shortlists");
     expect(await db.shortlist.count({ where: { userId: basic.id } })).toBe(5);
 
@@ -206,6 +209,7 @@ test("S3 Basic keeps three open at once: the fourth is refused, closing or expir
     await page.goto(`/shortlists/new?client=Elsewhere&p=${someone.id}`);
     await page.getByLabel("Agreed to be put forward to Elsewhere").check();
     await page.getByRole("button", { name: "Create shortlist" }).click();
+    await skipNoCv(page);
     await expect(page).toHaveURL(/\/shortlists\?open=/);
     await expect(page.locator(".shortlist-limit")).toContainText("3 of 3");
 

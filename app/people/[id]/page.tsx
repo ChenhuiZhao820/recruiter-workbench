@@ -18,6 +18,8 @@ import { setRevisit } from "@/app/actions/talent";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { SCREENING_HINT } from "@/lib/screening";
+import { CvUpload } from "@/components/CvUpload";
+import { deleteCv } from "@/app/actions/cv";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
           bookings: { orderBy: { startsAt: "desc" }, select: { id: true, startsAt: true, mode: true, phone: true, status: true, kind: true } },
         },
       },
+      cv: { select: { fileName: true, sizeBytes: true, uploadedAt: true } },
       notes: {
         orderBy: { createdAt: "desc" },
         select: { id: true, body: true, createdAt: true, candidate: { select: { role: { select: { title: true } } } } },
@@ -126,6 +129,37 @@ export default async function PersonPage({ params }: { params: { id: string } })
                 </div>
               ))}
             </dl>
+          </section>}
+
+          {features.clientShortlists && <section aria-labelledby="cv-heading" className="space-y-4">
+            <div>
+              <h2 id="cv-heading" className="section-heading">CV</h2>
+              <p className="section-caption">
+                What a client sees about {person.fullName.split(/\s+/)[0]} on every client page, in place of the confirmed details. Without one, they see the confirmed details.
+              </p>
+            </div>
+            {person.cv ? (
+              <div className="cv-current">
+                <div className="min-w-0">
+                  <a href={`/api/people/${person.id}/cv`} target="_blank" rel="noopener" className="person-row-name">{person.cv.fileName}</a>
+                  <p className="person-row-headline">{Math.max(1, Math.round(person.cv.sizeBytes / 1024))} KB · uploaded {formatWhen(person.cv.uploadedAt)}</p>
+                </div>
+                {!readOnly && (
+                  <form action={deleteCv}>
+                    <input type="hidden" name="personId" value={person.id} />
+                    <ConfirmSubmitButton label="Delete CV" className="btn-quiet btn-danger-quiet" confirmText={`Delete ${person.fullName}'s CV? Clients see the confirmed details instead from now on.`} />
+                  </form>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-ink-soft">No CV yet.</p>
+            )}
+            {!readOnly && (
+              <details className="cv-replace" open={!person.cv}>
+                <summary className="cursor-pointer text-sm text-ink-soft">{person.cv ? "Replace the CV" : "Upload a CV"}</summary>
+                <CvUpload personId={person.id} idPrefix="person-cv" label={person.cv ? "Replace CV" : "Upload CV"} />
+              </details>
+            )}
           </section>}
 
           <section aria-labelledby="notes-heading" className="space-y-4">

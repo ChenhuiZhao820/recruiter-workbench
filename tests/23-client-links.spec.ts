@@ -1,6 +1,6 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { db, TEST_ADMIN_ID } from "./helpers";
+import { db, TEST_ADMIN_ID, skipNoCv } from "./helpers";
 import { hashToken } from "../lib/auth-crypto";
 import { shortlistToken } from "../lib/shortlist-core.mjs";
 
@@ -71,6 +71,7 @@ test("L1 a consented candidate is put forward in one click, and the client reads
   await page.goto(`/roles/${roleId}`);
   await expect((await openPanel(page)).getByText("A page Halden Systems Ltd opens without signing in, to see who you put forward and choose who to interview.")).toBeVisible();
   await row(page, "Imogen Achterberg").getByRole("button", { name: "Put forward to Halden Systems Ltd" }).click();
+  await skipNoCv(page);
   await expect(row(page, "Imogen Achterberg").getByText("On the client link")).toBeVisible();
   const after = await db.candidate.findUniqueOrThrow({ where: { id: candidate.id } });
   expect(after.stage).toBe("submitted");
@@ -128,6 +129,7 @@ test("L2 without known consent the recruiter confirms it, and consent for the sa
   expect(await db.shortlistItem.count({ where: { personId: (await personOnRole(roleId, "Sam Okafor")).id } })).toBe(0);
   await sam.getByLabel("Sam Okafor agreed to be put forward to Halden Systems Ltd.").check();
   await sam.getByRole("button", { name: "Put forward", exact: true }).click();
+  await skipNoCv(page);
   await expect(sam.getByText("On the client link")).toBeVisible();
   expect(await db.auditEvent.count({ where: { action: "shortlist.put_forward" } })).toBeGreaterThanOrEqual(2);
 
@@ -138,6 +140,7 @@ test("L2 without known consent the recruiter confirms it, and consent for the sa
   await db.candidate.create({ data: { roleId: other.id, fullName: "Sam Okafor", personId: person.id, stage: "contacted" } });
   await page.goto(`/roles/${other.id}`);
   await row(page, "Sam Okafor").getByRole("button", { name: "Put forward to halden systems" }).click();
+  await skipNoCv(page);
   await expect(row(page, "Sam Okafor").getByText("On the client link")).toBeVisible();
 
   // Do not contact, rejected and placed people are never offered.

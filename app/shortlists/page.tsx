@@ -39,7 +39,7 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
       accesses: { orderBy: { createdAt: "asc" } },
       items: {
         orderBy: [{ position: "asc" }, { addedAt: "asc" }],
-        include: { person: { select: { id: true, fullName: true, headline: true, doNotContact: true } } },
+        include: { person: { select: { id: true, fullName: true, headline: true, doNotContact: true, cv: { select: { uploadedAt: true } } } } },
       },
     },
   });
@@ -186,6 +186,7 @@ export default async function ShortlistsPage({ searchParams }: { searchParams: {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {item.person.doNotContact && <span className="chip person-flag">Do not contact, hidden from the client</span>}
+                  {!item.person.doNotContact && !item.person.cv && status === "active" && <Link href={`/people/${item.person.id}#cv-heading`} className="chip no-cv-chip">No CV · Upload</Link>}
                   {item.decision === "interview" && (
                     <span className="chip client-said-yes">
                       {shortlist.client} wants to meet{item.decisionAccessId && answeredBy.get(item.decisionAccessId) ? ` · ${answeredBy.get(item.decisionAccessId)}` : ""}

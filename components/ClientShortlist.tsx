@@ -19,7 +19,16 @@ function count(n: number) {
   return `${n} ${n === 1 ? "candidate" : "candidates"}`;
 }
 
-export function ClientShortlist({ view, token }: { view: ClientShortlistView; token: string | null }) {
+// Where a CV is read from: behind the client's own link, or, in the in-app
+// preview, behind the recruiter's session. `v` is the upload, so a CV
+// replaced while the link is open is never served from an old copy.
+function cvHref(token: string | null, previewOf: string | null, itemId: string, version: number) {
+  if (token) return `/s/${token}/cv/${itemId}?v=${version}`;
+  if (previewOf) return `/shortlists/${previewOf}/preview/cv/${itemId}?v=${version}`;
+  return null;
+}
+
+export function ClientShortlist({ view, token, previewOf = null }: { view: ClientShortlistView; token: string | null; previewOf?: string | null }) {
   const heading = view.roleTitle ?? view.title;
   return (
     <article className="client-page" aria-labelledby="client-heading">
@@ -94,7 +103,7 @@ export function ClientShortlist({ view, token }: { view: ClientShortlistView; to
         </div>
       ) : (
         <ol className="client-list">
-          {view.entries.map(({ itemId, profile, addedAt, decision, canDecide }) => (
+          {view.entries.map(({ itemId, profile, addedAt, decision, canDecide, cv }) => (
             <li key={itemId} id={`entry-${itemId}`} className="client-entry">
               <div className="client-entry-head">
                 <div className="min-w-0">
@@ -106,34 +115,49 @@ export function ClientShortlist({ view, token }: { view: ClientShortlistView; to
 
               {profile.pitch && <p className="client-pitch">{profile.pitch}</p>}
 
-              {profile.facts.length > 0 ? (
-                <dl className="client-facts">
-                  {profile.facts.map((fact) => (
-                    <div key={fact.field}>
-                      <dt>{fact.label}</dt>
-                      <dd>
-                        <span>{fact.value}</span>
-                        {fact.note && <span className="client-fact-note">{fact.note}</span>}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+              {/* With a CV the client reads it, as they asked to; without one, the
+                  confirmed facts as before. Never the LinkedIn profile. */}
+              {cv && cvHref(token, previewOf, itemId, cv.version) ? (
+                <div className="client-cv">
+                  <iframe src={cvHref(token, previewOf, itemId, cv.version)!} title={`${profile.fullName}'s CV`} className="client-cv-frame" loading="lazy" />
+                  <p className="client-cv-actions">
+                    <a href={cvHref(token, previewOf, itemId, cv.version)!} target="_blank" rel="noopener" className="btn-secondary">Open CV</a>
+                    <a href={cvHref(token, previewOf, itemId, cv.version)!} download={cv.fileName} className="btn-quiet">Download</a>
+                  </p>
+                </div>
               ) : (
-                <p className="client-facts-none">Pay, notice, location and right to work are still to be confirmed.</p>
-              )}
+                <>
+                {profile.facts.length > 0 ? (
+                  <dl className="client-facts">
+                    {profile.facts.map((fact) => (
+                      <div key={fact.field}>
+                        <dt>{fact.label}</dt>
+                        <dd>
+                          <span>{fact.value}</span>
+                          {fact.note && <span className="client-fact-note">{fact.note}</span>}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="client-facts-none">Pay, notice, location and right to work are still to be confirmed.</p>
+                )}
 
-              {(profile.skills || profile.motivation) && (
-                <dl className="client-story">
-                  {profile.skills && <div><dt>Skills</dt><dd>{profile.skills}</dd></div>}
-                  {profile.motivation && <div><dt>Why they would move</dt><dd>{profile.motivation}</dd></div>}
-                </dl>
-              )}
+                {(profile.skills || profile.motivation) && (
+                  <dl className="client-story">
+                    {profile.skills && <div><dt>Skills</dt><dd>{profile.skills}</dd></div>}
+                    {profile.motivation && <div><dt>Why they would move</dt><dd>{profile.motivation}</dd></div>}
+                  </dl>
+                )}
 
-              {profile.factsConfirmedOn && (
-                <p className="client-confirmed">
-                  Confirmed with them on {profile.factsConfirmedOn}
-                  {profile.factsMayBeOutOfDate && <span className="chip person-stale">May be out of date</span>}
-                </p>
+                {profile.factsConfirmedOn && (
+                  <p className="client-confirmed">
+                    Confirmed with them on {profile.factsConfirmedOn}
+                    {profile.factsMayBeOutOfDate && <span className="chip person-stale">May be out of date</span>}
+                  </p>
+                )}
+
+                </>
               )}
 
               {view.reviewFirst ? (

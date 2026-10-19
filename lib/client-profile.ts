@@ -48,6 +48,8 @@ export const PERSON_FIELD_POLICY: Record<string, Policy> = {
   candidates: "hidden",
   notes: "hidden",
   shortlistItems: "hidden",
+  // Served on its own, behind the client link (lib/client-cv.ts), never in the profile.
+  cv: "hidden",
   importBatchId: "hidden",
   importBatch: "hidden",
   createdAt: "hidden",

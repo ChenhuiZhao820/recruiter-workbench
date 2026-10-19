@@ -12,15 +12,24 @@ const nextConfig = {
     },
   },
   async headers() {
-    return [{
-      source: "/:path*",
-      headers: [
-        { key: "X-Content-Type-Options", value: "nosniff" },
-        { key: "X-Frame-Options", value: "DENY" },
-        { key: "Referrer-Policy", value: "same-origin" },
-        { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
-      ],
-    }];
+    const common = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "same-origin" },
+    ];
+    // A CV is shown inside this site's own pages (the client's link and the
+    // preview), so those three addresses may be framed by this site and no
+    // other. Everything else may not be framed at all.
+    const cvPaths = ["/s/:token/cv/:itemId", "/shortlists/:id/preview/cv/:itemId", "/api/people/:id/cv"];
+    return [
+      {
+        source: "/:path((?!s/[^/]+/cv/|shortlists/[^/]+/preview/cv/|api/people/[^/]+/cv$).*)",
+        headers: [...common, { key: "X-Frame-Options", value: "DENY" }, { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'" }],
+      },
+      ...cvPaths.map((source) => ({
+        source,
+        headers: [...common, { key: "X-Frame-Options", value: "SAMEORIGIN" }, { key: "Content-Security-Policy", value: "frame-ancestors 'self'" }],
+      })),
+    ];
   },
 };
 

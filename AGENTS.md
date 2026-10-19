@@ -312,7 +312,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - The model is `CAPTURE_SCREENING_MODEL` (default the current Opus until the
   evaluation picks one), effort `CAPTURE_SCREENING_EFFORT` (never sent to Haiku).
   Models that take it get the server-side refusal fallback. The CV is a PDF of up
-  to 5 pages and 4 MB, sent with that one request and never stored; transcripts
+  to 5 pages and 4 MB, sent with that one request and not stored unless the
+  recruiter ticks to keep it for clients (see CVs on client pages); transcripts
   are capped at 60,000 characters, so server actions accept 6 MB bodies.
 - `AiUsage` caps summaries per account per UTC month
   (`CAPTURE_SCREENING_MONTHLY_CAP`, default 100). The claim is a conditional
@@ -516,6 +517,45 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   Client link button counts people on the page ("· 2 people"), not links.
 - `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts`, `tests/25-named-access.spec.ts` and `tests/26-interviews.spec.ts` play the client (and the candidate) in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
+
+## CVs on client pages
+
+- A client reads a person's CV where Capture has one, in place of the
+  confirmed facts, skills and motivation; where there is none, the client's
+  page is as it was. The LinkedIn profile is never shown to a client, with or
+  without a CV (`profileUrl` stays hidden in `lib/client-profile.ts`).
+- `PersonCv` (one per person, cascade): the PDF as uploaded, in the database
+  because the host has no lasting disk, with `contactsCheckedAt`. Uploads go
+  through `uploadCv` (`app/actions/cv.ts`, rules in `lib/cv-core.mjs`,
+  `tests/cv.test.mjs`): a PDF of up to 4 MB, a cleaned file name, replacing
+  the last one. The contact-details notice (`CONTACTS_NOTICE`) sits between
+  the file and the button in `CvUpload`, and the button stays off until its
+  box is ticked; the server refuses an upload without the tick, so it cannot be
+  clicked past. Uploaded from the person page (CV section, with Replace and
+  Delete) or kept from the screening form ("Also keep this CV on their
+  record", with the same tick, saved before the summary is asked for).
+- The client's page reads live, so a CV uploaded, replaced or deleted while a
+  link is open is what the client's next look shows. Each entry carries the
+  upload time as `v`, so a browser never shows an old copy. The file is
+  served from `/s/<token>/cv/<itemId>` only through `loadClientPage` (a live
+  link, the named-link gate cookie, someone still visible on the page), from
+  `/shortlists/<id>/preview/cv/<itemId>` for the in-app preview, and from
+  `/api/people/<id>/cv` for the recruiter's own workspace. All three are
+  `no-store`, `noindex`, and may be framed by this site only: `next.config.mjs`
+  keeps `DENY` for every other address. No `sandbox` CSP on them, because
+  Chrome will not render a PDF under one.
+- Putting forward someone without a CV asks first (`NoCvGuard`): Put forward,
+  Add to client link, and creating or adding to a shortlist open a dialog
+  saying the client will see only the confirmed details. Cancel, "Skip for
+  now" (a CV often comes later), or upload it right there with the same tick,
+  after which it goes ahead by itself. The dialog keeps the list it opened
+  with, because the upload refreshes the page under it. Until a CV arrives the
+  role row and the shortlist library show "No CV · Upload".
+- The export lists which CVs are kept (`cvs`: names, sizes, dates), not the
+  files; a CV is not carried by `scripts/import-accounts.mjs` and is uploaded
+  again after a move. `20261023000000_person_cv` adds the table (additive;
+  see Hosting for when it was applied).
+  `tests/29-client-cv.spec.ts` plays the recruiter and the client.
 
 ## Arranging a client interview
 
@@ -1245,6 +1285,14 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   table came out unchanged, the new table empty and no booking with a place
   or zone; Prisma reports 12 migrations and no difference. The local account
   database has not received it.
+- On 2026-10-19, `20261023000000_person_cv` (`PersonCv`) was applied and
+  registered on the hosted database the same way, through WSL
+  (`prisma/private-local/migrate-hosted-person-cv.mjs`), checked against the
+  reviewed file's SHA-256: a dump from a locked snapshot, restored into a
+  disposable database and rehearsed, then one transaction. Every existing
+  table came out unchanged and the new table empty; Prisma reports 13
+  migrations and no difference. The local account database has not received
+  it.
 
 ## Searches and LinkedIn industry filters
 

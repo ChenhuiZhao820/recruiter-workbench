@@ -6,7 +6,7 @@ import { consentPersonSelect, knownConsentAt } from "@/lib/shortlists";
 import { defaultShortlistTitle, shortlistStatus } from "@/lib/shortlist-core.mjs";
 import { addToShortlist, createShortlist } from "@/app/actions/custom-shortlists";
 import { ActionForm } from "@/components/ActionForm";
-import { SubmitButton } from "@/components/SubmitButton";
+import { NoCvGuard } from "@/components/NoCvGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export default async function NewShortlistPage({ searchParams }: { searchParams:
   const q = (searchParams.q ?? "").trim().slice(0, 80);
 
   const [chosenRows, found, active] = await Promise.all([
-    db.person.findMany({ where: { id: { in: chosenIds }, userId: owner.id }, select: { id: true, fullName: true, headline: true, ...consentPersonSelect } }),
+    db.person.findMany({ where: { id: { in: chosenIds }, userId: owner.id }, select: { id: true, fullName: true, headline: true, ...consentPersonSelect, cv: { select: { uploadedAt: true } } } }),
     q
       ? db.person.findMany({
           where: { userId: owner.id, doNotContact: false, searchText: { contains: q.toLowerCase() }, id: { notIn: [...chosenIds, ...(adding?.items.map((item) => item.personId) ?? [])] } },
@@ -157,6 +157,7 @@ export default async function NewShortlistPage({ searchParams }: { searchParams:
                       {person.headline && <p className="person-row-headline">{person.headline}</p>}
                     </div>
                     <div className="shortlist-consent">
+                      {!person.cv && !person.doNotContact && <span className="chip no-cv-chip">No CV</span>}
                       {person.doNotContact ? (
                         <span className="chip person-flag">Do not contact</span>
                       ) : known ? (
@@ -181,9 +182,13 @@ export default async function NewShortlistPage({ searchParams }: { searchParams:
             )}
             {blocked.length > 0 && <p role="alert" className="text-sm text-rose-900">Take anyone marked do not contact off the list before saving.</p>}
             <div className="flex flex-wrap items-center gap-3">
-              <SubmitButton pendingLabel="Saving..." disabled={atLimit || Boolean(addingClosed) || blocked.length > 0}>
-                {adding ? `Add ${chosen.length === 1 ? "them" : `these ${chosen.length}`}` : "Create shortlist"}
-              </SubmitButton>
+              <NoCvGuard
+                className="btn-primary"
+                disabled={atLimit || Boolean(addingClosed) || blocked.length > 0}
+                label={adding ? `Add ${chosen.length === 1 ? "them" : `these ${chosen.length}`}` : "Create shortlist"}
+                client={client}
+                missing={chosen.filter((person) => !person.cv && !person.doNotContact).map((person) => ({ name: person.fullName, personId: person.id }))}
+              />
               {addingClosed && <span className="text-sm text-ink-soft">This shortlist is closed or has expired. Keep it open on Shortlists first.</span>}
             </div>
           </ActionForm>

@@ -2,10 +2,10 @@
 
 import { useEffect } from "react";
 
-// Plays each feature figure, and the orbit in the dark band, once as it
-// scrolls into view. Figures that arrive together play one after another in
-// reading order; Replay plays a card's figure again. Before and after, every
-// figure rests on its last frame, so nothing depends on this running.
+// Plays each feature figure once as it scrolls into view. Figures that
+// arrive together play one after another in reading order; Replay plays a
+// card's figure again. Before and after, every figure rests on its last
+// frame, so nothing depends on this running.
 export function LandingMotion() {
   useEffect(() => {
     const replays = Array.from(document.querySelectorAll<HTMLButtonElement>(".lp-card .lp-replay"));
@@ -19,7 +19,7 @@ export function LandingMotion() {
       element.classList.add("lp-play");
     };
     const timers = new Set<number>();
-    const figures = Array.from(document.querySelectorAll(".lp-card .lp-fig, #lp-flow"));
+    const figures = Array.from(document.querySelectorAll(".lp-card .lp-fig"));
     let next = 0;
     const queue = (element: Element) => {
       const at = Math.max(next, performance.now());

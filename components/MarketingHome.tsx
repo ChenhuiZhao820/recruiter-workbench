@@ -34,8 +34,6 @@ export function MarketingHome({ signedIn = false }: { signedIn?: boolean }) {
         <symbol id="lp-i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12m13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></symbol>
         <symbol id="lp-i-clock" viewBox="0 0 24 24"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></symbol>
         <symbol id="lp-i-cursor" viewBox="0 0 24 24"><path d="M5 3l14 8-6.5 1.5L9.5 19z" fill="#18181b" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round"/></symbol>
-        <symbol id="lp-i-people" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></symbol>
-        <symbol id="lp-i-msg" viewBox="0 0 24 24"><path d="M4 4h16v12H9l-5 4zM8 8h8M8 12h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></symbol>
         <symbol id="lp-i-mark" viewBox="0 0 32 32"><path d="M12 4H4v8M20 4h8v8M28 20v8h-8M12 28H4v-8" fill="none" stroke="currentColor" strokeWidth="3"/><path d="M12 12h8v8h-8z" fill="currentColor"/></symbol>
       </defs>
     </svg>
@@ -212,33 +210,6 @@ export function MarketingHome({ signedIn = false }: { signedIn?: boolean }) {
             <button className="lp-replay" type="button"><svg><use href="#lp-i-replay"/></svg>Replay</button>
           </article>
 
-        </div>
-      </section>
-    </div>
-
-    {/* Human by design */}
-    <div className="lp-wrap lp-band-wrap">
-      <section className="lp-principles" id="trust">
-        <div className="lp-principles-inner">
-          <div>
-            <span className="lp-eyebrow">Human by design</span>
-            <h2>Software handles<br />the preparation.<br /><span>You own the decision.</span></h2>
-            <p>The best recruiting is personal. Retrivr takes care of the organisation without taking over the conversation.</p>
-            <ul className="lp-principle-list">
-              <li><svg><use href="#lp-i-check"/></svg>No automated messaging</li>
-              <li><svg><use href="#lp-i-check"/></svg>No background browsing</li>
-              <li><svg><use href="#lp-i-check"/></svg>Export or delete any time</li>
-              <li><svg><use href="#lp-i-check"/></svg>Admin view is read-only</li>
-            </ul>
-          </div>
-          <div className="lp-system" id="lp-flow" aria-hidden="true">
-            <div className="lp-orbit lp-o1"></div><div className="lp-orbit lp-o2"></div><div className="lp-orbit lp-o3"></div>
-            <div className="lp-core lp-k-pop" style={d(".1s")}><Image src="/brand/retrivr-mark.png" alt="" width={265} height={215} unoptimized /></div>
-            <div className="lp-node lp-n-top lp-k-in" style={d(".5s")}><svg><use href="#lp-i-file"/></svg><span>Facts confirmed</span><i></i></div>
-            <div className="lp-node lp-n-left lp-k-in" style={d(".8s")}><svg><use href="#lp-i-people"/></svg><span>Profile saved</span><i></i></div>
-            <div className="lp-node lp-n-bottom lp-k-in" style={d("1.1s")}><svg><use href="#lp-i-msg"/></svg><span>Your next move</span><i></i></div>
-            <span className="lp-system-caption">Organised by Retrivr. Led by you.</span>
-          </div>
         </div>
       </section>
     </div>

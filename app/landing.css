@@ -233,33 +233,6 @@
 .lp-f6-bell { position: absolute; right: 7%; top: 63%; display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); font-size: 9.5px; box-shadow: 0 6px 16px rgb(24 24 27 / .1); z-index: 3; }
 .lp-f6-bell .lp-bell svg { width: 13px; height: 13px; }
 .lp-f6-bell .lp-badge { transform: scale(1); top: -5px; right: -7px; min-width: 13px; height: 13px; font-size: 8px; line-height: 13px; }
-/* Human by design: the dark band from the live site, with the orbit drawn in on arrival. */
-.lp-band-wrap { padding-block: 48px; }
-.lp-principles { max-width: 1160px; margin: 0 auto; border-radius: 10px; overflow: hidden; background: #151518; color: #fff; }
-.lp-principles-inner { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 44px; align-items: center; margin: auto; padding: 72px 44px; }
-.lp-principles .lp-eyebrow { color: #a4a4af; }
-.lp-principles h2 { margin: 20px 0; font-size: clamp(34px, 4vw, 48px); line-height: 1.1; letter-spacing: -.05em; }
-.lp-principles h2 span { color: #9696a0; }
-.lp-principles p { max-width: 400px; font-size: 14px; line-height: 1.8; color: #b1b1bc; }
-.lp-principle-list { display: grid; gap: 12px; margin-top: 26px; font-size: 13px; color: #d8d8e0; }
-.lp-principle-list li { display: flex; align-items: center; gap: 10px; }
-.lp-principle-list svg { width: 15px; height: 15px; color: #7793ff; }
-.lp-system { position: relative; height: 385px; min-width: 0; overflow: hidden; }
-.lp-orbit { position: absolute; left: 50%; top: 48%; translate: -50% -50%; border: 1px solid #34343d; border-radius: 50%; }
-.lp-o1 { width: 160px; height: 160px; border-color: #444452; }
-.lp-o2 { width: 260px; height: 260px; }
-.lp-o3 { width: 365px; height: 365px; opacity: .6; }
-.lp-core { position: absolute; left: 50%; top: 48%; width: 92px; height: 92px; margin: -46px 0 0 -46px; border-radius: 18px; background: #fff; display: grid; place-items: center; rotate: -8deg; box-shadow: 0 0 70px rgb(98 125 205 / .35); }
-.lp-core img { width: 54px; height: auto; }
-.lp-node { position: absolute; display: flex; align-items: center; gap: 9px; padding: 12px; border: 1px solid #393943; border-radius: 7px; background: #202025; color: #dadade; font-size: 12px; white-space: nowrap; box-shadow: 0 6px 22px rgb(0 0 0 / .2); }
-.lp-node svg { width: 18px; height: 18px; color: #9696a0; }
-.lp-node i { width: 5px; height: 5px; margin-left: 8px; border-radius: 50%; background: #718fff; }
-.lp-play .lp-node i { animation: lp-blink .6s calc(var(--d) + .4s) 2 both; }
-@keyframes lp-blink { 50% { background: #fff; box-shadow: 0 0 0 4px rgb(113 143 255 / .35); } }
-.lp-n-top { top: 30px; left: 37%; }
-.lp-n-left { top: 156px; left: 0; }
-.lp-n-bottom { bottom: 50px; right: 0; }
-.lp-system-caption { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font: 11.5px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: #92929d; }
 /* Pricing */
 .lp-price-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
 .lp-price-head .lp-intro { margin-bottom: 0; }
@@ -333,7 +306,6 @@
 .lp-card:last-child { border-bottom: 0; }
 .lp-card > .lp-fig { grid-column: 2; grid-row: 1 / span 3; }
 .lp-card > .lp-replay { align-self: end; }
-.lp-principles-inner { grid-template-columns: minmax(0, 1fr); padding: 56px 30px; gap: 24px; }
 .lp-faq { grid-template-columns: minmax(0, 1fr); gap: 36px; }
 .lp-nav-links a.lp-hide-sm { display: none; }
 
@@ -356,13 +328,6 @@
 .lp-card { display: flex; }
 .lp-card > .lp-replay { align-self: flex-start; }
 .lp-card h3 { min-height: 0; }
-.lp-principles-inner { padding: 44px 20px; }
-.lp-principles-inner h2 { font-size: 36px; }
-.lp-system { height: 320px; max-width: 360px; width: 100%; margin: auto; }
-.lp-o3 { width: 300px; height: 300px; }
-.lp-o2 { width: 220px; height: 220px; }
-.lp-n-left { top: 120px; }
-.lp-n-top { left: 30%; }
 .lp-closing { padding: 56px 0; }
 .lp-tiers { grid-template-columns: minmax(0, 1fr); }
 .lp-tier + .lp-tier { border-left: 0; border-top: 1px solid var(--line); }

@@ -18,7 +18,7 @@ const roles = [
 ];
 const account = { id: "user-a", name: "Alice Recruiter", email: "alice@example.test" };
 // The origin the source build is for, and the one a package overrides.
-const deployment = "https://capture-workbench.onrender.com";
+const deployment = "https://retrivr.app";
 const otherAccount = { id: "user-b", name: "Bob Recruiter", email: "bob@example.test" };
 const roleKey = (url = "http://localhost:3000", id = account.id) => `lastRole:${JSON.stringify([url, id])}`;
 const config = { url: "http://localhost:3000", token: "fixture-capture-key", [roleKey()]: "role-b" };
@@ -1009,6 +1009,16 @@ test("an unpackaged build offers the deployment and can actually reach it", asyn
   assert.equal(p.requests[0].url, `${deployment}/api/capture`);
   assert.equal(p.elements.capture.hidden, false);
   assert.equal(p.elements["account-origin"].textContent, deployment);
+});
+
+// The site moved from onrender.com to its own domain. A new copy loaded over the
+// old one keeps the old address in storage: it sends nothing there, and says
+// which address it is for.
+test("a copy loaded over one for the former address names its own and reaches nothing", async () => {
+  const p = await popup({ stored: { ...config, url: "https://capture-workbench.onrender.com" } });
+  assert.equal(p.requests.length, 0);
+  assert.equal(p.elements.setup.hidden, false);
+  assert.ok(p.elements["setup-message"].textContent.includes(deployment));
 });
 
 test("an unpackaged build still permits loopback for development", async () => {

@@ -285,3 +285,30 @@ test("failed db push cleans up only the newly reserved test database", async () 
   assert.deepEqual(harness.deleted, [harness.dbFile]);
   for (const protectedFile of harness.protectedFiles) assert.ok(harness.files.has(protectedFile));
 });
+
+// The site moved address once (onrender.com to its own domain). Links already
+// sent name the old one, so a page there goes to the same path at APP_ORIGIN.
+test("pages at a former address go to the same path at APP_ORIGIN, and nowhere else", async () => {
+  const { canonicalRedirect } = await import("../lib/canonical-host.mjs");
+  const origin = "https://retrivr.app";
+  assert.equal(canonicalRedirect(origin, "capture-workbench.onrender.com", "/book/abc.def", ""), "https://retrivr.app/book/abc.def");
+  assert.equal(canonicalRedirect(origin, "capture-workbench.onrender.com", "/s/a.b.c", "?x=1"), "https://retrivr.app/s/a.b.c?x=1");
+  assert.equal(canonicalRedirect(origin, "www.retrivr.app", "/", ""), "https://retrivr.app/");
+  assert.equal(canonicalRedirect(origin, "a.onrender.com, retrivr.app", "/login", ""), "https://retrivr.app/login");
+  // A path that looks like another host stays a path on this one.
+  assert.equal(canonicalRedirect(origin, "a.onrender.com", "//evil.example/x", ""), "https://retrivr.app//evil.example/x");
+  // The canonical host itself, whatever its case, is served as it is.
+  assert.equal(canonicalRedirect(origin, "retrivr.app", "/login", ""), null);
+  assert.equal(canonicalRedirect(origin, "Retrivr.App", "/login", ""), null);
+  // Loopback development and tests, a missing host and a bad origin are left alone.
+  assert.equal(canonicalRedirect("http://localhost:3000", "127.0.0.1:3000", "/", ""), null);
+  assert.equal(canonicalRedirect(origin, null, "/", ""), null);
+  assert.equal(canonicalRedirect("", "a.onrender.com", "/", ""), null);
+  assert.equal(canonicalRedirect("not a url", "a.onrender.com", "/", ""), null);
+});
+
+test("the middleware redirects before anything else, and never matches /api", () => {
+  const source = readFileSync(path.join(root, "middleware.ts"), "utf8");
+  assert.ok(source.indexOf("canonicalRedirect(") < source.indexOf('request.method === "GET"'));
+  assert.match(source, /matcher: \["\/\(\(\?!api\/\|_next\/\)\.\*\)"\]/);
+});

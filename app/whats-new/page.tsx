@@ -27,30 +27,33 @@ export default async function WhatsNewPage() {
           <p className="page-eyebrow">Capture / 19 October</p>
           <h1>What&rsquo;s new</h1>
           <p className="page-description">
-            Opening a role from the Capture extension after you save someone now goes to Capture. It needs a new copy of the
-            browser extension, once.
+            Capture has a new address, <strong>retrivr.app</strong>. Sign in there from now on, and load the new copy of the browser
+            extension, once.
           </p>
         </div>
       </header>
 
       <section aria-label="This version" className="card space-y-3">
-        <h2 className="text-lg">Open this role goes to Capture, not to localhost</h2>
+        <h2 className="text-lg">Capture is now at retrivr.app</h2>
         <p className="text-ink/80">
-          After a save, <em>Open this role in the workbench</em> in the extension could open <code className="font-mono">localhost</code>
-          {" "}and show an error page. The save itself always went through. It now opens the role in Capture, the site your capture key
-          is for.
+          Everything you have in Capture is here, unchanged. The old <code className="font-mono">onrender.com</code> address sends you
+          to the same page here, so bookmarks still work, and so do the booking links and client links you have already sent:
+          candidates and clients who open them land here without noticing. You sign in once more on the new address, because a
+          browser keeps a sign-in per address.
         </p>
-        <h2 className="text-lg">The panel shows the person you are looking at</h2>
+        <h2 className="text-lg">The extension needs the new address</h2>
         <p className="text-ink/80">
-          If you have not updated since 18 October, this copy also brings that change. LinkedIn changes the address before it draws
-          the next person, so the panel could show the new address under the last person&rsquo;s name. It now waits for the profile to
-          finish drawing and fills itself in again. Anything you corrected by hand, and your note, stays as you left it.
+          Chrome lets an extension reach only the address it was made for. Your copy keeps saving people until you replace it, but
+          only this new copy works with <strong>retrivr.app</strong>. If you have not updated since 18 October, it also brings the
+          panel that keeps up as you move from profile to profile, and <em>Open this role</em> going to Capture after a save.
         </p>
         {currentRelease.extension && <>
           <p className="rounded border border-line bg-sunken p-3 text-sm">
-            <strong>One thing to do.</strong> Chrome does not update an extension you loaded yourself. Download the new copy, load it in{" "}
-            <code className="font-mono">chrome://extensions</code>, then generate a new capture key in{" "}
-            <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension.
+            <strong>One thing to do.</strong> Download the new copy. In <code className="font-mono">chrome://extensions</code>, remove the
+            old Capture and load the new folder. Then generate a new capture key in{" "}
+            <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension. If you load the new
+            folder over the old one instead, change the address in the extension to{" "}
+            <code className="font-mono">https://retrivr.app</code>.
           </p>
           {canDownload && (
             <p>

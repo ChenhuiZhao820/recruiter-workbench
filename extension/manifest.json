@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Capture",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Save the LinkedIn profile you are looking at to Capture, in one click.",
   "permissions": [
     "activeTab",
@@ -15,10 +15,10 @@
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*",
-    "https://capture-workbench.onrender.com/*"
+    "https://retrivr.app/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src http://localhost:* http://127.0.0.1:* https://capture-workbench.onrender.com;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src http://localhost:* http://127.0.0.1:* https://retrivr.app;"
   },
   "side_panel": {
     "default_path": "popup.html"

@@ -606,9 +606,13 @@ function say(node, text, tone) {
 // --- screens ----------------------------------------------------------------
 
 // Opening the workbench is a convenience, never a requirement: the popup keeps
-// working if the browser refuses the new tab.
+// working if the browser refuses the new tab. Once connected, the workbench is
+// the one the key works on. The address box belongs to the setup screen, and a
+// popup that opens already connected never shows that screen, so the box still
+// holds the page's built-in http://localhost:3000: reading it first sent every
+// "Open this role" after a save to a server nobody was running.
 function openWorkbench(path) {
-  const origin = workbenchOrigin(el("url").value.trim() || state.url);
+  const origin = workbenchOrigin(state.account ? state.url : (el("url").value.trim() || state.url));
   if (!origin) {
     say(el("setup-message"), addressError, "bad");
     return;

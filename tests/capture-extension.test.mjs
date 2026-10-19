@@ -1059,6 +1059,20 @@ test("a configured HTTPS origin is the packaged default and uses the capture tok
   }
 });
 
+// A popup that opens already connected never shows the setup screen, so its
+// address box still holds the page's built-in localhost default. Opening the
+// role after a save must go to the workbench the key works on, not that box.
+test("opening the saved role goes to the connected workbench, not the setup box's default", async () => {
+  const p = await popup({ origins: [hostedOrigin], stored: { ...config, url: hostedOrigin } });
+  assert.equal(p.elements.url.value, "http://localhost:3000");
+  await p.edit("role", "role-a");
+  p.responses.push(saved);
+  await p.click("save");
+  assert.match(p.elements.message.textContent, /Saved Priya Kaur/);
+  await p.click("open-role");
+  assert.deepEqual(p.opened, [`${hostedOrigin}/roles/role-a`]);
+});
+
 // A hosted workbench on a free tier sleeps when idle. Waking it is slower than
 // any healthy response, and much slower than the loopback timeout, so the two
 // cases cannot share one deadline or one explanation.

@@ -304,6 +304,7 @@ model Person {
   importBatchId    String?
   importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   shortlistItems   ShortlistItem[]
+  cv               PersonCv?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -601,4 +602,19 @@ model InterviewOffer {
   booking      Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
   @@index([candidateId])
+}
+
+// The CV a client sees in place of the confirmed facts: one per person, a PDF
+// kept as it was uploaded. contactsCheckedAt is when the recruiter confirmed
+// the client may see everything in it, contact details included, which an
+// upload cannot skip. It goes with the person (cascade).
+model PersonCv {
+  personId          String   @id
+  person            Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  fileName          String
+  sizeBytes         Int
+  sha256            String
+  data              Bytes
+  contactsCheckedAt DateTime
+  uploadedAt        DateTime @default(now())
 }

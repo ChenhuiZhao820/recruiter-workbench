@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from "react-dom";
 import { summariseScreening } from "@/app/actions/screening";
 import { EMPTY_FORM_STATE } from "@/lib/formState";
 import { NotionImport, type NotionState } from "@/components/NotionImport";
+import { CONTACTS_CHECK, CONTACTS_NOTICE } from "@/lib/cv-core.mjs";
 
 const LIMIT = 60_000;
 
@@ -27,6 +28,10 @@ export function TranscriptForm({
 }) {
   const [state, action] = useFormState(summariseScreening, EMPTY_FORM_STATE);
   const [text, setText] = useState(initialTranscript);
+  // A CV attached here is sent with the one request and not kept, unless the
+  // recruiter asks for it to be kept for clients - with the contact-details check.
+  const [hasCv, setHasCv] = useState(false);
+  const [keepCv, setKeepCv] = useState(false);
   const [source, setSource] = useState(initialSource);
   const [open, setOpen] = useState(startOpen || Boolean(initialTranscript));
   const [fileNote, setFileNote] = useState<string | null>(null);
@@ -162,13 +167,31 @@ export function TranscriptForm({
         </div>
         <div>
           <label htmlFor="cv" className="field-label">CV (optional)</label>
-          <input id="cv" name="cv" type="file" accept="application/pdf,.pdf" className="screening-file" />
+          <input id="cv" name="cv" type="file" accept="application/pdf,.pdf" className="screening-file" onChange={(event) => setHasCv(Boolean(event.target.files?.length))} />
+          {hasCv && (
+            <label className="screening-keep mt-3">
+              <input type="checkbox" name="keepCv" className="mt-0.5" checked={keepCv} onChange={(event) => setKeepCv(event.target.checked)} />
+              <span>
+                <span className="block text-sm text-ink">Also keep this CV on their record</span>
+                <span className="block text-xs text-ink-soft">Clients then see it on their page in place of the confirmed details.</span>
+              </span>
+            </label>
+          )}
+          {hasCv && keepCv && (
+            <div className="cv-contacts mt-3" role="note">
+              <p>{CONTACTS_NOTICE}</p>
+              <label htmlFor="screening-cv-contacts">
+                <input id="screening-cv-contacts" name="contactsChecked" type="checkbox" required />
+                <span>{CONTACTS_CHECK}</span>
+              </label>
+            </div>
+          )}
         </div>
         <label className="screening-keep">
           <input type="checkbox" name="discardTranscript" className="mt-0.5" checked={discard} onChange={(event) => setDiscard(event.target.checked)} />
           <span>
             <span className="block text-sm text-ink">Don&rsquo;t keep the transcript in Capture</span>
-            <span className="block text-xs text-ink-soft">It is deleted as soon as the summary is ready. A CV is never kept.</span>
+            <span className="block text-xs text-ink-soft">It is deleted as soon as the summary is ready. A CV is kept only if you tick that above.</span>
           </span>
         </label>
       </div>

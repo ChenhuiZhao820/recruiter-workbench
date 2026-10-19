@@ -1,5 +1,7 @@
 "use server";
 
+import { createHash } from "node:crypto";
+import { checkCvUpload } from "@/lib/cv-core.mjs";
 import Anthropic from "@anthropic-ai/sdk";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
@@ -105,6 +107,23 @@ async function readCv(formData: FormData): Promise<{ base64?: string; error?: st
   return { base64: Buffer.from(bytes).toString("base64") };
 }
 
+async function keepScreeningCv(ownerId: string, candidate: { id: string; personId: string | null }, formData: FormData): Promise<FormState> {
+  const file = formData.get("cv") as File;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const checked = checkCvUpload({ name: file.name, size: file.size, bytes, contactsChecked: formData.get("contactsChecked") === "on" });
+  if (checked.error) return { error: checked.error };
+  const personId = candidate.personId ?? (await ensureCandidatePerson(candidate.id, ownerId));
+  if (!personId) return { error: "This candidate has no person record yet, so the CV cannot be kept. Summarise without keeping it." };
+  const now = new Date();
+  const data = { fileName: checked.fileName!, sizeBytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), data: Buffer.from(bytes), contactsCheckedAt: now, uploadedAt: now };
+  await db.$transaction(async (tx) => {
+    await tx.personCv.upsert({ where: { personId }, create: { personId, ...data }, update: data });
+    await tx.auditEvent.create({ data: { actorId: ownerId, targetUserId: ownerId, action: "person.cv_uploaded" } });
+  });
+  revalidatePath(`/people/${personId}`);
+  return {};
+}
+
 // The note kept as it is, with no summary and no model call, on the person's
 // record for good (lib/notes.ts) rather than as a transcript with 30 days. It
 // is refused while the recruiter has asked for the text not to be kept.
@@ -133,6 +152,12 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
   if (formData.get("intent") === "save") return saveAsNote(user.id, candidate, transcript, formData);
   const cv = await readCv(formData);
   if (cv.error) return { error: cv.error };
+  // Kept for clients only when asked, with the contact-details check; it is
+  // saved before the summary, so a failed summary does not lose it.
+  if (formData.get("keepCv") === "on" && cv.base64) {
+    const kept = await keepScreeningCv(user.id, candidate, formData);
+    if (kept.error) return kept;
+  }
   if (!process.env.ANTHROPIC_API_KEY) {
     return { error: "No API key is set on the server. Add ANTHROPIC_API_KEY and restart." };
   }

@@ -56,7 +56,7 @@ export const accountColumns = {
   Suppression: { userId: "id", keyHash: "text", createdAt: "date" },
 };
 // Tables a source may not have yet: it was written before they existed.
-const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification", "InterviewOffer"]);
+const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification", "InterviewOffer", "PersonCv"]);
 // Accepted in a source but never copied. Calendar and integration tokens are
 // encrypted with the source deployment's key and must be reconnected; monthly
 // AI counters start again; booked-slot and interview-slot locks are rebuilt
@@ -74,6 +74,9 @@ const notImportedColumns = {
   Notification: { id: "id", userId: "id", kind: "text", detail: "text?", shortlistId: "id?", itemId: "id?", bookingId: "id?", roleId: "id?", accessId: "id?", createdAt: "date", readAt: "date?" },
   // Times offered to a candidate for one interview, behind this deployment's links.
   InterviewOffer: { id: "id", userId: "id", candidateId: "id", times: "text", durationMins: "int", timeZone: "text", location: "text?", createdAt: "date", withdrawnAt: "date?", bookingId: "id?" },
+  // A CV file stays with the deployment it was uploaded to; it is uploaded again
+  // after a move, with its contact-details check.
+  PersonCv: { personId: "id", fileName: "text", sizeBytes: "int", sha256: "text", data: "bytes", contactsCheckedAt: "date", uploadedAt: "date" },
   ShortlistAccess: { id: "id", shortlistId: "id", email: "text?", nonce: "text", lastViewedAt: "date?", viewCount: "int", revokedAt: "date?", createdAt: "date" },
 };
 const ephemeralColumns = {
@@ -86,7 +89,7 @@ const allTables = [...Object.keys(accountColumns), ...Object.keys(ephemeralColum
 const allModels = allTables.map(modelFor);
 const primaryKeys = {
   ExtensionAccess: ["userId"], Suppression: ["userId", "keyHash"], CalendarConnection: ["userId"], IntegrationConnection: ["userId", "provider"],
-  AiUsage: ["userId", "month"], BookedSlot: ["userId", "startsAt"], InterviewSlot: ["userId", "clientKey", "startsAt"], LoginThrottle: ["key"],
+  AiUsage: ["userId", "month"], BookedSlot: ["userId", "startsAt"], PersonCv: ["personId"], InterviewSlot: ["userId", "clientKey", "startsAt"], LoginThrottle: ["key"],
   Session: ["tokenHash"], ActivationToken: ["tokenHash"],
 };
 const primaryFor = (table) => primaryKeys[table] ?? ["id"];
@@ -284,7 +287,7 @@ export async function readAccounts(sourcePath) {
       if (actual.length !== Object.keys(columns).length - absent.size || actual.some((column) => !Object.hasOwn(columns, column.name))) invalid(`unsupported ${table} columns`);
       for (const column of actual) {
         const base = columns[column.name].replace("?", "");
-        const type = base === "date" ? "DATETIME" : base === "int" ? "INTEGER" : base === "bool" ? "BOOLEAN" : "TEXT";
+        const type = base === "date" ? "DATETIME" : base === "int" ? "INTEGER" : base === "bool" ? "BOOLEAN" : base === "bytes" ? "BLOB" : "TEXT";
         if (column.type.toUpperCase() !== type || column.pk !== primaryFor(table).indexOf(column.name) + 1) invalid(`unsupported ${table} column type or primary key`);
       }
       if (!Object.hasOwn(accountColumns, table)) continue;
@@ -354,7 +357,7 @@ async function verifyData(db, validated) {
     }
     if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification", "InterviewOffer"]) {
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv"]) {
     if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar, usage-counter or shortlist-link state in target.");
   }
   const held = validated.data.booking.filter((booking) => booking.status === "booked");

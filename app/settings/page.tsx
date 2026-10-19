@@ -27,6 +27,7 @@ const exportTables = [
   { id: "searches", label: "Searches" },
   { id: "shortlists", label: "Shortlists" },
   { id: "shortlistPeople", label: "Shortlist entries" },
+  { id: "cvs", label: "CVs kept (names and dates)" },
 ] as const;
 
 export default async function SettingsPage({ searchParams }: { searchParams: { notion?: string } }) {

@@ -56,3 +56,16 @@ export async function openAddCandidate(page: { locator: (selector: string) => an
     if (!(await fields.isVisible())) await summary.click();
   }
 }
+
+// Putting forward someone without a CV asks first; specs about something else
+// answer "Skip for now". When no question opens (everyone has a CV, or the
+// form stopped at a required tick), this does nothing.
+export async function skipNoCv(page: import("@playwright/test").Page) {
+  const skip = page.getByRole("dialog").getByRole("button", { name: "Skip for now" });
+  try {
+    await skip.waitFor({ state: "visible", timeout: 2000 });
+  } catch {
+    return;
+  }
+  await skip.click();
+}

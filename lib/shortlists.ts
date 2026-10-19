@@ -160,7 +160,9 @@ const personForClient = {
 // and change it. It is theirs: the recruiter's notes never come this way.
 export type ClientDecision = { decision: "interview" | "declined"; reason: string | null; note: string | null; at: Date } | null;
 
-export type ClientShortlistEntry = { itemId: string; profile: ClientProfile; addedAt: Date; decision: ClientDecision; canDecide: boolean };
+// cv: the person's CV, when there is one, shown in place of the confirmed
+// facts; `version` changes with each upload so the page never shows a stale copy.
+export type ClientShortlistEntry = { itemId: string; profile: ClientProfile; addedAt: Date; decision: ClientDecision; canDecide: boolean; cv: { version: number; fileName: string } | null };
 
 // An interview booked with someone on the page, still to come. Where it is
 // comes from the role's interview hours: a meeting link or an address.
@@ -200,7 +202,7 @@ async function visibleEntries(shortlist: { id: string; kind: string; roleId: str
     where: { shortlistId: shortlist.id },
     orderBy: [{ position: "asc" }, { addedAt: "asc" }],
     include: {
-      person: { select: personForClient },
+      person: { select: { ...personForClient, cv: { select: { uploadedAt: true, fileName: true } } } },
       candidate: {
         select: {
           id: true, roleId: true, personId: true, stage: true, fullName: true, headline: true,
@@ -230,6 +232,7 @@ async function visibleEntries(shortlist: { id: string; kind: string; roleId: str
         ? { decision: item.decision as "interview" | "declined", reason: item.decisionReason, note: item.decisionNote, at: item.decisionAt ?? item.addedAt }
         : null,
       canDecide: canDecide({ interviewBooked: Boolean(item.candidate?.bookings.length) }),
+      cv: item.person.cv ? { version: item.person.cv.uploadedAt.getTime(), fileName: item.person.cv.fileName } : null,
     }));
   return { entries, interviews };
 }

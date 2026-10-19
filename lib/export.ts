@@ -4,7 +4,7 @@ import { db } from "./db";
 // secrets or hashes are included: capture keys, session data, suppression
 // hashes, calendar tokens and shortlist link nonces and recipients stay behind.
 
-export const EXPORT_TABLES = ["people", "notes", "candidates", "roles", "screenings", "bookings", "outreach", "templates", "searches", "shortlists", "shortlistPeople"] as const;
+export const EXPORT_TABLES = ["people", "notes", "candidates", "roles", "screenings", "bookings", "outreach", "templates", "searches", "shortlists", "shortlistPeople", "cvs"] as const;
 export type ExportTable = (typeof EXPORT_TABLES)[number];
 
 export function isExportTable(value: string): value is ExportTable {
@@ -26,7 +26,7 @@ function rows<T extends Record<string, unknown>>(items: T[], columns: (keyof T &
 
 export async function buildExport(ownerId: string): Promise<Record<ExportTable, Row[]>> {
   const now = new Date();
-  const [people, notes, roles, candidates, screenings, bookings, outreach, templates, searches, shortlists, shortlistPeople] = await Promise.all([
+  const [people, notes, roles, candidates, screenings, bookings, outreach, templates, searches, shortlists, shortlistPeople, cvs] = await Promise.all([
     db.person.findMany({ where: { userId: ownerId }, orderBy: { createdAt: "asc" } }),
     db.personNote.findMany({ where: { person: { userId: ownerId } }, orderBy: { createdAt: "asc" } }),
     db.role.findMany({ where: { userId: ownerId }, include: { briefing: true }, orderBy: { createdAt: "asc" } }),
@@ -38,6 +38,8 @@ export async function buildExport(ownerId: string): Promise<Record<ExportTable, 
     db.savedSearch.findMany({ where: { userId: ownerId }, orderBy: { createdAt: "asc" } }),
     db.shortlist.findMany({ where: { userId: ownerId }, orderBy: { createdAt: "asc" } }),
     db.shortlistItem.findMany({ where: { shortlist: { userId: ownerId } }, orderBy: { addedAt: "asc" } }),
+    // Which CVs are kept, not the files: each opens from the person's page.
+    db.personCv.findMany({ where: { person: { userId: ownerId } }, orderBy: { uploadedAt: "asc" }, select: { personId: true, fileName: true, sizeBytes: true, sha256: true, contactsCheckedAt: true, uploadedAt: true } }),
   ]);
 
   return {
@@ -48,6 +50,7 @@ export async function buildExport(ownerId: string): Promise<Record<ExportTable, 
       "factsConfirmedAt", "revisitOn", "revisitNote", "doNotContact", "lastContactAt", "createdAt", "updatedAt",
     ]),
     notes: rows(notes, ["id", "personId", "candidateId", "body", "createdAt", "updatedAt"]),
+    cvs: rows(cvs, ["personId", "fileName", "sizeBytes", "sha256", "contactsCheckedAt", "uploadedAt"]),
     candidates: rows(candidates, [
       "id", "personId", "roleId", "fullName", "profileUrl", "headline", "notes", "stage",
       "lastActivityAt", "lastNudgeAt", "nudgeCount", "submittedAt", "createdAt", "updatedAt",

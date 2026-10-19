@@ -26,7 +26,7 @@ export default async function ShortlistPreviewPage({ params }: { params: { id: s
         </p>
         <Link href={back} className="btn-quiet">{shortlist.roleId ? "Back to the role" : "Back to shortlists"}</Link>
       </div>
-      <ClientShortlist view={preview.view} token={null} />
+      <ClientShortlist view={preview.view} token={null} previewOf={params.id} />
     </div>
   );
 }

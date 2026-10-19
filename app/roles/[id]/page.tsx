@@ -25,6 +25,7 @@ import { StageBadge } from "@/components/StageBadge";
 import { industryIds, parseIndustries } from "@/lib/linkedin-industries";
 import { RunSearchButton } from "@/components/RunSearchButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { NoCvGuard } from "@/components/NoCvGuard";
 import { ActionForm } from "@/components/ActionForm";
 import { OUTREACH_KIND_SUMMARY, isTemplateKind } from "@/lib/templates";
 import { CLOSED_STAGES, consentPersonSelect, knownConsentAt } from "@/lib/shortlists";
@@ -65,7 +66,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
         orderBy: { lastActivityAt: "desc" },
         include: {
           outreach: { orderBy: { sentAt: "desc" }, take: 1 },
-          person: { select: consentPersonSelect },
+          person: { select: { ...consentPersonSelect, cv: { select: { uploadedAt: true } } } },
           bookings: { where: { status: "booked", endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 1 },
         },
       },
@@ -506,6 +507,10 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                                 </form>
                               </>
                             )}
+                            {/* The client sees the confirmed details until a CV is uploaded. */}
+                            {!c.person?.cv && c.personId && (
+                              <Link href={`/people/${c.personId}#cv-heading`} className="chip no-cv-chip">No CV · Upload</Link>
+                            )}
                             <form action={takeOffClientLink}>
                               <input type="hidden" name="itemId" value={onLink.get(c.id)!.id} />
                               <ConfirmSubmitButton label="Take off" confirmText={`Take ${c.fullName} off the client link? ${clientName} stops seeing them at once.`} />
@@ -514,7 +519,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                         ) : knownConsentAt(c.person, c.id, role.client) ? (
                           <ActionForm action={putForward} className="put-forward">
                             <input type="hidden" name="candidateId" value={c.id} />
-                            <button type="submit" className="btn-quiet">Put forward to {clientName}</button>
+                            <NoCvGuard label={`Put forward to ${clientName}`} client={clientName} missing={c.person?.cv ? [] : [{ name: c.fullName, personId: c.personId, candidateId: c.id }]} />
                           </ActionForm>
                         ) : (
                           <details className="mt-2">
@@ -525,7 +530,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                                 <input type="checkbox" name="agreed" required />
                                 <span>{c.fullName} agreed to be put forward to {clientName}.</span>
                               </label>
-                              <button type="submit" className="btn-primary justify-self-start">Put forward</button>
+                              <span className="justify-self-start"><NoCvGuard label="Put forward" className="btn-primary" client={clientName} missing={c.person?.cv ? [] : [{ name: c.fullName, personId: c.personId, candidateId: c.id }]} /></span>
                             </ActionForm>
                           </details>
                         )
@@ -544,7 +549,9 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                               <ActionForm action={adoptShortlistAnswer}>
                                 <input type="hidden" name="candidateId" value={c.id} />
                                 <input type="hidden" name="itemId" value={answer.id} />
-                                <button type="submit" className="btn-quiet">{onLink.has(c.id) ? "Use this answer for the role" : "Add to client link"}</button>
+                                {onLink.has(c.id)
+                                  ? <button type="submit" className="btn-quiet">Use this answer for the role</button>
+                                  : <NoCvGuard label="Add to client link" client={clientName} missing={c.person?.cv ? [] : [{ name: c.fullName, personId: c.personId, candidateId: c.id }]} />}
                               </ActionForm>
                             )}
                           </div>

@@ -243,11 +243,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   and it is the only channel that reaches a recruiter who does not read this
   repository.
 - `Settings.seenRelease` holds the last release an account was shown, applied as
-  the additive `20260924000000_settings_seen_release`. Sign-in sends an
-  established account with an unread release to `/whats-new`; an account still
-  setting up goes to the guide instead, because what changed since a version
-  they never used is not news. An account already signed in gets one "What's
-  new" link in the workspace top bar until they read it.
+  the additive `20260924000000_settings_seen_release`. Sign-in never lands on
+  `/whats-new`: an established account goes where it always did, and an
+  unread release waits for it as one "What's new" link in the workspace top
+  bar and a count on the bell until it is read. An account still setting up
+  goes to the guide and is not told, because what changed since a version
+  they never used is not news.
 - Every release is also a line on Notifications (`releaseNotices`), for the
   releases shipped since the account was created. Only the current one can be
   unread, by the same rule (`releaseIsNews` in `lib/onboarding.ts`), and it
@@ -262,8 +263,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Reading is recorded when the recruiter presses Got it, or when Notifications
   has been on screen, never by a page rendering, and through
   `requireWritableWorkspace`, so a read-only view cannot mark somebody else's
-  release as read. `tests/11-whats-new.spec.ts` covers who
-  is sent there, that rendering is not reading, and that it is news once.
+  release as read. `tests/11-whats-new.spec.ts` covers
+  who is told, that sign-in is not sent there, that rendering is not reading,
+  and that it is news once.
 - The release page carries the extension instructions, because Chrome never
   updates an extension loaded by hand and the app is the only surface that
   reaches somebody running an old copy.

@@ -65,9 +65,13 @@ async function signedInPage(page: Page, userId: string) {
   ]);
 }
 
-test("R1 signing in with an unread release lands on it, and reading it is a decision", async ({ page }) => {
+test("R1 signing in with an unread release lands where it always did, and reading it is a decision", async ({ page }) => {
   const user = await account();
   await signIn(page, user.email);
+  // A release is never the first page: it waits on the bell and in the top bar.
+  await expect(page).toHaveURL(`${BASE}/`);
+  await expect(page.locator(".activity-bell")).toHaveAttribute("data-unread", "1");
+  await page.getByRole("link", { name: /^What.s new$/ }).click();
   await expect(page).toHaveURL(`${BASE}/whats-new`);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/What.s new/);
   await expect(page.getByRole("heading", { name: /Show a client who you found, on one page/ })).toBeVisible();
@@ -83,7 +87,7 @@ test("R1 signing in with an unread release lands on it, and reading it is a deci
   await expect(page).toHaveURL(`${BASE}/`);
   expect((await db.settings.findUniqueOrThrow({ where: { userId: user.id } })).seenRelease).toBe(CURRENT_RELEASE);
 
-  // And it is news only once.
+  // And once read, it is not news again.
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await signIn(page, user.email);
   await expect(page).toHaveURL(`${BASE}/`);
@@ -95,7 +99,8 @@ test("R1b a Pro account is not told about a limit it does not have", async ({ pa
   await db.user.update({ where: { id: user.id }, data: { accountTier: "pro" } });
   try {
     await signIn(page, user.email);
-    await expect(page).toHaveURL(`${BASE}/whats-new`);
+    await expect(page).toHaveURL(`${BASE}/`);
+    await page.goto("/whats-new");
     await expect(page.getByRole("heading", { name: /Shortlists for a client, beyond one role/ })).toBeVisible();
     // Pro has no limit to mention.
     await expect(page.getByText(/shortlists open at once/)).toHaveCount(0);

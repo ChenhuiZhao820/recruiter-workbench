@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import { assertSameOrigin, createSession, endSession, requireUser, takeAuthAttempt } from "@/lib/auth";
 import { hashPassword, hashToken, normalizeEmail, passwordError, validEmail, verifyPassword } from "@/lib/auth-crypto";
 import { isNewAccount } from "@/lib/onboarding";
-import { hasSeenCurrentRelease } from "@/lib/release";
 import { purgeExpiredTranscripts } from "@/lib/retention";
 import type { FormState } from "@/lib/formState";
 
@@ -27,15 +26,14 @@ export async function login(_state: FormState, form: FormData): Promise<FormStat
   // activation, so that visit starts on the setup guide instead of an empty
   // dashboard. Once anything has been configured, sign-in lands where it always did.
   const guided = await isNewAccount(user.id, user.role);
-  // A new account has used no earlier version, so the setup guide wins; an
-  // established one is shown what changed since they were last told, once.
-  const unread = !guided && !(await hasSeenCurrentRelease(user.id));
   await endSession();
   await createSession(user.id, user.authVersion);
   // Retention runs where the recruiter already is; a failure here must not
   // stop them signing in, and the screens hide an expired transcript anyway.
   await purgeExpiredTranscripts(user.id).catch(() => undefined);
-  redirect(guided ? "/getting-started" : unread ? "/whats-new" : "/");
+  // A new release is never the first page: it waits on the bell and in
+  // Notifications, with the top bar's What's new link, until it is read.
+  redirect(guided ? "/getting-started" : "/");
 }
 
 export async function logout() {

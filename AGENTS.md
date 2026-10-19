@@ -48,6 +48,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 ## Branding
 
 - Product, browser extension and UI name: Capture. npm package name: capture.
+  The product is being renamed Retrivr. The public homepage (anonymous `/` and
+  `/welcome`) already carries the Retrivr name and logo (`public/brand/`); the
+  workspace, sign-in, extension and docs are renamed separately, so do not
+  change them on the homepage's account.
 - Test environment variables use CAPTURE_TEST_; packaged extension configuration
   uses CAPTURE_WORKBENCH_ORIGINS. Do not rename user/company emails or saved data.
 - New sessions use capture_session (with __Host- on HTTPS). The former
@@ -72,15 +76,25 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   (see Booking page), and `/s/[token]`, a client's shortlist (see Client
   links). All other business routes still require authentication.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
-  `MarketingHome`/`ProductPreview` use explicitly illustrative, static data only.
-  Never feed real recruiting data into a public preview or invent customer claims.
+  on the homepage it renders only the skip link, because `MarketingHome` brings
+  its own Retrivr header and footer. `MarketingHome` is a port of the reviewed
+  `demo/landing` page: its styles are `app/landing.css`, every class `lp-`
+  prefixed so neither side reaches the other, and its moving parts are small
+  client components in `components/landing/` (`HeroBoard`, `LandingMotion`,
+  `Pricing`, `ContactBox`). Each animated figure rests on its last frame and
+  plays only on arrival or Replay; reduced motion shows still frames with no
+  Pause or Replay. Pricing, the trial and the contact address are marketing
+  copy, not entitlements: `FEATURE_TIERS` still decides what an account can
+  use. The page uses explicitly illustrative, static data only. Never feed
+  real recruiting data into a public preview or invent customer claims.
 - Dashboard search/sort in `RoleDirectory` works only on server-authorized records
   and does not write data. The four summary cards above it are links to what
   they count: the role list below (`#role-directory`), People, Follow-ups and
   Searches. Keep all mutation labels, owner checks and read-only
   protections intact when restyling pages.
 - `tests/06-design.spec.ts` covers public/private routing, mobile overflow, keyboard
-  navigation, tabs, FAQ, password visibility and role filtering. Screenshots use
+  navigation, the homepage header, hero controls, FAQ and pricing toggle,
+  password visibility and role filtering. Screenshots use
   test-only fixtures in ignored test-results; no real user data is captured.
 - Role briefings use six independent, initially collapsed native details sections.
   First-call questions request and save only `{ question }`; legacy answer fields

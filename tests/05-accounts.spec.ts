@@ -145,7 +145,7 @@ test("A1 public home is reachable without an account and never includes private 
     expect(response?.status()).toBe(200);
     await expect(page).toHaveURL(`${BASE}${route}`);
     await expect(page.getByRole("heading", { level: 1, name: /Good recruiting\.\s*Without the busywork\./ })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open your workspace", exact: true }).first()).toHaveAttribute("href", "/login");
+    await expect(page.getByRole("banner").getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", "/login");
     const html = await page.content();
     const responseHtml = await response!.text();
     for (const value of [owner.email, privateData.role.title, privateData.role.jobDesc!, privateData.candidate.fullName, privateData.candidate.notes!, privateData.search.name, privateData.search.keywords, privateData.template.name, privateData.template.body]) {

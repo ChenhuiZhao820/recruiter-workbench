@@ -77,9 +77,9 @@ test("N2 a screening note saved to their record is kept on the person, with the 
   await page.goto(`/candidates/${candidate.id}/screening`);
   await page.getByRole("button", { name: "Add meeting note or transcript" }).click();
   await page.getByLabel("Transcript or notes").fill("Quick call. Not looking until the new year.");
-  await page.getByLabel(/Don.t keep the transcript in Capture/).check();
+  await page.getByLabel(/Don.t keep the transcript in Retrivr/).check();
   await expect(page.getByRole("button", { name: "Save to their record" })).toBeDisabled();
-  await page.getByLabel(/Don.t keep the transcript in Capture/).uncheck();
+  await page.getByLabel(/Don.t keep the transcript in Retrivr/).uncheck();
   await page.getByRole("button", { name: "Save to their record" }).click();
   await expect(page.locator('[data-form-message="notice"]')).toContainText("Saved to Octavian's record. It stays there until you delete it.");
   await expect(page.getByLabel("Transcript or notes")).toBeHidden();

@@ -164,8 +164,8 @@ test("A2 login rejects bad credentials, creates a hashed session and logout revo
   expect((await page.context().cookies()).find((cookie) => cookie.name === "capture_session")).toBeUndefined();
   await login(page, admin.email);
   await expect(page).toHaveURL(`${BASE}/`);
-  await expect(page).toHaveTitle("Capture");
-  await expect(page.getByRole("banner").getByRole("link", { name: "Capture", exact: true })).toBeVisible();
+  await expect(page).toHaveTitle("Retrivr");
+  await expect(page.getByRole("banner").getByRole("link", { name: "Retrivr", exact: true })).toBeVisible();
   const cookie = (await page.context().cookies()).find((entry) => entry.name === "capture_session")!;
   expect(cookie).toMatchObject({ httpOnly: true, sameSite: "Lax", path: "/" });
   expect(cookie.value).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -436,7 +436,7 @@ test("A8 independent settings and one-time hashed keys scope capture GET and POS
   await expectCaptureDenied(guest, aliceKey, a.role.id);
   expect((await guest.request.get("/api/capture", { headers: { "X-Capture-Token": bobKey } })).status()).toBe(200);
   await alice.page.getByRole("button", { name: "Switch capture off" }).click();
-  await expect(alice.page.locator('[data-form-message="notice"]')).toContainText("Capture switched off");
+  await expect(alice.page.locator('[data-form-message="notice"]')).toContainText("Saving from the extension is switched off");
   await expectCaptureDenied(guest, rotated, a.role.id);
 });
 
@@ -501,7 +501,7 @@ test("A9 admin view is not impersonation and blocks disabled UI and crafted work
     expect(await response.text()).toContain("read-only");
   }
   await admin.page.goto("/settings");
-  await expect(admin.page.getByText("Capture keys are private.", { exact: false })).toBeVisible();
+  await expect(admin.page.getByText("These keys are private.", { exact: false })).toBeVisible();
   await expect(admin.page.getByRole("button", { name: /Generate a (capture|new) key/ })).toHaveCount(0);
   expect(await admin.page.content()).not.toContain(recruiterKey);
   expect(await admin.page.content()).not.toContain(hashToken(recruiterKey));

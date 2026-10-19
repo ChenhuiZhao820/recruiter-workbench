@@ -241,7 +241,7 @@ test("IM8 a refused, failed, capped or forged request says so and charges nothin
 
   const before = await db.usageEvent.count({ where: { userId: TEST_ADMIN_ID, kind: "match_brief_read" } });
   await readBrief(page, "TITLE: Anything at all here\nSTUB_REFUSE");
-  await expect(page.locator(".im-error")).toHaveText(/Capture could not read that brief/);
+  await expect(page.locator(".im-error")).toHaveText(/Retrivr could not read that brief/);
   await readBrief(page, "TITLE: Anything at all here\nSTUB_DOWN");
   await expect(page.locator(".im-error")).toHaveText(/The matching service could not be reached/, { timeout: 30_000 });
   expect(await db.usageEvent.count({ where: { userId: TEST_ADMIN_ID, kind: "match_brief_read" } })).toBe(before);

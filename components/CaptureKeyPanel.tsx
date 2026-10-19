@@ -37,7 +37,7 @@ export function CaptureKeyPanel({ enabled, readOnly = false }: { enabled: boolea
           account independently of website sign-in. Copy a new key now; it cannot be displayed again.
         </p>
       </div>
-      {readOnly ? <p className="text-sm text-ink-soft">Capture keys are private. They cannot be viewed or changed in read-only mode.</p> : <>
+      {readOnly ? <p className="text-sm text-ink-soft">These keys are private. They cannot be viewed or changed in read-only mode.</p> : <>
         {token && <div className="space-y-2">
           <span className="field-label">New capture key — shown once</span>
           <input aria-label="New capture key" className="field-input font-mono" value={token} readOnly autoComplete="off" />
@@ -48,7 +48,7 @@ export function CaptureKeyPanel({ enabled, readOnly = false }: { enabled: boolea
             {enabled ? "Generate a new key" : "Generate a capture key"}
           </button>
           {enabled && <button type="button" className="btn-quiet" disabled={pending} onClick={() => run(clearCaptureToken)}>Switch capture off</button>}
-          {!enabled && <span className="text-sm text-ink-soft">Capture is currently switched off.</span>}
+          {!enabled && <span className="text-sm text-ink-soft">Saving from the extension is switched off.</span>}
         </div>
       </>}
       {message && <p role="status" data-form-message="notice" className="rounded border border-accent/30 bg-accent-soft px-3 py-2 text-sm text-ink">{message}</p>}

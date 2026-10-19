@@ -60,7 +60,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
         <p className="page-eyebrow">Follow-ups / Run</p>
         <h1>Follow up in batches</h1>
         <p className="page-description">
-          Everyone due a follow-up, one person at a time. You send each message yourself in LinkedIn; Capture never messages anyone.
+          Everyone due a follow-up, one person at a time. You send each message yourself in LinkedIn; Retrivr never messages anyone.
         </p>
       </div>
       <Link href="/followups" className="btn-quiet">Back to follow-ups</Link>
@@ -126,7 +126,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
       if (candidate) previews.set(group, (await messageFor(group, candidate)).body);
     }
     const templateOptions = [
-      { value: "", label: "Capture's follow-up" },
+      { value: "", label: "Retrivr's follow-up" },
       ...templates.map((t) => ({ value: t.id, label: `${t.name} - ${templateKindLabel(t.kind)}` })),
     ];
 

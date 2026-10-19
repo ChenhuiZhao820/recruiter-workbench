@@ -61,7 +61,7 @@ export default async function NotificationsPage() {
     <div className={`activity-entry release-entry${unread ? " is-unread" : ""}`}>
       <span className="activity-dot" aria-hidden="true" />
       <div className="release-body">
-        <span className="release-tag">Capture update</span>
+        <span className="release-tag">Retrivr update</span>
         <p className="activity-text">{unread && <span className="sr-only">New: </span>}{release.title}</p>
         {current && release.extension && <p className="release-note">
           {canDownload
@@ -94,7 +94,7 @@ export default async function NotificationsPage() {
       </header>
       {!rows.length && <div className="card space-y-2">
         <p>Nothing yet.</p>
-        <p className="text-sm text-ink-soft">When a client opens a link, answers about someone or can&rsquo;t make an interview, a candidate books one, or Capture gets a new version, it shows here and on the bell at the top.</p>
+        <p className="text-sm text-ink-soft">When a client opens a link, answers about someone or can&rsquo;t make an interview, a candidate books one, or Retrivr gets a new version, it shows here and on the bell at the top.</p>
       </div>}
       {fresh.length > 0 && <section aria-label="New" className="space-y-2">
         <h2 className="section-heading">New <span className="unread-badge">{fresh.length}</span></h2>

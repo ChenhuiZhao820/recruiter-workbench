@@ -49,10 +49,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 - Product, browser extension and UI name: Capture. npm package name: capture.
   The product is being renamed Retrivr. The public homepage (anonymous `/` and
-  `/welcome`), the sign-in page and the public header around it already carry
-  the Retrivr name and logo (`public/brand/`); the workspace, booking and
-  client pages, extension and docs are renamed separately, so do not change
-  them on those pages' account.
+  `/welcome`), the sign-in page, the public header and the whole signed-in
+  workspace already carry the Retrivr name and logo (`public/brand/`), the tab
+  title included. The booking and client pages (bare header, default privacy
+  notice, `.ics`), the extension (still named Capture in Chrome, so workspace
+  copy calls it "the extension" where it says where to find it), its API's
+  messages and these docs are renamed separately. Code identifiers, cookie
+  and header names, environment variables and routes keep "capture".
 - Test environment variables use CAPTURE_TEST_; packaged extension configuration
   uses CAPTURE_WORKBENCH_ORIGINS. Do not rename user/company emails or saved data.
 - New sessions use capture_session (with __Host- on HTTPS). The former
@@ -340,7 +343,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   (dry run by default, `--apply` needs `PURGE TRANSCRIPTS` typed). Screens treat
   an expired transcript as gone even before it is purged, and the recruiter can
   delete one early. Summaries and confirmed facts stay. "Don't keep the
-  transcript in Capture" on the form means it is never written: the request
+  transcript in Retrivr" on the form means it is never written: the request
   carries it, the summary keeps its quotes, and a failed or capped summary
   leaves no draft behind rather than a saved copy.
 - The form opens on "Add meeting note or transcript" (or an upload, or a saved

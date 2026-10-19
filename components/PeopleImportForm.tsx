@@ -376,7 +376,7 @@ export function PeopleImportForm({ until }: { until: string }) {
             )}
 
             {readings && (
-              <ul className="space-y-2 border-t border-line pt-3 text-sm text-ink-soft" aria-label="How Capture read your file">
+              <ul className="space-y-2 border-t border-line pt-3 text-sm text-ink-soft" aria-label="How Retrivr read your file">
                 {readings.skippedAbove > 0 && (
                   <Reading action="Change" onClick={() => setColumnsOpen(true)}>Headings found on row {preview.headerChoices[preview.headerRow]?.label.match(/^Row (\d+)/)?.[1]}; {readings.skippedAbove === 1 ? "the row above was skipped" : `the ${readings.skippedAbove} rows above were skipped`}</Reading>
                 )}

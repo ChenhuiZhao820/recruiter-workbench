@@ -141,7 +141,7 @@ export default async function NewShortlistPage({ searchParams }: { searchParams:
             No one yet. Find people above by name or headline.
           </p>
         ) : !client ? (
-          <p className="text-ink-soft">Say which client this is for, then press Find and update, so Capture can check who already agreed to be put forward to them.</p>
+          <p className="text-ink-soft">Say which client this is for, then press Find and update, so Retrivr can check who already agreed to be put forward to them.</p>
         ) : (
           <ActionForm action={adding ? addToShortlist : createShortlist} className="space-y-5">
             {adding ? <input type="hidden" name="shortlistId" value={adding.id} /> : <input type="hidden" name="client" value={client} />}

@@ -88,7 +88,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
     <a href="#main-content" className="skip-link">Skip to content</a>
     <header className="app-sidebar">
       <div className="sidebar-brand-row">
-        <Link href="/" className="brand" aria-label="Capture"><CaptureMark /><span>Capture</span></Link>
+        <Link href="/" className="brand" aria-label="Retrivr"><Image className="brand-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={742} height={215} unoptimized /></Link>
         <button type="button" className="mobile-nav-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><Icon name={menuOpen ? "close" : "menu"} /></button>
       </div>
       <div id="workspace-navigation" className={`sidebar-content ${menuOpen ? "is-open" : ""}`}>
@@ -99,7 +99,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
           {user.role === "admin" && <><p className="nav-label admin-nav-label">Administration</p><Link href="/admin" className={pathname.startsWith("/admin") ? "nav-item is-active" : "nav-item"} aria-current={pathname.startsWith("/admin") ? "page" : undefined}><Icon name="shield" size={19} /><span>Accounts</span></Link></>}
         </nav>
         <div className="sidebar-bottom">
-          <div className="sidebar-note"><span className="status-dot" /><p>Your judgement.<br /><strong>Your next move.</strong></p><Link href="/welcome" aria-label="About Capture"><Icon name="external" size={16} /></Link></div>
+          <div className="sidebar-note"><span className="status-dot" /><p>Your judgement.<br /><strong>Your next move.</strong></p><Link href="/welcome" aria-label="About Retrivr"><Icon name="external" size={16} /></Link></div>
           <Link href="/account" className="account-link"><span className="avatar">{initials}</span><span><strong>{user.name}</strong><small>{user.email}</small></span></Link>
           <form action={logout}><button type="submit" className="sidebar-signout"><Icon name="logout" size={16} />Sign out</button></form>
         </div>
@@ -109,7 +109,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
       <div className="workspace-topbar"><div className="breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>{pageName}</strong></div><span className="workspace-status">{releasePending && <Link href="/whats-new" className="topbar-news">What&rsquo;s new</Link>}{user && <ActivityBell unread={unread} />}<span className="status-dot" />{viewing ? "Read-only" : "Private workspace"}</span></div>
       {viewing && <div role="status" className="readonly-banner"><Icon name="eye" /><p>Read-only workspace: <strong>{viewing.name}</strong> ({viewing.email}). You are still signed in as {user.name}.</p><form action={stopViewing}><button type="submit" className="btn-secondary">Return to my workspace</button></form></div>}
       <main id="main-content" key={ownerId} className="workspace-main">{children}</main>
-      <footer className="workspace-footer"><span>Capture — recruiting, in focus.</span><span>Prepared by software. Decided by you.</span></footer>
+      <footer className="workspace-footer"><span>Retrivr — recruiting, in focus.</span><span>Prepared by software. Decided by you.</span></footer>
     </div>
   </div>;
 }

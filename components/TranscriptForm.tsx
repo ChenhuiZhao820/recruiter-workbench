@@ -190,7 +190,7 @@ export function TranscriptForm({
         <label className="screening-keep">
           <input type="checkbox" name="discardTranscript" className="mt-0.5" checked={discard} onChange={(event) => setDiscard(event.target.checked)} />
           <span>
-            <span className="block text-sm text-ink">Don&rsquo;t keep the transcript in Capture</span>
+            <span className="block text-sm text-ink">Don&rsquo;t keep the transcript in Retrivr</span>
             <span className="block text-xs text-ink-soft">It is deleted as soon as the summary is ready. A CV is kept only if you tick that above.</span>
           </span>
         </label>

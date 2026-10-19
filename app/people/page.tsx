@@ -115,7 +115,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
 
       {searchParams.deleted === "1" && (
         <p role="status" className="auth-success mb-6">
-          The person and everything recorded about them were deleted. If the same profile is saved again, Capture will say it was deleted before.
+          The person and everything recorded about them were deleted. If the same profile is saved again, Retrivr will say it was deleted before.
         </p>
       )}
 
@@ -153,7 +153,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             </>
           ) : (
             <p>
-              People appear here when you add a candidate to a role or save a profile with the Capture extension.
+              People appear here when you add a candidate to a role or save a profile with the browser extension.
               Saving the same profile for another role adds to the same person.
               {features.peopleImport && !readOnly && <> Or <Link href="/people/import" className="underline">import a spreadsheet</Link> you already keep.</>}
             </p>

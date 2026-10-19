@@ -48,7 +48,7 @@ export function CriteriaPanel({
     <section className="im-criteria" aria-labelledby="criteria-heading">
       <header className="im-criteria-head">
         <div className="min-w-0">
-          <p className="page-eyebrow">What Capture is looking for</p>
+          <p className="page-eyebrow">What Retrivr is looking for</p>
           <h2 id="criteria-heading" className="im-criteria-title">{criteria.title || "Your brief"}</h2>
           <p className="im-criteria-hint">Click a skill to move it between must-have and nice-to-have. Every change re-runs the match.</p>
         </div>
@@ -459,7 +459,7 @@ function AdjustBar({ encoded, readOnly, readsLeft, onAdjusted }: {
         onAdjusted(body.criteria, Array.isArray(body.changes) ? body.changes : []);
       }
     } catch {
-      setError("Capture could not be reached. Check your connection and try again.");
+      setError("Retrivr could not be reached. Check your connection and try again.");
     }
     setBusy(false);
   }

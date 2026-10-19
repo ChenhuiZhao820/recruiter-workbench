@@ -89,7 +89,7 @@ async function keyboardReach(page: Page, target: Locator) {
 }
 
 async function inspectNavigation(page: Page, mobile: boolean) {
-  await expect(page.getByRole("banner").getByRole("link", { name: "Capture", exact: true })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: "Retrivr", exact: true })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   const toggle = page.getByRole("button", { name: "Toggle navigation", exact: true });
   if (mobile) {

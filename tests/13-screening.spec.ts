@@ -372,7 +372,7 @@ test("S11 the box opens on a click, a summary in flight shows its progress, and 
   await expect(page.getByLabel("Transcript or notes")).toBeFocused();
 
   await page.getByLabel("Transcript or notes").fill(`${CALL}\nSTUB_SLOW`);
-  await page.getByLabel(/Don.t keep the transcript in Capture/).check();
+  await page.getByLabel(/Don.t keep the transcript in Retrivr/).check();
   await page.getByRole("button", { name: "Summarise" }).click();
   const progress = page.getByRole("progressbar", { name: "Summarising the call" });
   await expect(progress).toBeVisible();
@@ -389,7 +389,7 @@ test("S11 the box opens on a click, a summary in flight shows its progress, and 
   await page.goto(`/candidates/${failing.id}/screening`);
   await page.getByRole("button", { name: "Add meeting note or transcript" }).click();
   await page.getByLabel("Transcript or notes").fill(`${CALL}\nSTUB_DOWN`);
-  await page.getByLabel(/Don.t keep the transcript in Capture/).check();
+  await page.getByLabel(/Don.t keep the transcript in Retrivr/).check();
   await page.getByRole("button", { name: "Summarise" }).click();
   await expect(page.locator('[data-form-message="error"]')).toContainText("Nothing was kept");
   expect(await db.screening.count({ where: { candidateId: failing.id } })).toBe(0);

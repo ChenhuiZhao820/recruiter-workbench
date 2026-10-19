@@ -93,5 +93,5 @@ export async function clearCaptureToken(): Promise<FormState> {
   });
   revalidatePath("/settings");
   revalidatePath("/getting-started");
-  return { notice: "Capture switched off. The extension can no longer save to this workbench." };
+  return { notice: "Saving from the extension is switched off. It can no longer save to this workbench." };
 }

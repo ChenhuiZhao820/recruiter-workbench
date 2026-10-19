@@ -19,7 +19,7 @@ const controls = ["settings", "open-role", "reread"];
 // that declaration wins, including the empty one a loopback build ships. Loading
 // this folder straight from the repository declares nothing, so it falls back to
 // the deployment rather than to a workbench nobody is running.
-const WORKBENCH_ORIGINS = ["https://capture-workbench.onrender.com"];
+const WORKBENCH_ORIGINS = ["https://retrivr.app"];
 const hostedOrigins = (Array.isArray(globalThis.CAPTURE_WORKBENCH_ORIGINS)
   ? globalThis.CAPTURE_WORKBENCH_ORIGINS : WORKBENCH_ORIGINS).filter((value) => {
   try {

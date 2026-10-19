@@ -30,7 +30,7 @@ The extension is built for one workbench address, and that address is baked into
 the package: Chrome will only let it talk to the host it was packaged for. So
 install it from the site you actually use, not from this source folder.
 
-For the hosted deployment that is <https://capture-workbench.onrender.com>.
+For the hosted deployment that is <https://retrivr.app>.
 
 1. Sign in to Capture and open **Your account**. Ask your administrator for your
    account's extension activation code and redeem it there within 7 days.
@@ -66,7 +66,7 @@ configured with, so a correctly configured deployment already serves the right
 package. To build one by hand, from a checkout:
 
 ```
-npm run extension:package -- --origin https://capture-workbench.onrender.com
+npm run extension:package -- --origin https://retrivr.app
 ```
 
 That writes `dist/capture-extension`, ready to load unpacked. The origin must be

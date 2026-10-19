@@ -959,7 +959,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 - `lib/auth.ts`: opaque hashed database sessions, HttpOnly/SameSite cookies,
   fixed expiry, active-account and auth-version checks, same-origin action checks.
-- `middleware.ts` answers a POST to any page route with a plain 403 when its
+- `middleware.ts` first redirects a page at another host than `APP_ORIGIN`'s
+  (see Hosting). It then answers a POST to any page route with a plain 403 when its
   Origin is not a URL (`null`) or names another host than the request's - the
   comparison Next makes itself, made before Next's parse of the header can
   throw. A post with no Origin is left to `assertSameOrigin()`; `/api` routes
@@ -1192,9 +1193,19 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   same environment contract. Do not use SQLite on ephemeral/serverless storage.
 - No cloud resources, production accounts or real-data imports are created by
   a build/test command. The extension must be packaged for the final site origin.
-- Current deployment: `https://capture-workbench.onrender.com`. `APP_ORIGIN` must
-  match it exactly, because `/api/extension/download` packages the extension for
-  that origin and a mismatch ships a package Chrome will not let reach the site.
+- Current deployment: `https://retrivr.app` (the Render service
+  `capture-workbench`, with the domain's DNS at Cloudflare, DNS only). `APP_ORIGIN`
+  must match it exactly, because `/api/extension/download` packages the extension
+  for that origin and a mismatch ships a package Chrome will not let reach the site.
+- It moved there from `https://capture-workbench.onrender.com`, which Render still
+  serves. `middleware.ts` sends a page asked for at any host but `APP_ORIGIN`'s to
+  the same path there with a 308 (`lib/canonical-host.mjs`, HTTPS origins only, so
+  loopback development is untouched), because booking and client links already
+  sent name the old host and their signatures do not cover it. `/api` is not
+  redirected, so extensions packaged for the old host (1.2.2 and earlier) keep
+  saving until they are replaced; release `2026-10-19.3` asks for the new copy.
+  Keep the onrender.com address serving until links sent from it have expired
+  (60 days for a shortlist) and no old extension is in use.
 - The source extension is built for that deployment: it is in `host_permissions`,
   in the popup CSP and in `WORKBENCH_ORIGINS`, so an unpackaged build offers a
   workbench that exists. Host access is still loopback plus exactly one workbench

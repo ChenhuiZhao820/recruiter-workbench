@@ -237,8 +237,20 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   (`CURRENT_RELEASE` is its id) and the `/whats-new` page that describes it.
   Adding a release to the front of `RELEASES` and rewriting the page is the
   whole of "tell everyone again". Earlier entries keep only their one-line
-  title, and set `extension` when that release needed a new copy of the
-  extension. Keep it coarse -
+  title. The list itself is plain data in `lib/releases.mjs`; an id is the
+  day it shipped, with `.2` for a second release that day, and `extension` is
+  the extension version the release needs, or null; the newest one also holds
+  the `fingerprint` of the download it asks for (`lib/extension-release.mjs`:
+  the packaged files for a fixed origin, line endings ignored). Any change to
+  what `/api/extension/download` hands out - the four extension files or the
+  packager - changes it, and `npm run build` and `npm run build:hosted` then
+  stop (`scripts/check-extension-release.mjs`, also asserted by
+  `tests/extension-package.test.mjs`) until the manifest version is bumped
+  and a release for that version and fingerprint is at the front of the list,
+  with `/whats-new` rewritten. `--fingerprint` prints the value. That is what
+  puts every new copy on Notifications: an extension nobody is told about is
+  never installed. Never edit a shipped release's version or fingerprint to
+  get past the check; whoever read it is not told again. Keep it coarse -
   a notice that fires for changes nobody has to act on gets dismissed unread,
   and it is the only channel that reaches a recruiter who does not read this
   repository.

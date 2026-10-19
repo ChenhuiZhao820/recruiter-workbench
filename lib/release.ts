@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { RELEASES as RELEASE_LIST, releaseDay } from "@/lib/releases.mjs";
 
 // What is worth stopping someone for, once.
 //
@@ -13,17 +14,13 @@ import { db } from "@/lib/db";
 //
 // Each release is also a line on Notifications, newest first. Only the first
 // one has a /whats-new page; earlier ones keep the one sentence that said what
-// they changed. `extension` is true when that release needs a new copy of the
-// browser extension, because Chrome never updates one loaded by hand.
+// they changed. `extension` is the extension version that release needs, or
+// null, because Chrome never updates one loaded by hand. The list itself is in
+// lib/releases.mjs, where a test holds it against the extension's manifest.
 
-export type Release = { id: string; title: string; extension: boolean };
+export type Release = { id: string; title: string; extension: string | null; fingerprint?: string };
 
-export const RELEASES: readonly Release[] = [
-  { id: "2026-10-19", title: "The Capture panel keeps up as you move from one LinkedIn profile to the next", extension: true },
-  { id: "2026-10-18", title: "Clients see who you put forward, say who they want to meet, and those people book the interview", extension: false },
-  { id: "2026-10-03", title: "One person across every role, booking links, screening summaries and matches from your own database", extension: false },
-  { id: "2026-09-24", title: "LinkedIn's own industries, an outreach queue and a Capture panel that follows you", extension: true },
-];
+export const RELEASES: readonly Release[] = RELEASE_LIST;
 
 export const CURRENT_RELEASE = RELEASES[0].id;
 export const currentRelease = RELEASES[0];
@@ -54,12 +51,12 @@ export type ReleaseNotice = { release: Release; at: Date; current: boolean; unre
 // changes. Unread is only ever the current one, until Got it is pressed.
 export async function releaseNotices(userId: string, currentIsNews: boolean): Promise<ReleaseNotice[]> {
   const account = await db.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
-  const since = account ? account.createdAt.toISOString().slice(0, 10) : CURRENT_RELEASE;
+  const since = account ? account.createdAt.toISOString().slice(0, 10) : releaseDay(CURRENT_RELEASE);
   return RELEASES
-    .filter((release) => release.id >= since)
+    .filter((release) => releaseDay(release.id) >= since)
     .map((release) => ({
       release,
-      at: new Date(`${release.id}T00:00:00Z`),
+      at: new Date(`${releaseDay(release.id)}T00:00:00Z`),
       current: release.id === CURRENT_RELEASE,
       unread: release.id === CURRENT_RELEASE && currentIsNews,
     }));

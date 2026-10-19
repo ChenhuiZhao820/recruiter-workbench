@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { extensionFiles, extensionZip } from "../lib/extension-package.mjs";
+import { RELEASES, releaseDay } from "../lib/releases.mjs";
+import { extensionFingerprint, extensionReleaseProblems } from "../lib/extension-release.mjs";
 
 const names = ["manifest.json", "popup.css", "popup.html", "popup.js", "workbench.js"];
 const source = Object.fromEntries(await Promise.all(names.filter((name) => name !== "workbench.js").map(async (name) => [name, await readFile(new URL(`../extension/${name}`, import.meta.url), "utf8")])));
@@ -84,3 +86,45 @@ test("packaging rejects unexpected permissions, missing files and oversized cont
   assert.throws(() => extensionZip({}), /Incomplete/);
   assert.throws(() => extensionZip({ "manifest.json": "x".repeat(4 * 1024 * 1024 + 1) }), /size limit/);
 });
+
+// Chrome never updates an extension loaded by hand, and the release list is
+// the only thing that tells a recruiter to fetch a new copy. Any change to the
+// download that no release announces is a fix nobody installs, so the build
+// refuses it and so does this.
+test("the extension download is the one the newest extension release announced", () => {
+  assert.deepEqual(extensionReleaseProblems(source), []);
+  // Newest first, unique, and every id a real day with at most a same-day suffix.
+  const ids = RELEASES.map((release) => release.id);
+  assert.deepEqual(ids, [...ids].sort().reverse());
+  assert.equal(new Set(ids).size, ids.length);
+  for (const id of ids) {
+    assert.match(id, /^\d{4}-\d{2}-\d{2}(\.\d+)?$/);
+    assert.equal(new Date(`${releaseDay(id)}T00:00:00Z`).toISOString().slice(0, 10), releaseDay(id));
+  }
+});
+
+test("a change to the download with no release behind it is refused, and says what to do", () => {
+  const changed = { ...source, "popup.js": `${source["popup.js"]}\n// one more line\n` };
+  const [problem] = extensionReleaseProblems(changed);
+  assert.match(problem, /has changed since release/);
+  assert.ok(problem.includes(extensionFingerprint(changed)));
+  // Bumping the version alone is not telling anyone either.
+  const manifest = JSON.parse(source["manifest.json"]);
+  const bumped = { ...changed, "manifest.json": JSON.stringify({ ...manifest, version: "9.9.9" }) };
+  assert.match(extensionReleaseProblems(bumped)[0], /asks for/);
+  // A release for that version and that download is what makes it shippable.
+  const release = { id: "2999-01-01", title: "A new copy", extension: "9.9.9", fingerprint: extensionFingerprint(bumped) };
+  assert.deepEqual(extensionReleaseProblems(bumped, [release, ...RELEASES]), []);
+  // Reusing a shipped version for a new download is refused.
+  const reused = { ...release, extension: manifest.version, fingerprint: extensionFingerprint(changed) };
+  assert.match(extensionReleaseProblems(changed, [reused, ...RELEASES]).join(" "), /same extension version/);
+  // The page the packager wraps counts as much as the script.
+  assert.ok(extensionReleaseProblems({ ...source, "popup.html": source["popup.html"].replace("</body>", "<p></p></body>") }).length);
+});
+
+test("the fingerprint ignores line endings, so a Windows checkout and the Linux build agree", () => {
+  const crlf = Object.fromEntries(Object.entries(source).map(([name, text]) => [name, text.replace(/\r?\n/g, "\r\n")]));
+  const lf = Object.fromEntries(Object.entries(source).map(([name, text]) => [name, text.replace(/\r\n/g, "\n")]));
+  assert.equal(extensionFingerprint(crlf), extensionFingerprint(lf));
+});
+

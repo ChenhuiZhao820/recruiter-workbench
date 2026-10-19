@@ -27,18 +27,24 @@ export default async function WhatsNewPage() {
           <p className="page-eyebrow">Capture / 19 October</p>
           <h1>What&rsquo;s new</h1>
           <p className="page-description">
-            The Capture panel now keeps up as you move from one LinkedIn profile to the next. It needs a new copy of the browser
-            extension, once.
+            Opening a role from the Capture extension after you save someone now goes to Capture. It needs a new copy of the
+            browser extension, once.
           </p>
         </div>
       </header>
 
       <section aria-label="This version" className="card space-y-3">
+        <h2 className="text-lg">Open this role goes to Capture, not to localhost</h2>
+        <p className="text-ink/80">
+          After a save, <em>Open this role in the workbench</em> in the extension could open <code className="font-mono">localhost</code>
+          {" "}and show an error page. The save itself always went through. It now opens the role in Capture, the site your capture key
+          is for.
+        </p>
         <h2 className="text-lg">The panel shows the person you are looking at</h2>
         <p className="text-ink/80">
-          LinkedIn changes the address before it draws the next person, so the panel could show the new address under the last
-          person&rsquo;s name. It now waits for the profile to finish drawing and fills itself in again. Anything you corrected by hand,
-          and your note, stays as you left it.
+          If you have not updated since 18 October, this copy also brings that change. LinkedIn changes the address before it draws
+          the next person, so the panel could show the new address under the last person&rsquo;s name. It now waits for the profile to
+          finish drawing and fills itself in again. Anything you corrected by hand, and your note, stays as you left it.
         </p>
         {currentRelease.extension && <>
           <p className="rounded border border-line bg-sunken p-3 text-sm">

@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { db } from "./helpers";
 import { hashToken } from "../lib/auth-crypto";
 import { CURRENT_RELEASE, RELEASES, currentRelease } from "../lib/release";
+import { releaseDay } from "../lib/releases.mjs";
 import { newNonce, shortlistToken } from "../lib/shortlist-core.mjs";
 
 // Notifications: what a client does on a link reaches the recruiter as a red
@@ -237,7 +238,7 @@ test("A5 a shortlist answer is brought onto the role from its line on Activity, 
 });
 
 test("A6 a new version is a notification: counted on the bell until seen, with What's new and, when needed, the extension", async ({ browser }, testInfo) => {
-  // Newest first, one per day, so "current" and "since the account was made" mean what they say.
+  // Newest first, so "current" and "since the account was made" mean what they say.
   expect(RELEASES.map((release) => release.id)).toEqual([...RELEASES.map((release) => release.id)].sort().reverse());
   expect(currentRelease.id).toBe(CURRENT_RELEASE);
   const oldest = RELEASES[RELEASES.length - 1].id;
@@ -286,9 +287,11 @@ test("A6 a new version is a notification: counted on the bell until seen, with W
     await expect(page.getByRole("link", { name: /Download the new extension/ })).toHaveCount(currentRelease.extension ? 1 : 0);
 
     // An account made after a release is not told about it.
-    await db.user.update({ where: { id: established }, data: { createdAt: new Date(`${CURRENT_RELEASE}T12:00:00Z`) } });
+    // Only the releases of the day it was made are left.
+    const today = releaseDay(CURRENT_RELEASE);
+    await db.user.update({ where: { id: established }, data: { createdAt: new Date(`${today}T12:00:00Z`) } });
     await page.goto("/notifications");
-    await expect(page.getByTestId("release-entry")).toHaveCount(1);
+    await expect(page.getByTestId("release-entry")).toHaveCount(RELEASES.filter((release) => releaseDay(release.id) === today).length);
   } finally {
     await context.close();
     await db.session.deleteMany({ where: { userId: established } });

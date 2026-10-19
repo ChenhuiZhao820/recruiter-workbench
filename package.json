@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/check-extension-release.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "npm run test:unit && playwright test",
@@ -12,7 +12,7 @@
     "test:extension": "node --test tests/capture-extension.test.mjs",
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report",
-    "build:hosted": "node scripts/prepare-postgres.mjs --check && prisma generate --schema prisma/postgresql/schema.prisma && next build",
+    "build:hosted": "node scripts/check-extension-release.mjs && node scripts/prepare-postgres.mjs --check && prisma generate --schema prisma/postgresql/schema.prisma && next build",
     "db:deploy:hosted": "prisma migrate deploy --schema prisma/postgresql/schema.prisma",
     "db:client:local": "prisma generate --schema prisma/schema.prisma",
     "db:init:local": "node scripts/init-local.mjs",

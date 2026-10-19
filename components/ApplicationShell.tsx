@@ -54,7 +54,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
   if (pathname.startsWith("/book/") || pathname.startsWith("/s/")) return <div className="public-shell">
     <a href="#main-content" className="skip-link">Skip to content</a>
     <header className="site-header">
-      <div className="site-nav"><span className="brand"><Image className="brand-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={742} height={215} unoptimized /></span></div>
+      <div className="site-nav"><span className="brand"><Image className="brand-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={953} height={215} unoptimized /></span></div>
     </header>
     <main id="main-content" className="public-main">{children}</main>
   </div>;
@@ -70,7 +70,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
     <a href="#main-content" className="skip-link">Skip to content</a>
     <header className="site-header">
       <div className="site-nav">
-        <Link href="/welcome" className="brand" aria-label="Retrivr"><Image className="brand-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={742} height={215} unoptimized /></Link>
+        <Link href="/welcome" className="brand" aria-label="Retrivr"><Image className="brand-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={953} height={215} unoptimized /></Link>
         <button type="button" className="mobile-nav-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="public-navigation" onClick={() => setMenuOpen(!menuOpen)}><Icon name={menuOpen ? "close" : "menu"} /></button>
         <nav id="public-navigation" aria-label="Main" className={`public-navigation ${menuOpen ? "is-open" : ""}`}>
           <Link href="/welcome#how" onClick={() => setMenuOpen(false)}>Features</Link>
@@ -88,7 +88,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
     <a href="#main-content" className="skip-link">Skip to content</a>
     <header className="app-sidebar">
       <div className="sidebar-brand-row">
-        <Link href="/" className="brand" aria-label="Retrivr"><Image className="brand-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={742} height={215} unoptimized /></Link>
+        <Link href="/" className="brand" aria-label="Retrivr"><Image className="brand-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={953} height={215} unoptimized /></Link>
         <button type="button" className="mobile-nav-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}><Icon name={menuOpen ? "close" : "menu"} /></button>
       </div>
       <div id="workspace-navigation" className={`sidebar-content ${menuOpen ? "is-open" : ""}`}>

@@ -100,6 +100,7 @@ select.field-input { padding-right: 28px; }
 .card { box-shadow: 0 2px 3px rgb(0 0 0 / .015); }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--color-ink); font-size: 23px; font-weight: 650; line-height: 1; letter-spacing: -.06em; text-decoration: none; }
 .brand svg { width: 28px; height: 28px; }
+.brand .brand-logo { display: block; width: auto; height: 34px; }
 .eyebrow, .page-eyebrow, .nav-label { font-family: var(--font-mono); font-size: 10px; font-weight: 500; line-height: 1.5; letter-spacing: .1em; text-transform: uppercase; }
 .eyebrow, .page-eyebrow { color: var(--color-ink-soft); }
 .status-dot { display: inline-block; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); }
@@ -249,8 +250,8 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .login-art-grid { position: absolute; inset: -35px -45px -15px; opacity: .35; background-image: linear-gradient(#3b3b45 1px, transparent 1px), linear-gradient(90deg, #3b3b45 1px, transparent 1px); background-size: 35px 35px; mask-image: radial-gradient(ellipse at center, black, transparent 70%); }
 .login-orbit.orbit-one { width: 190px; height: 190px; top: 52%; }
 .login-orbit.orbit-two { width: 290px; height: 290px; top: 52%; opacity: .5; }
-.login-art-core { position: absolute; left: 50%; top: 52%; width: 73px; height: 73px; border: 1px solid #627fff; border-radius: 13px; background: var(--color-accent); color: white; transform: translate(-50%, -50%) rotate(-8deg); display: grid; place-items: center; box-shadow: 0 8px 55px rgb(49 92 255 / .25); }
-.login-art-core svg { width: 35px; height: 35px; }
+.login-art-core { position: absolute; left: 50%; top: 52%; width: 73px; height: 73px; border: 1px solid #e3e3e8; border-radius: 13px; background: white; transform: translate(-50%, -50%) rotate(-8deg); display: grid; place-items: center; box-shadow: 0 8px 55px rgb(98 125 205 / .35); }
+.login-art-core img { width: 44px; height: auto; }
 .login-art-node { position: absolute; display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #40404b; border-radius: 5px; background: #24242b; box-shadow: 0 5px 15px rgb(0 0 0 / .2); font-size: 10px; color: #dcdce4; }
 .login-art-node svg { color: #9595a4; }
 .login-art-node-a { top: 19px; left: 5px; }
@@ -261,7 +262,7 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .login-form-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 55px 25px; }
 .login-form-content { width: 100%; max-width: 350px; margin: auto; }
 .login-symbol { width: 46px; height: 46px; display: grid; place-items: center; margin-bottom: 31px; border: 1px solid var(--color-line); border-radius: 9px; background: #fafafa; }
-.login-symbol svg { width: 24px; height: 24px; }
+.login-symbol img { width: 28px; height: auto; }
 .login-form-content > .page-eyebrow { margin-bottom: 8px; }
 .login-form-content h1 { font-size: 29px; font-weight: 550; letter-spacing: -.05em; line-height: 1.25; }
 .login-description { font-size: 12px; color: var(--color-ink-soft); line-height: 1.8; margin-top: 12px; margin-bottom: 28px; }

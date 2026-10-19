@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -59,7 +60,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
   </div>;
 
   // The marketing page brings its own header and footer under the Retrivr
-  // name; the other public pages (sign-in, activation) keep this one for now.
+  // name; the other public pages (sign-in, activation) share this one.
   if ((!user && pathname === "/") || pathname === "/welcome") return <div className="public-shell">
     <a href="#main-content" className="skip-link">Skip to content</a>
     {children}
@@ -69,13 +70,13 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
     <a href="#main-content" className="skip-link">Skip to content</a>
     <header className="site-header">
       <div className="site-nav">
-        <Link href="/welcome" className="brand" aria-label="Capture"><CaptureMark /><span>Capture</span></Link>
+        <Link href="/welcome" className="brand" aria-label="Retrivr"><Image className="brand-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={742} height={215} unoptimized /></Link>
         <button type="button" className="mobile-nav-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="public-navigation" onClick={() => setMenuOpen(!menuOpen)}><Icon name={menuOpen ? "close" : "menu"} /></button>
         <nav id="public-navigation" aria-label="Main" className={`public-navigation ${menuOpen ? "is-open" : ""}`}>
-          <Link href="/welcome#features" onClick={() => setMenuOpen(false)}>Features</Link>
-          <Link href="/welcome#workflow" onClick={() => setMenuOpen(false)}>Workflow</Link>
-          <Link href="/welcome#principles" onClick={() => setMenuOpen(false)}>Our approach</Link>
+          <Link href="/welcome#how" onClick={() => setMenuOpen(false)}>Features</Link>
+          <Link href="/welcome#pricing" onClick={() => setMenuOpen(false)}>Pricing</Link>
           <Link href="/welcome#faq" onClick={() => setMenuOpen(false)}>FAQ</Link>
+          <Link href="/welcome#contact" onClick={() => setMenuOpen(false)}>Contact</Link>
           <Link href={user ? "/" : "/login"} className="btn-dark">{user ? "Open workspace" : "Sign in"}<Icon name="arrow" size={16} /></Link>
         </nav>
       </div>

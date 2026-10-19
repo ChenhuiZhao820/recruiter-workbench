@@ -127,9 +127,9 @@ test("A1 unauthenticated workspaces redirect and a website cookie is not a captu
   for (const route of ["/roles/new", "/searches", "/templates", "/followups", "/settings", "/account", "/admin", "/admin/new", "/admin/nonexistent", "/roles/nonexistent", "/candidates/nonexistent/outreach"]) {
     await page.goto(route);
     await expect(page).toHaveURL(`${BASE}/login`);
-    await expect(page.getByRole("heading", { name: "Sign in to Capture" })).toBeVisible();
-    await expect(page).toHaveTitle("Capture");
-    await expect(page.getByRole("banner").getByRole("link", { name: "Capture", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Retrivr" })).toBeVisible();
+    await expect(page).toHaveTitle("Retrivr");
+    await expect(page.getByRole("banner").getByRole("link", { name: "Retrivr", exact: true })).toBeVisible();
   }
   const actor = await accounts.create();
   expect((await actor.page.request.get("/api/capture")).status()).toBe(401);

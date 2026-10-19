@@ -49,9 +49,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 - Product, browser extension and UI name: Capture. npm package name: capture.
   The product is being renamed Retrivr. The public homepage (anonymous `/` and
-  `/welcome`) already carries the Retrivr name and logo (`public/brand/`); the
-  workspace, sign-in, extension and docs are renamed separately, so do not
-  change them on the homepage's account.
+  `/welcome`), the sign-in page and the public header around it already carry
+  the Retrivr name and logo (`public/brand/`); the workspace, booking and
+  client pages, extension and docs are renamed separately, so do not change
+  them on those pages' account.
 - Test environment variables use CAPTURE_TEST_; packaged extension configuration
   uses CAPTURE_WORKBENCH_ORIGINS. Do not rename user/company emails or saved data.
 - New sessions use capture_session (with __Host- on HTTPS). The former

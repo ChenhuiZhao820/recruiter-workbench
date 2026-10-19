@@ -58,6 +58,13 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
     <main id="main-content" className="public-main">{children}</main>
   </div>;
 
+  // The marketing page brings its own header and footer under the Retrivr
+  // name; the other public pages (sign-in, activation) keep this one for now.
+  if ((!user && pathname === "/") || pathname === "/welcome") return <div className="public-shell">
+    <a href="#main-content" className="skip-link">Skip to content</a>
+    {children}
+  </div>;
+
   if (publicPage) return <div className="public-shell">
     <a href="#main-content" className="skip-link">Skip to content</a>
     <header className="site-header">

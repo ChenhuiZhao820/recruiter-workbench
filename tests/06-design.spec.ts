@@ -88,7 +88,7 @@ async function keyboardReach(page: Page, target: Locator) {
   }), "Keyboard focus must have a visible outline or ring").toBe(true);
 }
 
-async function inspectNavigation(page: Page, mobile: boolean, publicPage: boolean) {
+async function inspectNavigation(page: Page, mobile: boolean) {
   await expect(page.getByRole("banner").getByRole("link", { name: "Capture", exact: true })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   const toggle = page.getByRole("button", { name: "Toggle navigation", exact: true });
@@ -109,14 +109,8 @@ async function inspectNavigation(page: Page, mobile: boolean, publicPage: boolea
     await expect(nav).toBeVisible();
     await expect(toggle).toBeHidden();
   }
-  for (const name of publicPage ? ["Features", "Workflow", "FAQ", "Sign in"] : ["Roles", "Settings"]) {
+  for (const name of ["Roles", "Settings"]) {
     await expect(nav.getByRole("link", { name, exact: true })).toBeVisible();
-  }
-  if (publicPage) {
-    for (const [name, anchor] of [["Features", "features"], ["Workflow", "workflow"], ["FAQ", "faq"]]) {
-      await expect(nav.getByRole("link", { name, exact: true })).toHaveAttribute("href", new RegExp(`#${anchor}$`));
-    }
-    await expect(nav.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", "/login");
   }
   await expectNoOverflow(page);
   if (mobile) {
@@ -127,36 +121,71 @@ async function inspectNavigation(page: Page, mobile: boolean, publicPage: boolea
   }
 }
 
-async function inspectPreview(page: Page) {
-  const preview = page.getByRole("region", { name: "Product preview", exact: true });
-  await expect(preview).toBeVisible();
-  await expect(preview.getByText(/Illustrative data/)).toBeVisible();
-  const tabs = preview.getByRole("tablist", { name: "Preview a workflow", exact: true });
-  await expect(tabs.getByRole("tab")).toHaveCount(3);
-  const pipeline = tabs.getByRole("tab", { name: "Pipeline", exact: true });
-  await expect(pipeline).toHaveAttribute("aria-selected", "true");
-  await keyboardReach(page, pipeline);
-  await page.keyboard.press("ArrowRight");
-  await expect(tabs.getByRole("tab", { name: "Briefing", exact: true })).toBeFocused();
-  await expect(tabs.getByRole("tab", { name: "Briefing", exact: true })).toHaveAttribute("aria-selected", "true");
-  const contents: string[] = [];
-  for (const name of ["Pipeline", "Briefing", "Outreach"]) {
-    const tab = tabs.getByRole("tab", { name, exact: true });
-    await tab.click();
-    await expect(tab).toHaveAttribute("aria-selected", "true");
-    await expect(tabs.locator('[role="tab"][aria-selected="true"]')).toHaveCount(1);
-    const panel = preview.getByRole("tabpanel");
-    await expect(panel).toHaveCount(1);
-    await expect(panel).toBeVisible();
-    await expect(panel).toHaveAttribute("id", (await tab.getAttribute("aria-controls"))!);
-    await expect(panel).toHaveAttribute("aria-labelledby", (await tab.getAttribute("id"))!);
-    const content = (await panel.innerText()).trim();
-    expect(content.length).toBeGreaterThan(0);
-    expect(contents).not.toContain(content);
-    contents.push(content);
-    await expect(preview.getByText(/Illustrative data/)).toBeVisible();
-    await expectNoOverflow(page);
+// The homepage carries its own Retrivr header: section links on a wide
+// screen, and on a phone only the way in, with every section a scroll away.
+async function inspectPublicNavigation(page: Page, mobile: boolean) {
+  const banner = page.getByRole("banner");
+  await expect(banner.getByRole("link", { name: "Retrivr", exact: true })).toBeVisible();
+  await expect(banner.getByRole("img", { name: "Retrivr", exact: true })).toBeVisible();
+  const nav = page.getByRole("navigation", { name: "Main", exact: true });
+  const signIn = nav.getByRole("link", { name: "Sign in", exact: true });
+  await expect(signIn).toBeVisible();
+  await expect(signIn).toHaveAttribute("href", "/login");
+  await expect(page.getByRole("button", { name: "Toggle navigation", exact: true })).toHaveCount(0);
+  for (const [name, anchor] of [["Features", "how"], ["Pricing", "pricing"], ["FAQ", "faq"], ["Contact", "contact"]]) {
+    // Hidden links are out of the accessibility tree, so find them by address.
+    const link = nav.locator(`a[href="#${anchor}"]`);
+    await expect(link).toHaveText(name);
+    await expect(page.locator(`#${anchor}`)).toHaveCount(1);
+    if (mobile) await expect(link).toBeHidden(); else await expect(link).toBeVisible();
   }
+  await keyboardReach(page, signIn);
+  await expectNoOverflow(page);
+}
+
+async function inspectHero(page: Page, reducedMotion: boolean) {
+  const board = page.getByRole("img", { name: /^Illustration: candidates move across a role's pipeline/ });
+  await expect(board).toBeVisible();
+  await expect(page.getByText("Illustrative data · not a real workspace", { exact: true })).toBeVisible();
+  // Pause and Replay are offered only where things move.
+  const pause = page.getByRole("button", { name: "Pause animation", exact: true });
+  await expect(page.getByRole("button", { name: "Replay", exact: true })).toHaveCount(reducedMotion ? 0 : 6);
+  if (reducedMotion) {
+    await expect(pause).toHaveCount(0);
+  } else {
+    await keyboardReach(page, pause);
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: "Play animation", exact: true })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(pause).toBeFocused();
+  }
+  await expectNoOverflow(page);
+}
+
+async function inspectPricing(page: Page) {
+  const pricing = page.locator("#pricing");
+  const monthly = pricing.getByRole("button", { name: "Monthly", exact: true });
+  const annual = pricing.getByRole("button", { name: /^Annual/ });
+  const lite = pricing.locator("article", { hasText: "Lite" }).first();
+  await expect(monthly).toHaveAttribute("aria-pressed", "true");
+  await expect(lite).toContainText("£5.99/ month");
+  await expect(lite).toContainText("or £49.99 / year");
+  await annual.click();
+  await expect(annual).toHaveAttribute("aria-pressed", "true");
+  await expect(monthly).toHaveAttribute("aria-pressed", "false");
+  await expect(lite).toContainText("£49.99/ year");
+  await expect(lite).toContainText("save 30%");
+  await expect(pricing.getByText("7 days free", { exact: true })).toBeVisible();
+  await monthly.click();
+  await expect(lite).toContainText("£5.99/ month");
+  // A plan button carries its plan into the email; Retrivr sends nothing.
+  await pricing.getByRole("link", { name: "Start free trial", exact: true }).click();
+  await expect(page).toHaveURL(/#contact$/);
+  const contact = page.locator("#contact");
+  await expect(contact.getByText("About: Pro trial", { exact: true })).toBeVisible();
+  await expect(contact.getByRole("link", { name: "Email us", exact: true })).toHaveAttribute("href", "mailto:aditya.shah@basanite.co.uk?subject=Retrivr%20Pro%20trial");
+  await expect(contact.getByText("aditya.shah@basanite.co.uk", { exact: true })).toBeVisible();
+  await expectNoOverflow(page);
 }
 
 async function inspectFaq(page: Page) {
@@ -173,23 +202,25 @@ async function inspectFaq(page: Page) {
 }
 
 for (const scenario of scenarios) {
-  test(`D1 ${scenario.name}: guest marketing navigation, preview, FAQ and calls to action`, async ({ design }, testInfo) => {
+  test(`D1 ${scenario.name}: guest homepage navigation, hero, FAQ, pricing and calls to action`, async ({ design }, testInfo) => {
     const page = await design.guest(scenario.options);
     await page.goto("/");
     await expect(page).toHaveURL(`${BASE}/`);
+    await expect(page).toHaveTitle("Retrivr");
     await expect(page.getByRole("heading", { level: 1, name: HERO })).toBeVisible();
     if (scenario.name === "reduced motion") expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
-    await inspectNavigation(page, scenario.mobile, true);
+    await inspectPublicNavigation(page, scenario.mobile);
     await page.screenshot({ path: testInfo.outputPath("homepage.png"), fullPage: true });
-    await inspectPreview(page);
+    await inspectHero(page, scenario.name === "reduced motion");
     await inspectFaq(page);
+    await inspectPricing(page);
     const workflow = page.getByRole("link", { name: "See how it works", exact: true }).first();
-    await expect(workflow).toHaveAttribute("href", "#workflow");
+    await expect(workflow).toHaveAttribute("href", "#how");
     await workflow.click();
-    await expect(page).toHaveURL(`${BASE}/#workflow`);
-    await expect(page.locator("#workflow")).toBeInViewport();
+    await expect(page).toHaveURL(`${BASE}/#how`);
+    await expect(page.locator("#how")).toBeInViewport();
     await expectNoOverflow(page);
-    await page.getByRole("link", { name: "Open your workspace", exact: true }).first().click();
+    await page.getByRole("banner").getByRole("link", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(`${BASE}/login`);
     await expect(page.getByRole("heading", { level: 1, name: "Sign in to Capture", exact: true })).toBeVisible();
     await expectNoOverflow(page);
@@ -216,7 +247,7 @@ for (const scenario of scenarios) {
     const page = actor.page;
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1, name: "Roles", exact: true })).toBeVisible();
-    await inspectNavigation(page, scenario.mobile, false);
+    await inspectNavigation(page, scenario.mobile);
     await page.screenshot({ path: testInfo.outputPath("workspace.png"), fullPage: true });
     const main = page.getByRole("main");
     const cards = main.locator([alpha, beta, gamma].map((role) => `a[href="/roles/${role.id}"]`).join(", "));
@@ -265,7 +296,9 @@ for (const scenario of scenarios) {
     await expect(page.getByRole("heading", { level: 1, name: HERO })).toBeVisible();
     const welcomeHtml = await page.content();
     for (const value of [other.email, alpha.title, beta.title, gamma.title, foreign.title, foreign.jobDesc!]) expect(welcomeHtml).not.toContain(value);
-    await expect(page.getByRole("region", { name: "Product preview", exact: true }).getByText(/Illustrative data/)).toBeVisible();
+    await expect(page.getByText("Illustrative data · not a real workspace", { exact: true })).toBeVisible();
+    // Signed in, the homepage's way in leads back to the workspace.
+    await expect(page.getByRole("banner").getByRole("link", { name: "Open workspace", exact: true })).toHaveAttribute("href", "/");
     await expectNoOverflow(page);
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1, name: "Roles", exact: true })).toBeVisible();

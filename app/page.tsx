@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
@@ -9,6 +10,11 @@ import { RoleDirectory } from "@/components/RoleDirectory";
 import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
+
+// Anonymous visitors get the Retrivr homepage; the workspace keeps its name.
+export async function generateMetadata(): Promise<Metadata> {
+  return await getSession() ? {} : { title: "Retrivr" };
+}
 
 export default async function RolesPage() {
   if (!await getSession()) return <MarketingHome />;

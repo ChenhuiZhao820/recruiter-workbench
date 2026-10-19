@@ -87,6 +87,10 @@ test("B2 a candidate with no account books a time; the call is recorded, they mo
     await expect(visitor.page.getByLabel("Time zone")).toHaveValue("Europe/Lisbon");
     await visitor.page.getByText("How your details are used").click();
     await expect(visitor.page.getByText(/ico\.org\.uk/)).toBeVisible();
+    // The candidate sees the Retrivr name and nothing of the old one.
+    await expect(visitor.page.getByRole("banner").getByRole("img", { name: "Retrivr", exact: true })).toBeVisible();
+    await expect(visitor.page.getByText(/Morven Ellis uses Retrivr to keep track/)).toBeVisible();
+    expect(await visitor.page.locator("body").innerText()).not.toMatch(/\bCapture\b/);
 
     // The consent box is required; the browser refuses the form without it.
     await visitor.page.locator(".booking-slot").first().click();

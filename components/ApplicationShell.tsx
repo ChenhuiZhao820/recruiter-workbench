@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { logout } from "@/app/actions/auth";
 import { stopViewing } from "@/app/actions/accounts";
-import { CaptureMark, Icon } from "@/components/Icon";
+import { Icon } from "@/components/Icon";
 import { ActivityBell, UnreadBadge, useUnreadActivity } from "@/components/ActivityBell";
 
 const setupNavigation = { href: "/getting-started", label: "Getting started", icon: "spark" } as const;
@@ -54,7 +54,7 @@ export function ApplicationShell({ user, viewing, setupPending = false, releaseP
   if (pathname.startsWith("/book/") || pathname.startsWith("/s/")) return <div className="public-shell">
     <a href="#main-content" className="skip-link">Skip to content</a>
     <header className="site-header">
-      <div className="site-nav"><span className="brand"><CaptureMark /><span>Capture</span></span></div>
+      <div className="site-nav"><span className="brand"><Image className="brand-logo" src="/brand/retrivr-logo.png" alt="Retrivr" width={742} height={215} unoptimized /></span></div>
     </header>
     <main id="main-content" className="public-main">{children}</main>
   </div>;

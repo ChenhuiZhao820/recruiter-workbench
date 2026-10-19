@@ -51,8 +51,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   The product is being renamed Retrivr. The public homepage (anonymous `/` and
   `/welcome`), the sign-in page, the public header and the whole signed-in
   workspace already carry the Retrivr name and logo (`public/brand/`), the tab
-  title included. The booking and client pages (bare header, default privacy
-  notice, `.ics`), the extension (still named Capture in Chrome, so workspace
+  title included, and so do the candidate's booking page and the client's
+  shortlist page (their bare header, the default privacy notice and the
+  `.ics` PRODID). The extension (still named Capture in Chrome, so workspace
   copy calls it "the extension" where it says where to find it), its API's
   messages and these docs are renamed separately. Code identifiers, cookie
   and header names, environment variables and routes keep "capture".

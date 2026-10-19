@@ -68,7 +68,7 @@ export function bookingLinkFor(
 export function defaultPrivacyNotice(recruiterName: string, contactEmail: string) {
   const who = recruiterName || "The recruiter";
   return [
-    `${who} uses Capture to keep track of the people they talk to about roles.`,
+    `${who} uses Retrivr to keep track of the people they talk to about roles.`,
     "When you book a call, your name, your email address, the time you chose and any phone number you give are kept so the call can happen. Notes or a transcript of the call may be kept for up to 30 days, and what you said about salary, notice period, location and right to work is kept on your record afterwards.",
     "If you tick the box to be kept in mind for future roles, your details are kept until you ask for them to be removed. Otherwise they are kept only for this role.",
     `You can ask to see, correct or delete what is kept about you at any time${contactEmail ? ` by emailing ${contactEmail}` : " by replying to the message that sent you this link"}. You can also complain to the Information Commissioner's Office (ico.org.uk).`,

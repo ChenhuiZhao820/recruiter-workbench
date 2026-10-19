@@ -163,7 +163,7 @@ export default async function BookingSettingsPage({ searchParams }: { searchPara
           <div>
             <h2 id="calendar-heading" className="section-heading">Your calendar</h2>
             <p className="section-caption">
-              Optional. Connect it and the booking page leaves out times you are already busy. Capture reads only when you are busy, never what the events are, and never writes to it.
+              Optional. Connect it and the booking page leaves out times you are already busy. Retrivr reads only when you are busy, never what the events are, and never writes to it.
             </p>
           </div>
           {outcome && (

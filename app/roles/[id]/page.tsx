@@ -611,8 +611,8 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                                 <ConfirmSubmitButton
                                   label={c.bookings[0].kind === "interview" ? "Cancel interview" : "Cancel call"}
                                   confirmText={c.bookings[0].kind === "interview"
-                                    ? `Cancel ${c.fullName}'s interview with ${clientName}? The time becomes free again and they go back to Submitted. Capture tells neither of them, so let them both know yourself.`
-                                    : `Cancel the call with ${c.fullName}? The time becomes free again. Capture does not tell them, so let them know yourself.`}
+                                    ? `Cancel ${c.fullName}'s interview with ${clientName}? The time becomes free again and they go back to Submitted. Retrivr tells neither of them, so let them both know yourself.`
+                                    : `Cancel the call with ${c.fullName}? The time becomes free again. Retrivr does not tell them, so let them know yourself.`}
                                 />
                               </form>
                             </div>

@@ -31,9 +31,3 @@ export function Icon({ name, size = 20, className, style }: { name: keyof typeof
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className} style={style}><path d={paths[name]} /></svg>;
 }
 
-export function CaptureMark({ className }: { className?: string }) {
-  return <svg width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true" className={className}>
-    <path d="M12 4H4v8M20 4h8v8M28 20v8h-8M12 28H4v-8" stroke="currentColor" strokeWidth="3" />
-    <path d="M12 12h8v8h-8z" fill="currentColor" />
-  </svg>;
-}

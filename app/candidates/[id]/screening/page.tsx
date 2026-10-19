@@ -346,7 +346,7 @@ export default async function ScreeningPage({ params, searchParams }: { params: 
                   <div>
                     <h2 id="client-email-heading" className="section-heading">Email the client</h2>
                     <p className="section-caption">
-                      Built from the facts above. Edit it, then send it from your own email; Capture does not send it.
+                      Built from the facts above. Edit it, then send it from your own email; Retrivr does not send it.
                     </p>
                   </div>
                   {!current.representConsentAt ? (

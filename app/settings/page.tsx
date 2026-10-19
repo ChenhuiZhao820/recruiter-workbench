@@ -46,7 +46,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { n
         <div>
           <p className="page-eyebrow">Workspace / Preferences</p>
           <h1>Settings</h1>
-          <p className="page-description">Make Capture work the way you recruit.</p>
+          <p className="page-description">Make Retrivr work the way you recruit.</p>
         </div>
       </header>
       <div className="grid items-start gap-8 lg:grid-cols-[1.2fr_1fr]">
@@ -114,7 +114,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { n
       <section className="min-w-0 space-y-5" aria-labelledby="data-heading">
         <div>
           <h2 id="data-heading" className="section-heading"><span aria-hidden="true" className="section-number">02</span> Your data</h2>
-          <p className="section-caption">Everything you have recorded in Capture, to keep or take elsewhere. It stays yours whichever plan you are on.</p>
+          <p className="section-caption">Everything you have recorded in Retrivr, to keep or take elsewhere. It stays yours whichever plan you are on.</p>
         </div>
         {readOnly ? (
           <p className="text-sm text-ink-soft">Exports are only available from your own workspace.</p>
@@ -153,7 +153,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { n
         <section className="min-w-0 space-y-5" aria-labelledby="apps-heading">
           <div>
             <h2 id="apps-heading" className="section-heading"><span aria-hidden="true" className="section-number">04</span> Connected apps</h2>
-            <p className="section-caption">Import meeting notes into a screening call. Capture only reads the pages you choose, when you import one.</p>
+            <p className="section-caption">Import meeting notes into a screening call. Retrivr only reads the pages you choose, when you import one.</p>
           </div>
           <div className="card flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -183,15 +183,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: { n
           </div>
           {notion && (
             <p className="text-sm text-ink-soft">
-              Disconnecting deletes Capture&rsquo;s access token. To remove Capture from Notion as well, open Settings, then Connections, in Notion.
+              Disconnecting deletes Retrivr&rsquo;s access token. To remove Retrivr from Notion as well, open Settings, then Connections, in Notion.
             </p>
           )}
         </section>
       )}
-      <section className="min-w-0 space-y-5" aria-label="Capture connection">
+      <section className="min-w-0 space-y-5" aria-label="Extension connection">
         <div>
           <h2 className="section-heading"><span aria-hidden="true" className="section-number">{showApps ? "05" : "04"}</span> Browser connection</h2>
-          <p className="section-caption">Connect the Capture extension to your workspace.</p>
+          <p className="section-caption">Connect the browser extension to your workspace.</p>
         </div>
         {readOnly || extensionEnabled ? <>
           <CaptureKeyPanel enabled={Boolean(settings.captureTokenHash)} readOnly={readOnly} />

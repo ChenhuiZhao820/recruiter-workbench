@@ -48,8 +48,8 @@ export async function POST(request: Request) {
   try {
     criteria = await readCriteria({ apiKey: process.env.ANTHROPIC_API_KEY, model: matchModel(), brief, criteria: current, instruction });
   } catch (error) {
-    if (error instanceof MatchRefusedError) return NextResponse.json({ error: "Capture could not read that brief. Try trimming it to the role and the client’s requirements." }, { status: 422 });
-    if (error instanceof MatchShapeError) return NextResponse.json({ error: "That did not come back in a shape Capture could use. Try again." }, { status: 502 });
+    if (error instanceof MatchRefusedError) return NextResponse.json({ error: "Retrivr could not read that brief. Try trimming it to the role and the client’s requirements." }, { status: 422 });
+    if (error instanceof MatchShapeError) return NextResponse.json({ error: "That did not come back in a shape Retrivr could use. Try again." }, { status: 502 });
     return NextResponse.json({ error: "The matching service could not be reached. Try again in a moment." }, { status: 502 });
   }
   if (criteriaIsEmpty(criteria)) {

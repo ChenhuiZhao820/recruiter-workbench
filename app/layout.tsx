@@ -31,7 +31,7 @@ const mono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Capture",
+  title: "Retrivr",
   description: "A focused workspace for your recruiting pipeline. Keep roles, candidate context and thoughtful follow-ups together — with you in control.",
 };
 

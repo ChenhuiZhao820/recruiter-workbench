@@ -30,7 +30,7 @@ export function Handoff({ criteria, encoded, query, roles, defaultRoleId, readOn
       <div className="im-handoff-copy">
         <p className="page-eyebrow">Not finding them?</p>
         <h2 id="handoff-heading">Look outside your database</h2>
-        <p>The same criteria as a LinkedIn search. Capture builds it; you run it in your own account.</p>
+        <p>The same criteria as a LinkedIn search. Retrivr builds it; you run it in your own account.</p>
       </div>
       <div className="im-handoff-body">
         <code className="im-query">{query}</code>

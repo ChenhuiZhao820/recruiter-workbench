@@ -129,7 +129,7 @@ async function keepScreeningCv(ownerId: string, candidate: { id: string; personI
 // is refused while the recruiter has asked for the text not to be kept.
 async function saveAsNote(ownerId: string, candidate: { id: string; personId: string | null }, text: string, formData: FormData): Promise<FormState> {
   if (formData.get("discardTranscript") === "on") {
-    return { error: "Untick \"Don't keep the transcript in Capture\" to save it, or summarise it instead." };
+    return { error: "Untick \"Don't keep the transcript in Retrivr\" to save it, or summarise it instead." };
   }
   return saveCandidateNote(ownerId, candidate, text);
 }

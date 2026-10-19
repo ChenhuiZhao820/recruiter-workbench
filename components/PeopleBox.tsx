@@ -133,7 +133,7 @@ export function PeopleBox({
       startTransition(() => router.push(`/people?c=${body.criteria}`, { scroll: false }));
     } catch {
       setLoading(false);
-      setError("Capture could not be reached. Check your connection and try again.");
+      setError("Retrivr could not be reached. Check your connection and try again.");
     }
   }
 
@@ -229,7 +229,7 @@ export function PeopleBox({
                 <div className="im-menu" role="menu">
                   <button type="button" role="menuitemradio" aria-checked={mode === "match"} className="im-menu-item people-mode-item" onClick={() => { close(); switchTo("match"); }}>
                     <span className="people-mode-name"><Icon name="spark" size={14} />Match{mode === "match" && <Icon name="check" size={13} />}</span>
-                    <span className="im-menu-sub">Paste a job description; Capture reads it and finds who fits.{readOnly ? " Your own workspace only." : ` ${readsLeft} left this month.`}</span>
+                    <span className="im-menu-sub">Paste a job description; Retrivr reads it and finds who fits.{readOnly ? " Your own workspace only." : ` ${readsLeft} left this month.`}</span>
                   </button>
                   <button type="button" role="menuitemradio" aria-checked={mode === "search"} className="im-menu-item people-mode-item" onClick={() => { close(); switchTo("search"); }}>
                     <span className="people-mode-name"><Icon name="search" size={14} />Search{mode === "search" && <Icon name="check" size={13} />}</span>
@@ -318,7 +318,7 @@ export function PeopleBox({
             ? "This is a read-only view. Briefs are read only in your own workspace."
             : readsLeft <= 0
               ? "You have used this month’s briefs. Switch to Search, or edit the criteria of a match by hand."
-              : <>Only what you type here is sent to the AI to be read. The people in your database never leave Capture, and the brief is not saved. {readsLeft} {readsLeft === 1 ? "brief" : "briefs"} left this month.</>
+              : <>Only what you type here is sent to the AI to be read. The people in your database never leave Retrivr, and the brief is not saved. {readsLeft} {readsLeft === 1 ? "brief" : "briefs"} left this month.</>
           : null}
       </p>
     </section>

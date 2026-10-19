@@ -96,6 +96,8 @@ test("L1 a consented candidate is put forward in one click, and the client reads
     await client.page.goto(link);
     const entry = client.page.locator(".client-entry", { hasText: "Imogen Achterberg" });
     await expect(entry.getByRole("heading", { name: "Imogen Achterberg" })).toBeVisible();
+    await expect(client.page.getByRole("banner").getByRole("img", { name: "Retrivr", exact: true })).toBeVisible();
+    expect(await client.page.locator("body").innerText()).not.toMatch(/\bCapture\b/);
     await expect(entry).toContainText("Imogen - Platform engineer");
     await expect(entry).toContainText("£85,000 to £95,000 a year");
     await expect(entry).toContainText("Base only");

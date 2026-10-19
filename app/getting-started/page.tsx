@@ -38,7 +38,7 @@ export default async function GettingStartedPage() {
     },
     role: {
       title: "Create your first open role",
-      summary: "Everything in Capture hangs off a role: candidates, saved searches, follow-ups, and anything the extension saves.",
+      summary: "Everything in Retrivr hangs off a role: candidates, saved searches, follow-ups, and anything the extension saves.",
       detail: <p>Add the title and client now. The job description and its briefing can follow later.</p>,
       doneNote: "You have an open role, so saved profiles have somewhere to land.",
       action: status.openRoleId
@@ -57,12 +57,12 @@ export default async function GettingStartedPage() {
     },
     install: {
       title: "Install the extension in Chrome",
-      summary: "Download the ZIP and load it as an unpacked extension. This part happens on your own computer, so Capture cannot tick it off for you.",
+      summary: "Download the ZIP and load it as an unpacked extension. This part happens on your own computer, so Retrivr cannot tick it off for you.",
       detail: <ol className="onboarding-substeps">
         <li>Extract the ZIP into a permanent folder. Keep that folder after installing: an unpacked extension is loaded from where it sits.</li>
         <li>In desktop Chrome, open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, choose <strong>Load unpacked</strong>, and select the extracted <code>capture-extension</code> folder containing <code>manifest.json</code>.</li>
-        <li>Pin Capture from Chrome&rsquo;s extensions menu so the toolbar button is one click away.</li>
-        <li>Working through a list of profiles? Open Capture and choose <strong>Keep open</strong>. It moves into Chrome&rsquo;s side panel and stays there as you go from profile to profile, until you close it.</li>
+        <li>Pin the extension from Chrome&rsquo;s extensions menu so the toolbar button is one click away.</li>
+        <li>Working through a list of profiles? Open the extension and choose <strong>Keep open</strong>. It moves into Chrome&rsquo;s side panel and stays there as you go from profile to profile, until you close it.</li>
       </ol>,
       doneNote: "Download the ZIP again whenever you reinstall or update. Unpacked extensions do not update themselves.",
       action: status.extensionEnabled
@@ -135,7 +135,7 @@ export default async function GettingStartedPage() {
           <li>The extension cannot connect: check that you pasted the most recent capture key. Changing your password revokes the key, so generate a new one afterwards.</li>
           <li>Nothing to save a profile to: create an open role first. The extension only offers your open roles.</li>
         </ul>
-        <Link href="/welcome" className="text-link">What Capture does<Icon name="arrow" size={16} /></Link>
+        <Link href="/welcome" className="text-link">What Retrivr does<Icon name="arrow" size={16} /></Link>
       </section>
     </>}
   </div>;

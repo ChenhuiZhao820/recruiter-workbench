@@ -24,19 +24,19 @@ export default async function WhatsNewPage() {
     <fieldset disabled={readOnly} className="min-w-0 max-w-3xl">
       <header className="page-header">
         <div>
-          <p className="page-eyebrow">Capture / 19 October</p>
+          <p className="page-eyebrow">Retrivr / 19 October</p>
           <h1>What&rsquo;s new</h1>
           <p className="page-description">
-            Capture has a new address, <strong>retrivr.app</strong>. Sign in there from now on, and load the new copy of the browser
+            Retrivr has a new address, <strong>retrivr.app</strong>. Sign in there from now on, and load the new copy of the browser
             extension, once.
           </p>
         </div>
       </header>
 
       <section aria-label="This version" className="card space-y-3">
-        <h2 className="text-lg">Capture is now at retrivr.app</h2>
+        <h2 className="text-lg">Retrivr is now at retrivr.app</h2>
         <p className="text-ink/80">
-          Everything you have in Capture is here, unchanged. The old <code className="font-mono">onrender.com</code> address sends you
+          Everything you have in Retrivr is here, unchanged. The old <code className="font-mono">onrender.com</code> address sends you
           to the same page here, so bookmarks still work, and so do the booking links and client links you have already sent:
           candidates and clients who open them land here without noticing. You sign in once more on the new address, because a
           browser keeps a sign-in per address.
@@ -45,12 +45,12 @@ export default async function WhatsNewPage() {
         <p className="text-ink/80">
           Chrome lets an extension reach only the address it was made for. Your copy keeps saving people until you replace it, but
           only this new copy works with <strong>retrivr.app</strong>. If you have not updated since 18 October, it also brings the
-          panel that keeps up as you move from profile to profile, and <em>Open this role</em> going to Capture after a save.
+          panel that keeps up as you move from profile to profile, and <em>Open this role</em> going to Retrivr after a save.
         </p>
         {currentRelease.extension && <>
           <p className="rounded border border-line bg-sunken p-3 text-sm">
             <strong>One thing to do.</strong> Download the new copy. In <code className="font-mono">chrome://extensions</code>, remove the
-            old Capture and load the new folder. Then generate a new capture key in{" "}
+            old copy and load the new folder. Then generate a new capture key in{" "}
             <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension. If you load the new
             folder over the old one instead, change the address in the extension to{" "}
             <code className="font-mono">https://retrivr.app</code>.
@@ -88,7 +88,7 @@ export default async function WhatsNewPage() {
           <h2 className="text-lg">Shortlists for a client, beyond one role</h2>
           <p className="text-ink/80">
             Tick people on <strong>People</strong>, or open someone&rsquo;s page, and put them on a shortlist for a client: the same kind
-            of page, for anyone you know, open for 60 days. Capture remembers who already agreed to be put forward to that client.
+            of page, for anyone you know, open for 60 days. Retrivr remembers who already agreed to be put forward to that client.
           </p>
           {limit !== null && (
             <p className="text-sm text-ink-soft">Your plan keeps {limit} shortlists open at once; closed and expired ones do not count.</p>
@@ -101,7 +101,7 @@ export default async function WhatsNewPage() {
         <li className="card space-y-2">
           <h2 className="text-lg">Candidates book the client&rsquo;s interview</h2>
           <p className="text-ink/80">
-            Put <code className="font-mono">{"{{interview_link}}"}</code> in a template, or use Capture&rsquo;s own follow-up, and each
+            Put <code className="font-mono">{"{{interview_link}}"}</code> in a template, or use Retrivr&rsquo;s own follow-up, and each
             person the client wants to meet gets a link to the times you offer them. Two people can never take the same time with
             one client, and the client sees every booked interview on their page, with a calendar file and a way to say they cannot
             make it.

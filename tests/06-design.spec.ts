@@ -89,7 +89,7 @@ async function keyboardReach(page: Page, target: Locator) {
 }
 
 async function inspectNavigation(page: Page, mobile: boolean) {
-  await expect(page.getByRole("banner").getByRole("link", { name: "Capture", exact: true })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: "Retrivr", exact: true })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   const toggle = page.getByRole("button", { name: "Toggle navigation", exact: true });
   if (mobile) {
@@ -222,7 +222,7 @@ for (const scenario of scenarios) {
     await expectNoOverflow(page);
     await page.getByRole("banner").getByRole("link", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(`${BASE}/login`);
-    await expect(page.getByRole("heading", { level: 1, name: "Sign in to Capture", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Sign in to Retrivr", exact: true })).toBeVisible();
     await expectNoOverflow(page);
   });
 
@@ -327,7 +327,10 @@ for (const scenario of scenarios.filter((entry) => entry.name !== "reduced motio
     const actor = await design.actor();
     const page = await design.guest(scenario.options);
     await page.goto("/login");
-    await expect(page.getByRole("heading", { level: 1, name: "Sign in to Capture", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Sign in to Retrivr", exact: true })).toBeVisible();
+    // Sign-in carries the new name throughout, the tab title included.
+    await expect(page).toHaveTitle("Retrivr");
+    expect(await page.locator("body").innerText()).not.toMatch(/capture/i);
     await page.screenshot({ path: testInfo.outputPath("login.png"), fullPage: true });
     const email = page.getByLabel("Email", { exact: true });
     const password = page.getByLabel("Password", { exact: true });

@@ -192,7 +192,7 @@ export default async function RoleOutreachPage({
               Start
             </button>
             <p className="text-sm text-ink/60">
-              Capture never messages anyone. This walks you through the shortlist one person at
+              Retrivr never messages anyone. This walks you through the shortlist one person at
               a time; you paste and send each message yourself, in LinkedIn.
             </p>
           </form>

@@ -92,7 +92,7 @@ export function NotionImport({ state, returnTo, onImport }: { state: NotionState
             <label htmlFor="notion-search" className="field-label">
               Your Notion pages{state.workspace ? ` in ${state.workspace}` : ""}
             </label>
-            <a href={connectHref} className="text-xs text-ink-soft underline underline-offset-2">Choose which pages Capture can see</a>
+            <a href={connectHref} className="text-xs text-ink-soft underline underline-offset-2">Choose which pages Retrivr can see</a>
           </div>
           <input
             ref={search}
@@ -113,7 +113,7 @@ export function NotionImport({ state, returnTo, onImport }: { state: NotionState
           {pages === null ? (
             <p className="text-sm text-ink-soft">Looking in Notion...</p>
           ) : pages.length === 0 && !error ? (
-            <p className="text-sm text-ink-soft">No pages found. Try another word, or let Capture see more pages.</p>
+            <p className="text-sm text-ink-soft">No pages found. Try another word, or let Retrivr see more pages.</p>
           ) : (
             <ul className="notion-pages" aria-label="Notion pages">
               {pages.map((page) => (

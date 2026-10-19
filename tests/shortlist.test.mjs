@@ -214,6 +214,6 @@ test("an interview link exists only when everything it needs is true", () => {
   assert.equal(state({ item: { ...item, candidateId: "c2" } }), "not_put_forward");
   assert.equal(state({ item: { ...item, decision: null } }), "awaiting_client");
   assert.equal(state({ item: { ...item, decision: "declined" } }), "awaiting_client");
-  // With review switched off, being put forward is enough.
-  assert.equal(state({ role: { ...role, clientReviewFirst: false }, item: { ...item, decision: null } }), null);
+  // The old "book straight away" switch is no longer read: the client's answer is still needed.
+  assert.equal(state({ role: { ...role, clientReviewFirst: false }, item: { ...item, decision: null } }), "awaiting_client");
 });

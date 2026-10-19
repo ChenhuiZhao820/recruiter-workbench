@@ -452,12 +452,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   no code, and the panel says so. Recipients' addresses are never exported.
 - An answer records the access it came from, so a named person's answer shows
   their address beside it on the role page and in the library.
-- Client interviews (`lib/interviews.ts`, `app/actions/interviews.ts`). A
-  role carries the client's interview hours (`interviewWindows`,
-  `interviewTimezone`, `interviewDurationMins`, `interviewLocation`: a
-  meeting link or an address), set in the Client link panel and opened
-  pre-filled from this role, the last role for the same `clientKey`, or the
-  recruiter's booking hours at 45 minutes.
+- Client interviews (`lib/interviews.ts`, `app/actions/interviews.ts`). They
+  are arranged by hand (see Arranging a client interview). A role may still
+  carry weekly interview hours (`interviewWindows`, `interviewTimezone`,
+  `interviewDurationMins`, `interviewLocation`) set before the hours form
+  was removed; those still offer times through `{{interview_link}}` so links
+  already sent keep working, but nothing sets or edits them any more.
 - `{{interview_link}}` becomes `/book/<candidateId>.<day>.i.<sig>`: the booking
   token with its kind inside the signature, so a screening link cannot become
   an interview one and old links read as before. It is a gap unless
@@ -491,22 +491,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   is booked. Capture never changes a stage on a client's answer: the role
   page shows it, with "Mark rejected" beside a "not for us".
 - Follow-ups lists "Client wants to meet" (only when it has anyone) for an
-  Interview answer on a role link - or, on a role that does not review first,
-  anyone on it without a "not for us" - with no message logged since and no
+  Interview answer on a role link, with no message logged since and no
   interview booked; it is its own group, `m`, in the follow-up run.
-- "Before an interview" on the role's Client link (`Role.clientReviewFirst`,
-  `setClientReviewFirst`): "<client> reviews first" (the default) waits for an
-  Interview answer; "Candidates book straight away" makes being put forward
-  enough for `{{interview_link}}`, and the client's page then says who is
-  invited instead of asking (`decideShortlistItem` refuses an answer there).
-  Turning it off on a role with no interview hours opens the hours form.
-- A role link whose client wants to meet someone, on a role with no interview
-  hours, asks the client on their own page "When could you interview?"
-  (`ClientHoursPanel`, `setHoursFromClient`): Monday to Friday 09:00-17:00
-  ticked, in the client's browser time zone, 45 minutes. It is saved only
-  while the role still has none (one `updateMany` on `interviewWindows: "[]"`),
-  so it never overwrites the recruiter's hours, and writes a nameless
-  `role.interview_hours_from_client` audit event.
+- Every client reviews first. The role's "Before an interview" switch
+  (`Role.clientReviewFirst`) and the client's own "When could you
+  interview?" form went with the hours form when interviews came to be
+  arranged by the recruiter: `clientChoices` always reads review-first with
+  no hours to ask for, and `interviewLinkState` no longer reads the column.
+  The columns stay (dropping them would be its own approved migration). The
+  Client link button counts people on the page ("· 2 people"), not links.
 - `tests/23-client-links.spec.ts`, `tests/24-custom-shortlists.spec.ts`, `tests/25-named-access.spec.ts` and `tests/26-interviews.spec.ts` play the client (and the candidate) in a second browser context
   with no session; `tests/shortlist.test.mjs` covers the rules.
 

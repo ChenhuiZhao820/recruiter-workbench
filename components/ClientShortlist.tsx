@@ -1,6 +1,5 @@
 import type { ClientShortlistView } from "@/lib/shortlists";
 import { ClientDecision } from "@/components/ClientDecision";
-import { ClientHoursPanel } from "@/components/ClientHoursPanel";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { openNamedLink } from "@/app/actions/shortlist-access";
@@ -39,7 +38,6 @@ export function ClientShortlist({ view, token }: { view: ClientShortlistView; to
         </p>
       </header>
 
-      {view.needsHours && token && <ClientHoursPanel token={token} recruiterName={view.recruiterName} />}
 
       {view.interviews.length > 0 && (
         <section aria-labelledby="client-interviews" className="client-interviews">

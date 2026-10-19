@@ -93,17 +93,13 @@ export default async function WhatsNewPage() {
           <h2 className="text-lg">Candidates book the client&rsquo;s interview</h2>
           <p className="text-ink/80">
             Put <code className="font-mono">{"{{interview_link}}"}</code> in a template, or use Capture&rsquo;s own follow-up, and each
-            person the client wants to meet gets a link to the client&rsquo;s free times. Two people can never take the same time with
+            person the client wants to meet gets a link to the times you offer them. Two people can never take the same time with
             one client, and the client sees every booked interview on their page, with a calendar file and a way to say they cannot
             make it.
           </p>
           <p className="rounded border border-line bg-sunken p-3 text-sm">
-            <strong>One thing to do per client.</strong> Set when they interview, under <em>Interview hours</em> in the role&rsquo;s
-            Client link. The next role for the same client starts with the same hours. If you skip it, the client is asked on their page.
-          </p>
-          <p className="text-ink/80">
-            If a client does not need to review first, switch the role to <em>Candidates book straight away</em> and anyone you put
-            forward can book at once.
+            <strong>Nothing to set up per client.</strong> When a client wants to meet someone, press <em>Arrange interview</em> on
+            their row: set the time you agreed, or offer two or three for them to pick from.
           </p>
         </li>
       </ol>

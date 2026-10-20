@@ -6,8 +6,9 @@ import { CURRENT_RELEASE } from "../lib/release";
 
 // The follow-up run: everyone due a follow-up, ticked with reasons, walked
 // through one at a time; a suggested reply for people who answered, taken
-// with Tab. Runs on a Basic account, because it is on every plan. The model
-// is the local stub; only fictional people and the disposable database.
+// with Tab. Runs on a Pro account: the run is on every plan, the suggested
+// reply is Pro. The model is the local stub; only fictional people and the
+// disposable database.
 
 test.describe.configure({ mode: "serial" });
 
@@ -21,7 +22,7 @@ const ids: Record<string, string> = {};
 
 async function basicAccount(browser: Browser) {
   const user = await db.user.create({ data: {
-    email: `run-basic-${randomUUID()}@test.capture.invalid`, name: "Morven Ellis", role: "recruiter", accountTier: "basic",
+    email: `run-pro-${randomUUID()}@test.capture.invalid`, name: "Morven Ellis", role: "recruiter", accountTier: "pro",
     settings: { create: { seenRelease: CURRENT_RELEASE, recruiterName: "Morven Ellis" } },
   } });
   const token = randomBytes(32).toString("base64url");

@@ -31,7 +31,7 @@ async function person(fullName: string, facts: Facts = {}, userId = TEST_ADMIN_I
 }
 
 async function basicPage(browser: Browser) {
-  const user = await db.user.create({ data: { email: `talent-basic-${randomUUID()}@test.capture.invalid`, name: "Basic Recruiter", role: "recruiter", accountTier: "basic", settings: { create: { seenRelease: CURRENT_RELEASE } } } });
+  const user = await db.user.create({ data: { email: `talent-basic-${randomUUID()}@test.capture.invalid`, name: "Basic Recruiter", role: "recruiter", accountTier: "lite", settings: { create: { seenRelease: CURRENT_RELEASE } } } });
   const token = randomBytes(32).toString("base64url");
   await db.session.create({ data: { tokenHash: hashToken(token), userId: user.id, authVersion: user.authVersion, expiresAt: new Date(Date.now() + 3_600_000) } });
   const context = await browser.newContext({ baseURL: BASE, storageState: { cookies: [], origins: [] } });
@@ -209,7 +209,7 @@ test("T6 people with no activity for a year are listed for review, and keeping o
   await expect(page.getByRole("button", { name: "Erase this person" })).toBeVisible();
 });
 
-test("T7 a Basic account keeps the review list and loses matches, filters and reminders", async ({ browser }) => {
+test("T7 a Lite account keeps the review list and loses matches, filters and reminders", async ({ browser }) => {
   const basic = await basicPage(browser);
   try {
     const role = await db.role.create({ data: { userId: basic.user.id, title: "Basic Talent Role" } });

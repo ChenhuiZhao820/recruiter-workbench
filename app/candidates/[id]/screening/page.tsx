@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { featureAvailability, requireFeature } from "@/lib/feature-access";
+import { monthlyQuota } from "@/lib/features";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { TranscriptForm } from "@/components/TranscriptForm";
@@ -181,7 +182,7 @@ export default async function ScreeningPage({ params, searchParams }: { params: 
 
   const now = new Date();
   const usage = await db.aiUsage.findUnique({ where: { userId_month: { userId: owner.id, month: monthKey(now) } } });
-  const cap = screeningMonthlyCap();
+  const cap = monthlyQuota(owner, "screening", screeningMonthlyCap(), now);
   const used = usage?.generations ?? 0;
 
   const open = candidate.screenings.find((screening) => screening.status !== "confirmed") ?? null;

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
 import { listActivity, type ActivityEntry } from "@/lib/notifications";
 import { releaseNotices, type ReleaseNotice } from "@/lib/release";
@@ -25,14 +24,13 @@ const unreadOf = (row: Row) => (row.kind === "activity" ? row.entry.unread : row
 export default async function NotificationsPage() {
   const { owner, readOnly } = await getWorkspace();
   const renderedAt = new Date();
-  const [entries, currentIsNews, access] = await Promise.all([
+  const [entries, currentIsNews] = await Promise.all([
     listActivity(owner.id),
     readOnly ? Promise.resolve(false) : releaseIsNews(owner),
-    db.extensionAccess.findUnique({ where: { userId: owner.id }, select: { activatedAt: true } }),
   ]);
   const notices = await releaseNotices(owner.id, currentIsNews);
   // The download is the account's own; a read-only view cannot download.
-  const canDownload = !readOnly && canUseExtension({ ...owner, extensionAccess: access });
+  const canDownload = !readOnly && canUseExtension(owner);
   const rows: Row[] = [
     ...entries.map((entry) => ({ kind: "activity" as const, entry })),
     ...notices.map((notice) => ({ kind: "release" as const, notice })),
@@ -68,7 +66,7 @@ export default async function NotificationsPage() {
             ? <>This version needs a new copy of the browser extension. After you load it in <code className="font-mono">chrome://extensions</code>, generate a new capture key in <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension.</>
             : readOnly
               ? <>This version needs a new copy of the browser extension; it is downloaded from the account&rsquo;s own workspace.</>
-              : <>This version needs a new copy of the browser extension. <Link href="/account" className="text-accent underline">Activate extension access</Link> to download it, then generate a new capture key in Settings.</>}
+              : <>This version needs a new copy of the browser extension. <Link href="/billing" className="text-accent underline">Choose a plan</Link> to download it, then generate a new capture key in Settings.</>}
         </p>}
         {current && <div className="release-actions">
           {release.extension && canDownload && <a href="/api/extension/download" download className="btn-primary">Download the new extension<Icon name="down" size={15} /></a>}

@@ -2,22 +2,14 @@
 
 import { useState } from "react";
 
-type Tier = { name: string; monthly: number; yearly: number; cta: string; plan: string; featured?: boolean; base?: string; features: [string, string?][] };
-
-const tiers: Tier[] = [
-  { name: "Lite", monthly: 5.99, yearly: 49.99, cta: "Get Lite", plan: "Lite", features: [["Batch follow-up"], ["Client shortlists", "3 open"]] },
-  { name: "Basic", monthly: 29.99, yearly: 299, cta: "Get Basic", plan: "Basic", base: "Lite, plus", features: [["Talent database"], ["Screening summaries", "30/mo"], ["Unlimited batch follow-up"]] },
-  { name: "Pro", monthly: 49.99, yearly: 499, cta: "Start free trial", plan: "Pro trial", featured: true, base: "Basic, plus", features: [["Screening summaries", "120/mo"], ["One-click sign-off to clients"], ["Reply suggestions"], ["Meeting prompt decks", "n/mo"], ["Custom solutions", "small"]] },
-  { name: "Pro Max", monthly: 99.99, yearly: 999, cta: "Contact us", plan: "Pro Max", base: "Pro, plus", features: [["More screening summaries"], ["Email finder", "add-on"], ["Unlimited prompt decks"], ["Custom solutions", "large"]] },
-];
-const included = ["Chrome extension", "Roles & pipeline", "AI role briefings", "Outreach queue", "Booking page", "Client links"];
-
-const money = (amount: number) => `£${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
+import { included, money, tiers } from "@/lib/plan-prices";
 
 // A plan button scrolls to Contact and carries its plan into the email subject.
 export const PLAN_EVENT = "lp-plan";
 
-export function Pricing() {
+// With sign-up open, a plan button leads there (every plan starts with the
+// Pro trial); Pro Max, and every plan before sign-up opens, goes to Contact.
+export function Pricing({ signupOpen = false }: { signupOpen?: boolean }) {
   const [yearly, setYearly] = useState(false);
   return <>
     <div className="lp-price-head">
@@ -42,7 +34,9 @@ export function Pricing() {
         <div className="lp-price-sub">{yearly
           ? <>≈ {money(Number((tier.yearly / 12).toFixed(2)))} / mo · <span className="lp-good">save {Math.round((1 - tier.yearly / (tier.monthly * 12)) * 100)}%</span></>
           : <>or {money(tier.yearly)} / year</>}</div>
-        <a href="#contact" className={tier.featured ? "lp-btn lp-btn-primary" : "lp-btn"} onClick={() => window.dispatchEvent(new CustomEvent(PLAN_EVENT, { detail: tier.plan }))}>{tier.cta}</a>
+        {signupOpen && tier.key !== "promax"
+          ? <a href="/signup" className={tier.featured ? "lp-btn lp-btn-primary" : "lp-btn"}>{tier.featured ? tier.cta : "Start with a free trial"}</a>
+          : <a href="#contact" className={tier.featured ? "lp-btn lp-btn-primary" : "lp-btn"} onClick={() => window.dispatchEvent(new CustomEvent(PLAN_EVENT, { detail: tier.plan }))}>{tier.cta}</a>}
         <ul className="lp-feat">
           {tier.base && <li className="lp-base">{tier.base}</li>}
           {tier.features.map(([feature, note]) => <li key={feature}><svg><use href="#lp-i-check" /></svg><span>{feature}{note && <> <em>· {note}</em></>}</span></li>)}

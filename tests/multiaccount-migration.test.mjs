@@ -22,11 +22,11 @@ const throttleKey = "fixture-private-throttle-key";
 const createdAt = new Date("2023-01-02T03:04:05.006Z");
 const updatedAt = new Date("2024-02-03T04:05:06.007Z");
 const tables = ["User", "ExtensionAccess", "Role", "Person", "MessageTemplate", "Briefing", "SavedSearch", "Candidate", "OutreachLog", "PersonNote", "Screening", "Booking", "Settings", "AuditEvent", "UsageEvent", "Suppression", "Shortlist", "ShortlistItem"];
-const ephemeralTables = ["Session", "ActivationToken", "LoginThrottle"];
+const ephemeralTables = ["Session", "ActivationToken", "LoginThrottle", "AuthSession", "AuthVerification", "PendingSignup"];
 // Accepted in a source, never copied: calendar tokens, AI counters, slot
 // locks (rebuilt from bookings), shortlist links (issued again) and import
 // batches (undone only where they ran).
-const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch", "InterviewSlot", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv"];
+const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch", "InterviewSlot", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent"];
 // Tables a source written before them may lack.
 const optionalTables = ["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "PersonNote", "Shortlist", "ShortlistItem"];
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
@@ -338,6 +338,67 @@ test("SQLite sources from before saved search links project null and import safe
   assert.deepEqual(await readFile(path), before);
 });
 
+test("SQLite sources from before self-serve accounts project an administrator's account with no billing", async () => {
+  const path = join(directory, "pre-self-serve-source.db");
+  await copyFile(sourcePath, path);
+  const lateUser = ["emailVerified", "image", "signupSource", "termsVersion", "termsAcceptedAt", "stripeCustomerId", "stripeSubscriptionId", "billingPlan",
+    "billingInterval", "billingStatus", "billingPeriodEnd", "billingCancelAtPeriodEnd", "billingPastDueSince", "billingSyncedAt"];
+  const sqlite = new DatabaseSync(path);
+  try {
+    for (const index of ["User_stripeCustomerId_key", "User_stripeSubscriptionId_key"]) sqlite.exec(`DROP INDEX IF EXISTS "${index}"`);
+    const columns = sqlite.prepare('PRAGMA table_info("User")').all().map((column) => column.name);
+    for (const column of lateUser) if (columns.includes(column)) sqlite.exec(`ALTER TABLE "User" DROP COLUMN "${column}"`);
+    for (const table of ["AuthSession", "AuthAccount", "AuthVerification", "PendingSignup", "TrialClaim", "StripeEvent"]) sqlite.exec(`DROP TABLE IF EXISTS "${table}"`);
+  } finally { sqlite.close(); }
+  const before = await readFile(path);
+  const legacy = await readAccounts(path);
+  for (const row of legacy.User) {
+    assert.equal(row.signupSource, "admin");
+    assert.ok(!row.emailVerified);
+    assert.equal(row.billingPlan, null);
+    assert.ok(!row.billingCancelAtPeriodEnd);
+  }
+  await withTarget(async (db) => {
+    await importAccounts(db, legacy, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, legacy, adminEmail);
+    for (const row of await db.user.findMany()) {
+      assert.equal(row.signupSource, "admin");
+      assert.equal(row.stripeCustomerId, null);
+    }
+  });
+  assert.deepEqual(await readFile(path), before);
+  // Part of the group is refused rather than guessed at.
+  const partial = join(directory, "partial-self-serve-source.db");
+  await copyFile(sourcePath, partial);
+  const half = new DatabaseSync(partial);
+  try { half.exec('ALTER TABLE "User" DROP COLUMN "billingSyncedAt"'); } finally { half.close(); }
+  await assert.rejects(readAccounts(partial), /columns/);
+});
+
+test("a self-serve account's plan and Stripe link travel with it", async () => {
+  const input = structuredClone(source);
+  Object.assign(input.User.find((row) => row.role === "recruiter"), {
+    signupSource: "self", accountTier: "trial", trialExpiresAt: null, emailVerified: true, termsVersion: "1", termsAcceptedAt: createdAt,
+    stripeCustomerId: "cus_fixture", stripeSubscriptionId: "sub_fixture", billingPlan: "pro", billingInterval: "monthly", billingStatus: "active",
+    billingPeriodEnd: updatedAt, billingCancelAtPeriodEnd: false, billingPastDueSince: null, billingSyncedAt: updatedAt,
+  });
+  await withTarget(async (db) => {
+    await importAccounts(db, input, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, input, adminEmail);
+    const moved = await db.user.findFirstOrThrow({ where: { role: "recruiter", signupSource: "self" } });
+    assert.equal(moved.billingPlan, "pro");
+    assert.equal(moved.stripeCustomerId, "cus_fixture");
+  });
+  for (const value of ["owner", "", null]) {
+    const bad = structuredClone(source);
+    bad.User[0].signupSource = value;
+    await withTarget(async (db) => {
+      await assert.rejects(importAccounts(db, bad, adminEmail, { provider: "sqlite", confirmed: true }));
+      await assertEmpty(db);
+    });
+  }
+});
+
 test("SQLite sources from before People import batches project null and import safely", async () => {
   const path = join(directory, "pre-import-batch-source.db");
   await copyFile(sourcePath, path);
@@ -608,6 +669,12 @@ test("every nonempty target model is refused without modifying existing rows", a
     Notification: { id: "fixture-notification-x", userId: "fixture-user-admin", kind: "client_opened", createdAt: createdAt.getTime() },
     InterviewOffer: { id: "fixture-offer-x", userId: "fixture-user-admin", candidateId: "fixture-candidate-admin", times: "[]", durationMins: 45, timeZone: "Europe/London", createdAt: createdAt.getTime() },
     PersonCv: { personId: "fixture-person-admin", fileName: "cv.pdf", sizeBytes: 5, sha256: "x", data: Buffer.from("%PDF-"), contactsCheckedAt: createdAt.getTime(), uploadedAt: createdAt.getTime() },
+    AuthSession: { id: "fixture-auth-session", token: "fixture-token", userId: "fixture-user-admin", expiresAt: updatedAt.getTime(), createdAt: createdAt.getTime(), updatedAt: updatedAt.getTime() },
+    AuthVerification: { id: "fixture-verification", identifier: "sign-in-otp-x@fixture.invalid", value: "x", expiresAt: updatedAt.getTime(), createdAt: createdAt.getTime(), updatedAt: updatedAt.getTime() },
+    PendingSignup: { email: "new@fixture.invalid", name: "New", passwordHash, termsVersion: "1", createdAt: createdAt.getTime(), expiresAt: updatedAt.getTime() },
+    AuthAccount: { id: "fixture-auth-account", accountId: "google-sub", providerId: "google", userId: "fixture-user-admin", createdAt: createdAt.getTime(), updatedAt: updatedAt.getTime() },
+    TrialClaim: { keyHash: "fixture-claim", createdAt: createdAt.getTime() },
+    StripeEvent: { id: "evt_fixture", type: "customer.subscription.updated", receivedAt: createdAt.getTime() },
   };
   for (const table of [...tables, ...ephemeralTables, ...notImportedTables]) await t.test(table, async () => {
     await withTarget(async (db) => {

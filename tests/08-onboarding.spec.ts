@@ -2,23 +2,21 @@ import { test as base, expect, type BrowserContext, type Page } from "@playwrigh
 import { randomBytes, randomUUID } from "node:crypto";
 import { db } from "./helpers";
 import { hashPassword, hashToken } from "../lib/auth-crypto";
-import { hashExtensionCode } from "../lib/extension-access";
 import { CURRENT_RELEASE } from "../lib/release";
 
 // The setup guide is the first thing a newly activated account sees, so these
 // tests care about two things: that it tells the truth about what is still
-// missing, and that it never hands out extension access the account has not
-// been granted.
+// missing, and that it never hands out the extension to an account without a
+// plan.
 const BASE = "http://localhost:3100";
 const PASSWORD = "TEST-ONLY-onboarding-password-3100!";
 const EMPTY_STATE = { cookies: [], origins: [] };
-const WEEK = 7 * 24 * 60 * 60 * 1000;
 const GUIDE = "/getting-started";
 const DOWNLOAD_LINK = { name: "Download extension ZIP", exact: true } as const;
 const secret = () => randomBytes(32).toString("base64url");
 type Actor = { id: string; name: string; email: string; page: Page };
 type Setup = {
-  create: (options?: { role?: "admin" | "recruiter"; name?: string; recruiterName?: string; activated?: boolean; releaseSeen?: boolean }) => Promise<Actor>;
+  create: (options?: { role?: "admin" | "recruiter"; name?: string; recruiterName?: string; planEnded?: boolean; releaseSeen?: boolean }) => Promise<Actor>;
   guest: () => Promise<Page>;
   secrets: string[];
 };
@@ -44,7 +42,7 @@ const test = base.extend<{ setup: Setup }>({
       await use({
         guest,
         secrets,
-        create: async ({ role = "recruiter", name, recruiterName = "", activated = false, releaseSeen = true } = {}) => {
+        create: async ({ role = "recruiter", name, recruiterName = "", planEnded = false, releaseSeen = true } = {}) => {
           const suffix = randomUUID();
           const user = await db.user.create({ data: {
             email: `onboarding-${role}-${suffix}@test.capture.invalid`,
@@ -53,7 +51,8 @@ const test = base.extend<{ setup: Setup }>({
             // Setup tests are about setup: an unread release would send them
             // somewhere else on sign-in, which the release tests cover instead.
             settings: { create: { recruiterName, ...(releaseSeen ? { seenRelease: CURRENT_RELEASE } : {}) } },
-            ...(activated ? { extensionAccess: { create: { activatedAt: new Date() } } } : {}),
+            // A self-serve account whose trial is over and nothing was paid.
+            ...(planEnded ? { signupSource: "self", accountTier: "trial", trialExpiresAt: new Date(Date.now() - 60_000) } : {}),
           } });
           const token = secret();
           secrets.push(token);
@@ -93,11 +92,11 @@ test("O1: a first sign-in on an untouched account lands on the setup guide", asy
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(`${BASE}${GUIDE}`);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Welcome");
-  await expect(progress(page)).toContainText("1 of 5 done");
+  await expect(progress(page)).toContainText("2 of 5 done");
 });
 
 test("O2: a configured account signs in to the dashboard and loses the setup nav entry", async ({ setup }) => {
-  const actor = await setup.create({ recruiterName: "Configured Recruiter", activated: true });
+  const actor = await setup.create({ recruiterName: "Configured Recruiter" });
   await db.role.create({ data: { userId: actor.id, title: "Staff Engineer" } });
   await db.settings.update({ where: { userId: actor.id }, data: { captureTokenHash: hashToken(secret()) } });
 
@@ -116,21 +115,17 @@ test("O2: a configured account signs in to the dashboard and loses the setup nav
   await expect(page.getByRole("heading", { level: 1 })).toContainText("You are set up");
 });
 
-test("O3: the guide tracks each step as it is completed and only then offers the extension", async ({ setup }) => {
+test("O3: the guide tracks each step as it is completed", async ({ setup }) => {
   const actor = await setup.create();
   const page = actor.page;
   await page.goto("/");
   const prompt = page.getByRole("region", { name: "Finish setting up", exact: true });
-  await expect(prompt).toContainText("1 of 5 setup steps done");
+  await expect(prompt).toContainText("2 of 5 setup steps done");
   await expect(page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Getting started", exact: true })).toBeVisible();
   await prompt.getByRole("link", { name: "Open the setup guide", exact: true }).click();
   await expect(page).toHaveURL(`${BASE}${GUIDE}`);
-
-  // Nothing extension-related is offered before the account is activated.
-  await expect(page.getByRole("link", DOWNLOAD_LINK)).toHaveCount(0);
-  await expect(step(page, "Install the extension in Chrome")).toContainText("Activate extension access first");
-  await expect(step(page, "Generate your capture key and connect")).toContainText("Activate extension access first");
-  expect((await page.request.get("/api/extension/download")).status()).toBe(403);
+  await expect(step(page, "A plan with the extension")).toContainText("Your plan includes the extension");
+  await expect(page.getByRole("link", DOWNLOAD_LINK)).toBeVisible();
 
   // Outreach details.
   await page.goto("/settings");
@@ -138,7 +133,7 @@ test("O3: the guide tracks each step as it is completed and only then offers the
   await page.getByRole("button", { name: "Save settings", exact: true }).click();
   await expect(page.getByRole("status").first()).toContainText("Settings saved");
   await page.goto(GUIDE);
-  await expect(progress(page)).toContainText("2 of 5 done");
+  await expect(progress(page)).toContainText("3 of 5 done");
   await expect(step(page, "Add your outreach details")).toContainText("Robin Fielder");
 
   // First open role.
@@ -147,18 +142,6 @@ test("O3: the guide tracks each step as it is completed and only then offers the
   await page.getByRole("button", { name: /Create role/i }).click();
   await expect(page).toHaveURL(/\/roles\/[^/]+$/);
   await page.goto(GUIDE);
-  await expect(progress(page)).toContainText("3 of 5 done");
-
-  // Extension activation, with a code issued the way an administrator issues one.
-  const code = secret();
-  setup.secrets.push(code);
-  await db.extensionAccess.create({ data: { userId: actor.id, codeHash: hashExtensionCode(code), expiresAt: new Date(Date.now() + WEEK) } });
-  await page.goto(GUIDE);
-  const activation = step(page, "Activate extension access");
-  await activation.getByLabel("Extension activation code", { exact: true }).fill(code);
-  await activation.getByRole("button", { name: "Activate extension", exact: true }).click();
-  await expect(page.getByRole("link", DOWNLOAD_LINK)).toBeVisible();
-  await expect(page).toHaveURL(`${BASE}${GUIDE}`);
   await expect(progress(page)).toContainText("4 of 5 done");
 
   // Capture key: generated in Settings, which completes the guide.
@@ -172,12 +155,21 @@ test("O3: the guide tracks each step as it is completed and only then offers the
   await expect(page.getByRole("region", { name: "Finish setting up", exact: true })).toHaveCount(0);
 });
 
-test("O4: an administrator needs no activation code but still sees the remaining steps", async ({ setup }) => {
+test("O3b: without a plan nothing extension-related is offered, and the guide points to Billing", async ({ setup }) => {
+  const actor = await setup.create({ planEnded: true });
+  const page = actor.page;
+  await page.goto(GUIDE);
+  await expect(page.getByRole("link", DOWNLOAD_LINK)).toHaveCount(0);
+  await expect(step(page, "A plan with the extension").getByRole("link", { name: "Choose a plan" })).toHaveAttribute("href", "/billing");
+  await expect(step(page, "Install the extension in Chrome")).toContainText("Choose a plan first");
+  await expect(step(page, "Generate your capture key and connect")).toContainText("Choose a plan first");
+  expect((await page.request.get("/api/extension/download")).status()).toBe(403);
+});
+
+test("O4: an administrator needs no plan but still sees the remaining steps", async ({ setup }) => {
   const admin = await setup.create({ role: "admin" });
   await admin.page.goto(GUIDE);
-  const activation = step(admin.page, "Activate extension access");
-  await expect(activation).toContainText("Administrator access includes the extension");
-  await expect(activation.getByLabel("Extension activation code", { exact: true })).toHaveCount(0);
+  await expect(step(admin.page, "A plan with the extension")).toContainText("Administrator access includes the extension");
   await expect(admin.page.getByRole("link", DOWNLOAD_LINK)).toBeVisible();
   await expect(progress(admin.page)).toContainText("2 of 5 done");
 });
@@ -193,7 +185,6 @@ test("O5: a read-only workspace view offers no setup actions", async ({ setup })
   await expect(admin.page.getByText("Return to your own workspace")).toBeVisible();
   await expect(admin.page.getByRole("region", { name: "Setup progress", exact: true })).toHaveCount(0);
   await expect(admin.page.getByRole("link", DOWNLOAD_LINK)).toHaveCount(0);
-  await expect(admin.page.getByLabel("Extension activation code", { exact: true })).toHaveCount(0);
 });
 
 test("O6: the guide is private", async ({ setup }) => {

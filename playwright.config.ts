@@ -1,5 +1,7 @@
 import { defineConfig } from "@playwright/test";
 import { randomBytes, randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 // Test DB is separate from dev.db so a test run never touches real data.
 // Resolved by Prisma relative to prisma/schema.prisma -> prisma/test-<uuid>.db.
@@ -11,6 +13,9 @@ process.env.CAPTURE_TEST_DATABASE_URL = databaseUrl;
 process.env.DATABASE_URL = databaseUrl;
 const sessionToken = process.env.CAPTURE_TEST_SESSION_TOKEN ?? randomBytes(32).toString("base64url");
 process.env.CAPTURE_TEST_SESSION_TOKEN = sessionToken;
+// Account email (sign-up codes, password resets) is written here instead of sent.
+const mailDir = process.env.CAPTURE_TEST_MAIL_DIR ?? path.join(tmpdir(), `capture-test-mail-${randomUUID()}`);
+process.env.CAPTURE_TEST_MAIL_DIR = mailDir;
 
 export default defineConfig({
   testDir: "./tests",
@@ -59,6 +64,21 @@ export default defineConfig({
         NOTION_CLIENT_ID: "test-notion-client",
         NOTION_CLIENT_SECRET: "test-notion-secret",
         CAPTURE_TEST_NOTION_BASE_URL: "http://localhost:8766/notion",
+        // Self-serve sign-up and billing, against the outbox and the local Stripe stand-in.
+        BETTER_AUTH_SECRET: "test-only-better-auth-secret-0000000000000",
+        TERMS_URL: "http://localhost:3100/welcome#terms",
+        PRIVACY_URL: "http://localhost:3100/welcome#privacy",
+        TERMS_VERSION: "test-terms-1",
+        CAPTURE_TEST_MAIL_DIR: mailDir,
+        STRIPE_SECRET_KEY: "sk_test_not_real",
+        STRIPE_WEBHOOK_SECRET: "whsec_test_only_0000000000000000",
+        STRIPE_PRICE_LITE_MONTHLY: "price_LiteMonthly",
+        STRIPE_PRICE_LITE_YEARLY: "price_LiteYearly",
+        STRIPE_PRICE_BASIC_MONTHLY: "price_BasicMonthly",
+        STRIPE_PRICE_BASIC_YEARLY: "price_BasicYearly",
+        STRIPE_PRICE_PRO_MONTHLY: "price_ProMonthly",
+        STRIPE_PRICE_PRO_YEARLY: "price_ProYearly",
+        CAPTURE_TEST_STRIPE_BASE_URL: "http://localhost:8766",
       },
     },
   ],

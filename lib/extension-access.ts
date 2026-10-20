@@ -1,13 +1,10 @@
-import { hashToken, newSecret } from "@/lib/auth-crypto";
+import { hasPlan, type TierAccount } from "@/lib/account-tiers";
 
-export function canUseExtension(user: { role: string; active: boolean; extensionAccess?: { activatedAt: Date | null } | null }): boolean {
-  return user.active && (user.role === "admin" || Boolean(user.extensionAccess?.activatedAt));
-}
-
-export function newExtensionCode(): string {
-  return newSecret();
-}
-
-export function hashExtensionCode(code: string): string {
-  return hashToken(code);
+// The extension is part of every plan and of the trial; there is no separate
+// activation. What makes a copy useful is a capture key, which only an account
+// with a plan can generate (Settings) and which stops working the moment the
+// plan does (app/api/capture). A forwarded ZIP holds no key and no account, so
+// it saves nothing for whoever installs it until they have a plan of their own.
+export function canUseExtension(user: TierAccount & { active: boolean }, now = new Date()): boolean {
+  return user.active && (user.role === "admin" || hasPlan(user, now));
 }

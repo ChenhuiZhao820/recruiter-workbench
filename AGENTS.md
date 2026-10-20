@@ -79,7 +79,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   state. There are two public business routes, each opened by a signed link
   and nothing else: `/book/[token]` and its `.ics`, a candidate's booking page
   (see Booking page), and `/s/[token]`, a client's shortlist (see Client
-  links). All other business routes still require authentication.
+  links). The ways in - `/login`, `/signup`, `/signup/verify`,
+  `/forgot-password`, `/activate` - are public too (see Self-serve sign-up).
+  All other business routes still require authentication.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
   on the homepage it renders only the skip link, because `MarketingHome` brings
   its own Retrivr header and footer. `MarketingHome` is a port of the reviewed
@@ -90,8 +92,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   plays only on arrival or Replay; reduced motion shows still frames with no
   Pause or Replay. Pricing, the trial and the contact address are marketing
   copy, not entitlements: `FEATURE_TIERS` still decides what an account can
-  use. The page uses explicitly illustrative, static data only. Never feed
-  real recruiting data into a public preview or invent customer claims.
+  use, and it follows the homepage's table (see Account classification). The
+  price numbers live in `lib/plan-prices.ts`, shared with `/billing`. Once
+  sign-up is open (`signupConfig().open`), "Try Pro free" and the Lite, Basic
+  and Pro buttons go to `/signup`; Pro Max, and every button before sign-up
+  opens, goes to the contact box. The page uses explicitly illustrative,
+  static data only. Never feed real recruiting data into a public preview or
+  invent customer claims.
 - Dashboard search/sort in `RoleDirectory` works only on server-authorized records
   and does not write data. The four summary cards above it are links to what
   they count: the role list below (`#role-directory`), People, Follow-ups and
@@ -984,20 +991,126 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   returns the connected account and only its open roles. Password changes and
   account disabling revoke sessions and capture keys; no raw stored capture keys.
 - Admin can permanently delete a recruiter account from `/admin/[id]` (`deleteAccount`): never an administrator or oneself, never from a read-only view, and only after the account's email is typed. Business tables use `onDelete: Restrict` on the user, so the action removes bookings, searches, roles, people, templates and settings explicitly in one transaction before the user (the rest cascades). Audit events are kept and a nameless `account_deleted` event is written. `tests/21-delete-account.spec.ts`.
-- Public signup is disabled. Activation links use URL fragments and expire after
-  24 hours; the raw link is shown only at creation. No default admin password.
+- Administrators still create accounts with one-time activation links (teams,
+  Pro Max, anyone set up by hand). Activation links use URL fragments and expire
+  after 24 hours; the raw link is shown only at creation. No default admin
+  password. Anyone can also sign up themselves (see Self-serve sign-up), and
+  "Forgot password" emails the same kind of link, good for an hour.
+- A recruiter deletes their own account from `/account` (`deleteOwnAccount`):
+  the same removal as the admin's (`lib/account-deletion.ts`), after the email
+  is typed, from their own workspace only, with or without a plan. A live Stripe
+  subscription is cancelled first, and nothing is deleted if that fails; a
+  nameless `account_deleted_by_owner` event is written. `TrialClaim` and
+  `Suppression` rows stay. Administrators are removed only by another one.
+
+## Self-serve sign-up
+
+- `/signup` offers Google, Microsoft and email. It opens only when
+  `signupConfig()` (`lib/signup-config.ts`) finds `BETTER_AUTH_SECRET` (32+
+  characters), `TERMS_URL` and `PRIVACY_URL` (HTTPS), and a way to prove an
+  address: mail (`RESEND_API_KEY` and `MAIL_FROM`) for email, the provider's
+  `*_CLIENT_ID`/`*_CLIENT_SECRET` for Google or Microsoft (the same OAuth clients
+  as calendar free/busy, with `/api/auth/callback/<provider>` added as a
+  redirect URI). Until then the page says sign-up opens soon. Every sign-up
+  ticks the terms and privacy policy, which include that Retrivr processes the
+  candidate data the recruiter keeps; the version (`TERMS_VERSION`) and time
+  are stored on the user.
+- Better Auth (`lib/better-auth.ts`, `better-auth` pinned) proves who someone
+  is and nothing more. The moment it has made a session of its own, its
+  `hooks.after` deletes it, clears its cookie and issues the workbench's own
+  session (`issueSessionToken` in `lib/auth.ts`), so the hashed session table,
+  `capture_session`, `authVersion` revocation and the read-only admin view are
+  unchanged. Passwords stay on `User.passwordHash`, checked by `login`; Better
+  Auth's email and password sign-in is off. `app/api/auth/[...all]` opens only
+  `POST /sign-in/social` and the two provider callbacks; every other Better
+  Auth route is a 404, and the email code is sent and checked by server
+  actions (`app/actions/signup.ts`) through `auth.api`.
+- By email: name, address, password and the terms make a `PendingSignup` (30
+  minutes; the address travels in an HttpOnly cookie, never the URL), and
+  Better Auth's email-otp plugin sends a six-digit code (10 minutes, 5 tries,
+  stored hashed). Codes, not magic links, because company mail scanners open
+  links and spend them. A code for an address with an account is never sent;
+  that address gets "you already have an account" instead, and the page says
+  the same either way. Throwaway domains (`DISPOSABLE_DOMAINS`, a local list)
+  are refused; sign-up is throttled per address, per IP (the last
+  `x-forwarded-for` entry) and globally.
+- By Google or Microsoft: the terms are agreed first, as a signed 15-minute
+  cookie (`capture_signup_terms`, path `/api/auth`) the account creation looks
+  for on the way back. An account is created only when the provider says it
+  verified the address: a multi-tenant Microsoft app's email claim is otherwise
+  whatever the tenant says. Linking a provider to an existing account by email
+  follows the same rule (no trusted providers). Sign-in asks for `openid email
+  profile` only, never a calendar scope.
+- `databaseHooks.user.create.before` is the only place a self-serve account is
+  shaped: role is never set (the column's `recruiter` default), and the fields
+  are `signupSource: "self"`, `accountTier: "trial"` with seven days, the
+  terms, and for a code the pending row's name and password hash. Any other
+  path that would create a user is refused. Afterwards a `TrialClaim` (hash of
+  the address, lower-cased, `+tag` removed) is kept for good, so deleting and
+  signing up again starts with no trial; `Settings` starts with the name and
+  the current release, and `account_signed_up` is audited.
+- Account email comes from `lib/mailer.ts` (Resend's HTTP API): sign-up codes,
+  "already have an account" and password resets, to the recruiter only.
+  Retrivr still sends nothing to candidates or clients. Outside production,
+  `CAPTURE_TEST_MAIL_DIR` writes each message to a file instead.
+- `tests/signup.test.mjs` covers the rules and the Better Auth glue through a
+  captured configuration; `tests/30-signup-billing.spec.ts` plays sign-up,
+  wrong codes, closed routes, existing addresses, repeat trials, password reset
+  and the provider start.
+
+## Billing
+
+- Stripe holds the card and the subscription. `/billing` (own account only,
+  open with or without a plan) shows the plan and starts Stripe Checkout
+  (`startCheckout`) for Lite, Basic or Pro, monthly or yearly
+  (`STRIPE_PRICE_<PLAN>_<MONTHLY|YEARLY>`); Pro Max stays "Contact us". An
+  account already paying goes to Stripe's customer portal instead, which also
+  changes plan, cancels, updates the card and holds invoices. `STRIPE_TAX=1`
+  turns on Stripe Tax at checkout. Nothing on these pages changes a plan.
+- `POST /api/billing/webhook` is the only thing that does. It checks the
+  signature (`STRIPE_WEBHOOK_SECRET`) over the raw body, records each event id
+  in `StripeEvent` so a redelivery does nothing, and never applies an event's
+  body: `syncSubscription` (`lib/billing.ts`) reads the subscription back from
+  Stripe and writes `billingPlan`, `billingInterval`, `billingStatus`, the
+  period end, cancellation and `billingPastDueSince` onto the user
+  (`subscriptionFields` in `lib/billing-core.mjs`). The Stripe customer decides
+  the account; a new customer is linked only to an account without one, the
+  one Checkout named. A price this deployment does not know grants nothing,
+  and an old subscription ending never overwrites a newer live one.
+- Outside production `CAPTURE_TEST_STRIPE_BASE_URL` sends the SDK to the local
+  stand-in in `tests/anthropic-stub.mjs`. `tests/billing.test.mjs` covers the
+  mapping; `tests/30-signup-billing.spec.ts` pays, redelivers, forges, fails a
+  card past its grace, cancels and tries someone else's customer.
 
 ## Account classification
 
 - Preserve `User.role` (`admin` / `recruiter`) as the administrative boundary.
-  `User.accountTier` is `basic` (default), `pro` or `trial`; `trialExpiresAt` is UTC.
-  Existing admins remain Admin and existing recruiters default to Basic. Never
-  infer privileges from a name or email. Tier management cannot grant/revoke Admin.
-- `lib/account-tiers.ts` computes the effective Admin / Pro / Trial / Basic type.
-  Trial is valid strictly before its expiry; expired, missing or invalid expiry
-  means Basic immediately on every check, without a scheduled job or data write.
-  The stored Trial/expiry remains for history and renewal; do not authorize by the
-  raw `accountTier` field or cache an entitlement in a session or browser.
+  `User.accountTier` is what an administrator granted: `lite`, `basic`
+  (default), `pro`, `promax` or `trial` with a UTC `trialExpiresAt`.
+  `User.signupSource` is `admin` (default; every account made before self-serve)
+  or `self`. Never infer privileges from a name or email. Tier management cannot
+  grant/revoke Admin.
+- `lib/account-tiers.ts` computes the effective plan on every request, in one
+  order: Admin; a Stripe subscription that is active, trialing, or past due for
+  under seven days; a trial strictly before its expiry; a plan an administrator
+  granted; then, for an account an administrator made, Basic (so beta accounts
+  keep exactly what they had), and for a self-serve one, `none`. No scheduled
+  job, no data write. The stored values remain for history; do not authorize by
+  a raw column or cache an entitlement in a session or browser.
+- `none` is the account's own read-only workspace: `getWorkspace()` returns
+  `readOnly` and `noPlan`, every `requireWritableWorkspace` refuses with
+  `NO_PLAN_MESSAGE`, and the page fieldsets disable as for an administrator's
+  view. It still reads what Lite has, exports, deletes itself and reaches
+  `/billing` (`requireOwnAccount`); the shell says the trial has ended. Booking
+  and client links already sent keep working.
+- `FEATURE_TIERS` (`lib/features.ts`) follows the homepage: Lite has the
+  pipeline, outreach, booking, client links and follow-up runs (`LITE_FOLLOWUP_RUN_LIMIT`
+  people a run); Basic adds the talent database (people search, matches,
+  Instant Match, revisit reminders, import) and screening; Pro adds the client
+  email and reply suggestions. A trial is Pro. Custom shortlists are limited
+  below Pro. Monthly AI allowances are `MONTHLY_QUOTAS` per plan (screening
+  Basic 30, Pro 120, Pro Max 300, trial 10); the `CAPTURE_*_MONTHLY_CAP`
+  variables only lower them.
 - Only Admin in their own writable workspace can create classified accounts or
   change tiers. Trial requires an explicit future UTC expiry. Changes are audited
   transactionally, clear obsolete expiry, and never change business ownership,
@@ -1027,18 +1140,18 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 ## Extension activation and downloads
 
-- Extension access is account-bound, separate from password setup and capture keys.
-  `ExtensionAccess.userId` is the primary key; `codeHash` is unique and hash-only.
-- Admin issues or replaces one pending code per active recruiter. Each code expires
-  after 7 days. Replacement invalidates the old code; redemption is atomic, once,
-  self-scoped and throttled. Activated accounts cannot receive another code.
-- Active admins are exempt. Ordinary accounts (including existing ones) must redeem
-  before downloading, generating capture keys or calling either capture API method.
-  A forwarded ZIP does not grant access. Read-only workspace views cannot issue,
-  redeem or download; account disabling still revokes sessions and capture keys.
-- Account activation persists after the code is consumed, across reinstalls and
-  password changes. The ZIP may be downloaded again; capture keys remain separate
-  and must be generated in Settings. No personal secrets are packaged.
+- The extension comes with every plan and the trial; the activation code is
+  retired. `canUseExtension` (`lib/extension-access.ts`) is an active account
+  with a plan, or an administrator. Downloading, generating a capture key and
+  both capture API methods all ask it, so a key stops working the moment its
+  plan does and works again with a new one. A forwarded ZIP holds no key and no
+  account: it saves nothing for whoever installs it until they have a plan of
+  their own, and a key works only for its own workspace. Read-only views cannot
+  download; account disabling still revokes sessions and capture keys.
+- `ExtensionAccess` stays in the schema (dropping it would be its own approved
+  migration) and nothing reads or writes it. The ZIP may be downloaded again;
+  capture keys remain separate and are generated in Settings. No personal
+  secrets are packaged.
 - `/api/extension/download` is authenticated, private/no-store and serves only five
   allowlisted extension files. Shared packaging in `lib/extension-package.mjs`
   uses the configured APP_ORIGIN (exact HTTPS host or local development loopback).
@@ -1086,8 +1199,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Deploy the additive `20260910000000_extension_access` PostgreSQL migration before
   serving the new app. Do not edit the old initial migration or apply changes to
   real local/hosted databases without approval. Builds do not apply migrations.
-- `tests/07-extension-access.spec.ts` covers activation, download, forged requests,
-  API permissions and read-only views. Unit tests cover code lifecycle and ZIPs.
+- `tests/07-extension-access.spec.ts` covers a plan ending and returning, download,
+  forged requests, API permissions and read-only views. Unit tests cover the
+  plan rule and ZIPs.
 
 ## Setup and migration safety
 
@@ -1323,6 +1437,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   table came out unchanged and the new table empty; Prisma reports 13
   migrations and no difference. The local account database has not received
   it.
+- `20261024000000_self_serve_accounts` (the user's sign-up and billing
+  columns; `AuthSession`, `AuthAccount`, `AuthVerification`, `PendingSignup`,
+  `TrialClaim`, `StripeEvent`) is additive and has NOT been applied anywhere.
+  Every existing account comes out `signupSource` `admin` with no billing,
+  which keeps what it has. Apply it the same way, with approval, before
+  deploying the code that needs it, then set `BETTER_AUTH_SECRET`, `TERMS_URL`,
+  `PRIVACY_URL`, `TERMS_VERSION`, `RESEND_API_KEY`, `MAIL_FROM`,
+  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the `STRIPE_PRICE_*` ids on
+  the service; sign-up and billing stay closed until they are set.
 
 ## Searches and LinkedIn industry filters
 

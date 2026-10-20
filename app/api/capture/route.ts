@@ -37,14 +37,14 @@ async function authorize(request: Request) {
   if (!token || !/^[A-Za-z0-9_-]{24,128}$/.test(token)) return null;
   const settings = await db.settings.findUnique({
     where: { captureTokenHash: hashToken(token) },
-    select: { user: { select: { id: true, email: true, name: true, active: true, role: true, extensionAccess: { select: { activatedAt: true } } } } },
+    select: { user: { select: { id: true, email: true, name: true, role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true } } },
   });
   return settings && canUseExtension(settings.user) ? settings.user : null;
 }
 
 function denied(request: Request) {
   return NextResponse.json(
-    { error: "Capture key missing or revoked, account disabled, or extension activation required. Sign in, check extension activation on your Account page, and generate a new key in Settings." },
+    { error: "Capture key missing or revoked, account disabled, or no plan. Sign in, check your plan in Billing, and generate a new key in Settings." },
     { status: 401, headers: corsHeaders(request.headers.get("origin")) }
   );
 }

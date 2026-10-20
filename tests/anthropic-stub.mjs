@@ -316,10 +316,49 @@ function handleReplySuggestion(res, request) {
   reply(res, `Thanks for coming back to me. You said "${first}" - happy to talk it through this week.`, "end_turn", request.model);
 }
 
+// Stripe, as far as Retrivr uses it: Checkout and portal sessions, reading
+// and cancelling a subscription. The SDK posts form-encoded bodies; tests set
+// subscriptions and read the last Checkout request through /__stripe.
+const stripe = { subscriptions: {}, lastCheckout: null, sessions: 0 };
+
+function handleStripe(req, res, body) {
+  const url = new URL(req.url, "http://localhost");
+  if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") {
+    stripe.sessions += 1;
+    const id = `cs_test_${stripe.sessions}`;
+    stripe.lastCheckout = Object.fromEntries(new URLSearchParams(body));
+    return json(res, 200, { id, object: "checkout.session", url: `http://localhost:8766/stripe-checkout/${id}` });
+  }
+  if (req.method === "POST" && url.pathname === "/v1/billing_portal/sessions") {
+    return json(res, 200, { id: "bps_test", object: "billing_portal.session", url: "http://localhost:8766/stripe-portal" });
+  }
+  const match = url.pathname.match(new RegExp("^/v1/subscriptions/([A-Za-z0-9_]+)$"));
+  if (match) {
+    const subscription = stripe.subscriptions[match[1]];
+    if (!subscription) return json(res, 404, { error: { type: "invalid_request_error", message: "No such subscription" } });
+    if (req.method === "DELETE") subscription.status = "canceled";
+    return json(res, 200, subscription);
+  }
+  if (req.method === "GET" && url.pathname.startsWith("/stripe-")) {
+    res.writeHead(200, { "content-type": "text/html" });
+    return res.end("<!doctype html><title>Stripe test page</title><h1>Stripe test page</h1>");
+  }
+  return json(res, 404, { error: { type: "invalid_request_error", message: "Unknown Stripe path" } });
+}
+
 const server = http.createServer((req, res) => {
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", () => {
+    if (req.url === "/__stripe") {
+      if (req.method === "POST") Object.assign(stripe.subscriptions, JSON.parse(body || "{}").subscriptions ?? {});
+      json(res, 200, stripe);
+      return;
+    }
+    if (req.url?.startsWith("/v1/checkout/") || req.url?.startsWith("/v1/billing_portal/") || req.url?.startsWith("/v1/subscriptions/") || req.url?.startsWith("/stripe-")) {
+      handleStripe(req, res, body);
+      return;
+    }
     if (req.url?.startsWith("/notion/")) {
       handleNotion(req, res, body);
       return;

@@ -47,7 +47,7 @@ async function readBrief(page: Page, brief = BRIEF) {
 const matchCount = (page: Page) => page.locator("#results-heading span");
 const rowFor = (page: Page, name: string) => page.locator(".im-row", { hasText: name });
 
-async function userPage(browser: Browser, tier: "basic" | "pro") {
+async function userPage(browser: Browser, tier: "lite" | "pro") {
   const user = await db.user.create({ data: { email: `match-${tier}-${randomUUID()}@test.capture.invalid`, name: `${tier} Recruiter`, role: "recruiter", accountTier: tier, settings: { create: { seenRelease: CURRENT_RELEASE } } } });
   const token = randomBytes(32).toString("base64url");
   await db.session.create({ data: { tokenHash: hashToken(token), userId: user.id, authVersion: user.authVersion, expiresAt: new Date(Date.now() + 3_600_000) } });
@@ -270,8 +270,8 @@ test("IM8 a refused, failed, capped or forged request says so and charges nothin
   await expect(page.getByRole("button", { name: "Find matches" })).toBeVisible();
 });
 
-test("IM9 Basic accounts do not get Instant Match at all", async ({ browser }) => {
-  const basic = await userPage(browser, "basic");
+test("IM9 Lite accounts do not get Instant Match at all", async ({ browser }) => {
+  const basic = await userPage(browser, "lite");
   try {
     await basic.page.goto("/people");
     await expect(basic.page.getByRole("heading", { level: 1, name: "People" })).toBeVisible();

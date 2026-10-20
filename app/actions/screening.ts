@@ -31,7 +31,7 @@ import {
 } from "@/lib/screening-core.mjs";
 import { ScreeningRefusedError, ScreeningShapeError, screeningModel, summariseScreening as callModel } from "@/lib/screening-model.mjs";
 import { FIELDS, isFactField, parseSummary, type ScreeningSummary } from "@/lib/screening";
-import { canUseFeature } from "@/lib/features";
+import { canUseFeature, monthlyQuota } from "@/lib/features";
 import { readDate } from "@/lib/talent.mjs";
 
 const DAY_MS = 86_400_000;
@@ -68,11 +68,11 @@ async function ownedScreening(screeningId: string, ownerId: string) {
 // The monthly cap is claimed before the call and handed back if the call
 // fails, so a recruiter is never charged a generation for an error. The
 // conditional update is the guard: two claims at once cannot both pass the cap.
-async function claimGeneration(userId: string, now: Date): Promise<boolean> {
+async function claimGeneration(userId: string, cap: number, now: Date): Promise<boolean> {
   const month = monthKey(now);
   await db.aiUsage.upsert({ where: { userId_month: { userId, month } }, create: { userId, month }, update: {} });
   const { count } = await db.aiUsage.updateMany({
-    where: { userId, month, generations: { lt: screeningMonthlyCap() } },
+    where: { userId, month, generations: { lt: cap } },
     data: { generations: { increment: 1 } },
   });
   return count === 1;
@@ -205,12 +205,13 @@ export async function summariseScreening(_prev: FormState, formData: FormData): 
       ? db.screening.delete({ where: { id: screening.id } })
       : db.screening.update({ where: { id: screening.id }, data: { status: "draft" } });
 
-  if (!(await claimGeneration(user.id, now))) {
+  const cap = monthlyQuota(user, "screening", screeningMonthlyCap(), now);
+  if (!(await claimGeneration(user.id, cap, now))) {
     await release();
     revalidateScreening(candidate.id, candidate.roleId, candidate.personId);
     return { error: discard
-      ? `You have used this month's ${screeningMonthlyCap()} screening summaries. Nothing was kept. The limit resets next month, or your administrator can raise it.`
-      : `You have used this month's ${screeningMonthlyCap()} screening summaries. Your transcript is saved; it can be summarised next month, or the limit raised by your administrator.` };
+      ? `You have used this month's ${cap} screening summaries. Nothing was kept. The limit resets next month, or a larger plan raises it.`
+      : `You have used this month's ${cap} screening summaries. Your transcript is saved; it can be summarised next month, or a larger plan raises it.` };
   }
 
   const keySkills = parseObjectArray<{ skill: string }>(candidate.role.briefing?.keySkills ?? "[]").map((item) => item.skill);

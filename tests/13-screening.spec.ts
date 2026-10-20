@@ -65,10 +65,10 @@ async function paste(page: Page, text: string) {
   await page.getByRole("button", { name: "Summarise" }).click();
 }
 
-async function accountPage(browser: Browser, accountTier: "basic" | "pro") {
+async function accountPage(browser: Browser, accountTier: "lite" | "pro") {
   const suffix = randomUUID();
   const user = await db.user.create({ data: {
-    email: `screening-${accountTier}-${suffix}@test.capture.invalid`, name: accountTier === "basic" ? "Basic Recruiter" : "Pro Recruiter", role: "recruiter", accountTier,
+    email: `screening-${accountTier}-${suffix}@test.capture.invalid`, name: accountTier === "lite" ? "Basic Recruiter" : "Pro Recruiter", role: "recruiter", accountTier,
     settings: { create: { seenRelease: CURRENT_RELEASE } },
   } });
   const token = randomBytes(32).toString("base64url");
@@ -242,13 +242,15 @@ test("S4 a reply in the wrong shape, a refusal or an outage keeps the transcript
 test("S5 the monthly cap refuses before calling the model and keeps the transcript", async ({ page }) => {
   const candidate = await makeCandidate("Saoirse Pemberton-Ade");
   const previous = await generations();
-  await db.aiUsage.upsert({ where: { userId_month: { userId: TEST_ADMIN_ID, month } }, create: { userId: TEST_ADMIN_ID, month, generations: 100 }, update: { generations: 100 } });
+  // The administrator's allowance is Pro's (MONTHLY_QUOTAS in lib/features.ts).
+  const cap = 120;
+  await db.aiUsage.upsert({ where: { userId_month: { userId: TEST_ADMIN_ID, month } }, create: { userId: TEST_ADMIN_ID, month, generations: cap }, update: { generations: cap } });
   try {
     await page.goto(`/candidates/${candidate.id}/screening`);
-    await expect(page.getByText("100 of 100")).toBeVisible();
+    await expect(page.getByText(`${cap} of ${cap}`)).toBeVisible();
     await paste(page, CALL);
-    await expect(page.locator('[data-form-message="error"]')).toContainText("this month's 100 screening summaries");
-    expect(await generations()).toBe(100);
+    await expect(page.locator('[data-form-message="error"]')).toContainText(`this month's ${cap} screening summaries`);
+    expect(await generations()).toBe(cap);
     const draft = await db.screening.findFirstOrThrow({ where: { candidateId: candidate.id } });
     expect(draft).toMatchObject({ status: "draft", transcript: CALL });
   } finally {
@@ -282,8 +284,8 @@ test("S6 a transcript past its date is hidden at once and removed by the next sc
   expect(current.summaryJson).not.toBeNull();
 });
 
-test("S7 a Basic account sees no screening anywhere and its routes are not found", async ({ browser }) => {
-  const basic = await accountPage(browser, "basic");
+test("S7 a Lite account sees no screening anywhere and its routes are not found", async ({ browser }) => {
+  const basic = await accountPage(browser, "lite");
   try {
     const role = await db.role.create({ data: { userId: basic.user.id, title: "Basic Role" } });
     const candidate = await makeCandidate("Basic Candidate", { userId: basic.user.id, role: role.id });

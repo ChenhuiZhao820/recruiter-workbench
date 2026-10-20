@@ -19,6 +19,28 @@ model User {
   authVersion      Int               @default(0)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+  // Better Auth's own user fields. Proven means a sign-up code or a provider
+  // that vouched for the address; accounts made by an administrator are false.
+  emailVerified            Boolean                 @default(false)
+  image                    String?
+  // "admin" for accounts an administrator made (they keep Basic when a trial
+  // ends), "self" for sign-ups (they have no plan without one).
+  signupSource             String                  @default("admin")
+  termsVersion             String?
+  termsAcceptedAt          DateTime?
+  // Stripe's view of what is paid for, written only by the billing webhook
+  // (lib/billing.ts) and read by getAccountTier.
+  stripeCustomerId         String?                 @unique
+  stripeSubscriptionId     String?                 @unique
+  billingPlan              String?
+  billingInterval          String?
+  billingStatus            String?
+  billingPeriodEnd         DateTime?
+  billingCancelAtPeriodEnd Boolean                 @default(false)
+  billingPastDueSince      DateTime?
+  billingSyncedAt          DateTime?
+  authSessions             AuthSession[]
+  authAccounts             AuthAccount[]
   roles            Role[]
   searches         SavedSearch[]
   templates        MessageTemplate[]
@@ -60,6 +82,80 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+// Better Auth's tables (lib/better-auth.ts). It proves who someone is - a
+// sign-up code, Google, Microsoft - and the session it makes is exchanged at
+// once for the workbench's own (Session above), so AuthSession rows are
+// short-lived. AuthAccount links a person to a provider's account.
+model AuthSession {
+  id        String   @id
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model AuthAccount {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model AuthVerification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// A sign-up waiting for its emailed code. The account is created only when the
+// code is entered, from what was typed here; nothing else reads it.
+model PendingSignup {
+  email        String   @id
+  name         String
+  passwordHash String
+  termsVersion String
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+}
+
+// One trial per person, ever: hashes of the normalised email and of each
+// provider account that started one. Kept when the account is deleted.
+model TrialClaim {
+  keyHash   String   @id
+  createdAt DateTime @default(now())
+}
+
+// Stripe events already applied, so a redelivery does nothing.
+model StripeEvent {
+  id         String   @id
+  type       String
+  receivedAt DateTime @default(now())
 }
 
 model ActivationToken {

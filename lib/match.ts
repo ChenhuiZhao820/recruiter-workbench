@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { appOrigin, getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { canUseFeature } from "@/lib/features";
+import { canUseFeature, monthlyQuota } from "@/lib/features";
+import type { TierAccount } from "@/lib/account-tiers";
 import { getWorkspace } from "@/lib/workspace";
 import { matchMonthlyCap } from "@/lib/match-core.mjs";
 
@@ -19,9 +20,9 @@ export function nextMonthStart(now = new Date()) {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 }
 
-export async function matchReadsLeft(ownerId: string, now = new Date()) {
-  const used = await db.usageEvent.count({ where: { userId: ownerId, kind: { in: [...PAID_KINDS] }, at: { gte: monthStart(now) } } });
-  return Math.max(0, matchMonthlyCap() - used);
+export async function matchReadsLeft(owner: TierAccount & { id: string }, now = new Date()) {
+  const used = await db.usageEvent.count({ where: { userId: owner.id, kind: { in: [...PAID_KINDS] }, at: { gte: monthStart(now) } } });
+  return Math.max(0, monthlyQuota(owner, "matches", matchMonthlyCap(), now) - used);
 }
 
 // For a route handler: the signed-in account in its own workspace, with the

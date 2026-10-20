@@ -11,9 +11,18 @@ export type SessionUser = {
   active: boolean;
   accountTier: string;
   trialExpiresAt: Date | null;
+  signupSource: string;
+  billingPlan: string | null;
+  billingStatus: string | null;
+  billingPastDueSince: Date | null;
 };
 
-export const publicUserSelect = { id: true, email: true, name: true, role: true, active: true, accountTier: true, trialExpiresAt: true } as const;
+// Everything getAccountTier reads comes with the user, so a plan is decided
+// from the same row on every request.
+export const publicUserSelect = {
+  id: true, email: true, name: true, role: true, active: true, accountTier: true, trialExpiresAt: true,
+  signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true,
+} as const;
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
 
 export function appOrigin(): string {
@@ -63,18 +72,32 @@ export async function requireAdmin(): Promise<SessionUser> {
   return user;
 }
 
-export async function createSession(userId: string, authVersion: number) {
+export function sessionCookieName(): string {
+  return cookieNames()[0];
+}
+
+export function sessionCookieOptions() {
+  return { httpOnly: true, secure: appOrigin().startsWith("https:"), sameSite: "lax" as const, path: "/", maxAge: SESSION_SECONDS };
+}
+
+// The session row behind a new cookie. Separate from setting the cookie so the
+// Better Auth hand-over (lib/better-auth.ts) can set it on its own response.
+export async function issueSessionToken(userId: string, authVersion: number): Promise<string> {
   const token = newSecret();
   await db.session.create({
     data: { tokenHash: hashToken(token), userId, authVersion, expiresAt: new Date(Date.now() + SESSION_SECONDS * 1000) },
   });
-  cookies().set(cookieNames()[0], token, {
-    httpOnly: true,
-    secure: appOrigin().startsWith("https:"),
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_SECONDS,
-  });
+  return token;
+}
+
+export async function createSession(userId: string, authVersion: number) {
+  cookies().set(sessionCookieName(), await issueSessionToken(userId, authVersion), sessionCookieOptions());
+}
+
+// The session a cookie value names, for revoking it from outside a request
+// handled by Next (the Better Auth hand-over).
+export async function revokeSessionToken(token: string | null | undefined) {
+  if (typeof token === "string" && /^[A-Za-z0-9_-]{43}$/.test(token)) await db.session.deleteMany({ where: { tokenHash: hashToken(token) } });
 }
 
 export async function endSession() {

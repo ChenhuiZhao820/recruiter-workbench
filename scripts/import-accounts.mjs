@@ -10,7 +10,10 @@ import { clientKey } from "../lib/shortlist-core.mjs";
 
 const settingsColumns = Object.fromEntries(Object.entries(legacyColumns.Settings).filter(([column]) => column !== "captureToken"));
 export const accountColumns = {
-  User: { id: "id", email: "email", name: "text", role: "userRole", accountTier: "accountTier", trialExpiresAt: "date?", active: "bool", passwordHash: "password?", authVersion: "int", createdAt: "date", updatedAt: "date" },
+  User: { id: "id", email: "email", name: "text", role: "userRole", accountTier: "accountTier", trialExpiresAt: "date?", active: "bool", passwordHash: "password?", authVersion: "int", createdAt: "date", updatedAt: "date",
+    emailVerified: "bool", image: "text?", signupSource: "signupSource", termsVersion: "text?", termsAcceptedAt: "date?",
+    stripeCustomerId: "text?", stripeSubscriptionId: "text?", billingPlan: "text?", billingInterval: "text?", billingStatus: "text?",
+    billingPeriodEnd: "date?", billingCancelAtPeriodEnd: "bool", billingPastDueSince: "date?", billingSyncedAt: "date?" },
   ExtensionAccess: { userId: "id", codeHash: "discard", expiresAt: "date?", activatedAt: "date?", createdAt: "date", updatedAt: "date" },
   Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus", budgetMin: "int?", budgetMax: "int?", budgetCurrency: "text?", importBatchId: "discard",
     clientReviewFirst: "bool", interviewWindows: "text", interviewTimezone: "text?", interviewDurationMins: "int?", interviewLocation: "text?" },
@@ -56,7 +59,8 @@ export const accountColumns = {
   Suppression: { userId: "id", keyHash: "text", createdAt: "date" },
 };
 // Tables a source may not have yet: it was written before they existed.
-const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification", "InterviewOffer", "PersonCv"]);
+const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification", "InterviewOffer", "PersonCv",
+  "AuthSession", "AuthAccount", "AuthVerification", "PendingSignup", "TrialClaim", "StripeEvent"]);
 // Accepted in a source but never copied. Calendar and integration tokens are
 // encrypted with the source deployment's key and must be reconnected; monthly
 // AI counters start again; booked-slot and interview-slot locks are rebuilt
@@ -78,11 +82,21 @@ const notImportedColumns = {
   // after a move, with its contact-details check.
   PersonCv: { personId: "id", fileName: "text", sizeBytes: "int", sha256: "text", data: "bytes", contactsCheckedAt: "date", uploadedAt: "date" },
   ShortlistAccess: { id: "id", shortlistId: "id", email: "text?", nonce: "text", lastViewedAt: "date?", viewCount: "int", revokedAt: "date?", createdAt: "date" },
+  // Google or Microsoft links are made again by signing in with a provider
+  // that vouches for the address; provider tokens are not carried.
+  AuthAccount: { id: "id", accountId: "text", providerId: "text", userId: "id", accessToken: "text?", refreshToken: "text?", idToken: "text?", accessTokenExpiresAt: "date?", refreshTokenExpiresAt: "date?", scope: "text?", password: "text?", createdAt: "date", updatedAt: "date" },
+  // Which addresses had a trial, and which Stripe events were applied, belong
+  // to the deployment that saw them.
+  TrialClaim: { keyHash: "text", createdAt: "date" },
+  StripeEvent: { id: "id", type: "text", receivedAt: "date" },
 };
 const ephemeralColumns = {
   Session: { tokenHash: "text", userId: "id", viewUserId: "id?", authVersion: "int", expiresAt: "date", createdAt: "date" },
   ActivationToken: { tokenHash: "text", userId: "id", expiresAt: "date", createdAt: "date" },
   LoginThrottle: { key: "text", attempts: "int", resetAt: "date" },
+  AuthSession: { id: "id", token: "text", userId: "id", expiresAt: "date", ipAddress: "text?", userAgent: "text?", createdAt: "date", updatedAt: "date" },
+  AuthVerification: { id: "id", identifier: "text", value: "text", expiresAt: "date", createdAt: "date", updatedAt: "date" },
+  PendingSignup: { email: "text", name: "text", passwordHash: "password", termsVersion: "text", createdAt: "date", expiresAt: "date" },
 };
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
 const allTables = [...Object.keys(accountColumns), ...Object.keys(ephemeralColumns), ...Object.keys(notImportedColumns)];
@@ -90,7 +104,7 @@ const allModels = allTables.map(modelFor);
 const primaryKeys = {
   ExtensionAccess: ["userId"], Suppression: ["userId", "keyHash"], CalendarConnection: ["userId"], IntegrationConnection: ["userId", "provider"],
   AiUsage: ["userId", "month"], BookedSlot: ["userId", "startsAt"], PersonCv: ["personId"], InterviewSlot: ["userId", "clientKey", "startsAt"], LoginThrottle: ["key"],
-  Session: ["tokenHash"], ActivationToken: ["tokenHash"],
+  Session: ["tokenHash"], ActivationToken: ["tokenHash"], PendingSignup: ["email"], TrialClaim: ["keyHash"],
 };
 const primaryFor = (table) => primaryKeys[table] ?? ["id"];
 const keyPart = (value) => value instanceof Date ? value.toISOString() : String(value);
@@ -103,7 +117,16 @@ const stages = ["sourced", "contacted", "replied", "booking_pending", "booked", 
 // it is refused rather than guessed at. The SQL literal is what the reader
 // selects in place of a column that is not there.
 const lateColumns = {
-  User: [{ accountTier: { value: "basic", sql: "'basic'" }, trialExpiresAt: { value: null, sql: "NULL" } }],
+  User: [
+    { accountTier: { value: "basic", sql: "'basic'" }, trialExpiresAt: { value: null, sql: "NULL" } },
+    {
+      emailVerified: { value: false, sql: "0" }, image: { value: null, sql: "NULL" }, signupSource: { value: "admin", sql: "'admin'" },
+      termsVersion: { value: null, sql: "NULL" }, termsAcceptedAt: { value: null, sql: "NULL" }, stripeCustomerId: { value: null, sql: "NULL" },
+      stripeSubscriptionId: { value: null, sql: "NULL" }, billingPlan: { value: null, sql: "NULL" }, billingInterval: { value: null, sql: "NULL" },
+      billingStatus: { value: null, sql: "NULL" }, billingPeriodEnd: { value: null, sql: "NULL" }, billingCancelAtPeriodEnd: { value: false, sql: "0" },
+      billingPastDueSince: { value: null, sql: "NULL" }, billingSyncedAt: { value: null, sql: "NULL" },
+    },
+  ],
   Role: [
     { budgetMin: { value: null, sql: "NULL" }, budgetMax: { value: null, sql: "NULL" }, budgetCurrency: { value: null, sql: "NULL" } },
     { importBatchId: { value: null, sql: "NULL" } },
@@ -162,7 +185,8 @@ function convert(value, descriptor) {
   if (type === "email" && normalizeEmail(value) !== value) invalid("email is not normalized");
   if (type === "password" && !passwordPattern.test(value)) invalid("unsupported password hash; upgrade the migration tool before proceeding");
   if (type === "userRole" && !["admin", "recruiter"].includes(value)) invalid("unknown account role");
-  if (type === "accountTier" && !["basic", "pro", "trial"].includes(value)) invalid("unknown account tier");
+  if (type === "accountTier" && !["lite", "basic", "pro", "promax", "trial"].includes(value)) invalid("unknown account tier");
+  if (type === "signupSource" && !["admin", "self"].includes(value)) invalid("unknown sign-up source");
   if (type === "roleStatus" && !["open", "closed"].includes(value)) invalid("unknown role status");
   if (type === "stage" && !stages.includes(value)) invalid("unknown candidate stage");
   if (type === "kind" && !["message", "connection_note"].includes(value)) invalid("unknown outreach kind");
@@ -198,7 +222,8 @@ export function validateAccounts(source, adminEmail) {
       if (byId[table].has(keyOf(table, result))) invalid(`duplicate ${table} identifier`);
       if (table === "ExtensionAccess") result.expiresAt = null;
       if (table === "User") {
-        if (result.accountTier === "trial" && result.trialExpiresAt === null) invalid("trial account requires an expiry");
+        // A self-serve address that had a trial before signs up with none.
+        if (result.accountTier === "trial" && result.trialExpiresAt === null && result.signupSource !== "self") invalid("trial account requires an expiry");
         if (result.authVersion >= 2147483647) invalid("account version overflow");
         result.authVersion++;
       }
@@ -357,7 +382,7 @@ async function verifyData(db, validated) {
     }
     if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv"]) {
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent"]) {
     if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar, usage-counter or shortlist-link state in target.");
   }
   const held = validated.data.booking.filter((booking) => booking.status === "booked");

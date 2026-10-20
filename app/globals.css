@@ -280,6 +280,17 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .login-back { display: inline-flex; gap: 7px; align-items: center; margin-top: 38px; color: #71717a; font-size: 10px; }
 .login-back svg { transform: rotate(180deg); }
 .auth-success { display: flex; gap: 8px; align-items: flex-start; padding: 11px; margin-bottom: 20px; border: 1px solid #d9e1ff; background: #f1f4ff; border-radius: 5px; font-size: 11px; color: #2447bd; }
+.provider-buttons { display: flex; flex-direction: column; gap: 10px; }
+.provider-buttons .btn-secondary { width: 100%; min-height: 44px; font-size: 12px; }
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0; color: #71717a; font-size: 10px; }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--color-line); }
+.auth-links { margin-top: 16px; color: #71717a; font-size: 11px; }
+.auth-links a { color: var(--color-accent); text-decoration: underline; }
+.signup-terms { display: flex; gap: 9px; align-items: flex-start; font-size: 11px; line-height: 1.6; color: #4d4d55; }
+.signup-terms input { margin-top: 3px; flex: none; }
+.plan-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 18px; padding: 10px 14px; border: 1px solid #d9e1ff; background: #f1f4ff; border-radius: 5px; font-size: 12px; color: #2447bd; }
+.plan-banner p { flex: 1; min-width: 200px; }
+.plan-banner.plan-banner-ended { border-color: var(--color-line); background: var(--color-sunken, #f6f6f7); color: var(--color-ink, #18181b); }
 
 /* Setup guide: one vertical run of steps, with the state of each one legible
    before the copy is read. Done steps recede; the next one is the only thing

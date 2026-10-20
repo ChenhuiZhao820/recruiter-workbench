@@ -6,6 +6,7 @@ import { getWorkspace } from "@/lib/workspace";
 import { getFollowUpBuckets } from "@/lib/followups";
 import { getOnboardingStatus } from "@/lib/onboarding";
 import { MarketingHome } from "@/components/MarketingHome";
+import { signupConfig } from "@/lib/signup-config";
 import { RoleDirectory } from "@/components/RoleDirectory";
 import { Icon } from "@/components/Icon";
 
@@ -17,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RolesPage() {
-  if (!await getSession()) return <MarketingHome />;
+  if (!await getSession()) return <MarketingHome signupOpen={signupConfig().open} />;
   const { owner, readOnly } = await getWorkspace();
   const setup = readOnly ? null : await getOnboardingStatus();
   const [roles, closedRoles, buckets, searchCount] = await Promise.all([

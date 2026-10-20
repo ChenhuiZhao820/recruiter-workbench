@@ -259,9 +259,10 @@ test("the model reads the recruiter's words only, into a strict schema, and cann
   assert.equal(criteriaFromModel({ title: "X" }), null);
   assert.equal(matchModel({}), "claude-haiku-5-5");
   assert.equal(matchModel({ CAPTURE_MATCH_MODEL: " claude-sonnet-5-5 " }), "claude-sonnet-5-5");
-  assert.equal(matchMonthlyCap({}), 300);
+  // A ceiling only when set; the plan's allowance (lib/features.ts) decides otherwise.
+  assert.equal(matchMonthlyCap({}), null);
   assert.equal(matchMonthlyCap({ CAPTURE_MATCH_MONTHLY_CAP: "0" }), 0);
-  assert.equal(matchMonthlyCap({ CAPTURE_MATCH_MONTHLY_CAP: "lots" }), 300);
+  assert.equal(matchMonthlyCap({ CAPTURE_MATCH_MONTHLY_CAP: "lots" }), null);
 });
 
 test("the paid evaluation scores criteria field by field against the accepted answers", async () => {

@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
 import { login, activateAccount, changePassword } from "@/app/actions/auth";
 import type { AccountActionState } from "@/app/actions/accounts";
-import { issueExtensionCode, redeemExtensionCode, type ExtensionActionState } from "@/app/actions/extension";
 import { CopyButton } from "@/components/CopyButton";
 import { Icon } from "@/components/Icon";
 import type { FormState } from "@/lib/formState";
+import type { RecruiterTier } from "@/lib/account-tiers";
 
 function Submit({ children }: { children: React.ReactNode }) {
   const { pending } = useFormStatus();
@@ -39,7 +39,6 @@ export function LoginForm() {
     <div><label htmlFor="email" className="field-label">Email</label><input id="email" name="email" type="email" autoComplete="username" maxLength={254} required className="field-input" placeholder="you@company.com" /></div>
     <div><label htmlFor="password" className="field-label">Password</label><div className="password-field"><input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" maxLength={128} required className="field-input" placeholder="Enter your password" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} aria-controls="password" onClick={() => setShowPassword(!showPassword)}><Icon name="eye" size={18} /></button></div></div>
     <Submit>Sign in<Icon name="arrow" size={17} /></Submit>
-    <p className="auth-help">Need an account or a password reset? Ask your administrator for a one-time setup link.</p>
   </form>;
 }
 
@@ -66,7 +65,7 @@ function ActivationPasswordForm({ token }: { token: string }) {
   return <form action={action} className="card space-y-4">
     <Status state={state} />
     <input name="token" type="hidden" value={token} />
-    {token ? <><NewPasswordFields /><Submit>Set password</Submit></> : <p role="alert">Open the complete setup link provided by your administrator. If you refreshed this page, reopen that link.</p>}
+    {token ? <><NewPasswordFields /><Submit>Set password</Submit></> : <p role="alert">Open the complete link from your email or your administrator. If you refreshed this page, reopen that link.</p>}
     <p className="text-sm text-ink-soft">Setting a password signs out existing sessions and revokes capture keys. Reconnect your extension after signing in.</p>
   </form>;
 }
@@ -82,35 +81,9 @@ export function PasswordForm() {
   </form>;
 }
 
-export function ExtensionCodeForm({ userId, issued }: { userId: string; issued: boolean }) {
-  const [state, action] = useFormState(issueExtensionCode, {} as ExtensionActionState);
-  return <form action={action} className="space-y-3">
-    <Status state={state} />
-    <input type="hidden" name="userId" value={userId} />
-    {state.code && <div className="space-y-2">
-      <input aria-label="New extension activation code" value={state.code} readOnly autoComplete="off" className="field-input font-mono" />
-      <CopyButton text={state.code} label="Copy extension code" />
-      <p className="section-caption">Shown only now. Share privately with this account holder, not in a URL. A replacement immediately invalidates the previous code.</p>
-    </div>}
-    <Submit>{issued ? "Replace extension code" : "Generate extension code"}</Submit>
-  </form>;
-}
-
-export function ExtensionActivationForm() {
-  const [state, action] = useFormState(redeemExtensionCode, {} as ExtensionActionState);
-  return <form action={action} className="max-w-xl space-y-4">
-    <Status state={state} />
-    <div>
-      <label htmlFor="extension-code" className="field-label">Extension activation code</label>
-      <input id="extension-code" name="code" type="password" autoComplete="off" spellCheck={false} maxLength={128} required className="field-input font-mono" />
-    </div>
-    <Submit>Activate extension</Submit>
-  </form>;
-}
-
 export function AccountTierFields({ id, initialTier = "basic", trialExpiresAt = null }: {
   id: string;
-  initialTier?: "basic" | "pro" | "trial";
+  initialTier?: RecruiterTier;
   trialExpiresAt?: string | null;
 }) {
   const [tier, setTier] = useState(initialTier);
@@ -118,13 +91,13 @@ export function AccountTierFields({ id, initialTier = "basic", trialExpiresAt = 
     <div>
       <label htmlFor={`${id}-tier`} className="field-label">Account type</label>
       <select id={`${id}-tier`} name="accountTier" value={tier} onChange={(event) => setTier(event.target.value as typeof tier)} className="field-input">
-        <option value="basic">Basic</option><option value="pro">Pro</option><option value="trial">Trial</option>
+        <option value="lite">Lite</option><option value="basic">Basic</option><option value="pro">Pro</option><option value="promax">Pro Max</option><option value="trial">Trial</option>
       </select>
     </div>
     {tier === "trial" && <div>
       <label htmlFor={`${id}-expiry`} className="field-label">Trial expires at (UTC)</label>
       <input id={`${id}-expiry`} name="trialExpiresAt" type="datetime-local" step={60} defaultValue={trialExpiresAt?.slice(0, 16) ?? ""} required aria-describedby={`${id}-expiry-help`} className="field-input" />
-      <p id={`${id}-expiry-help`} className="mt-2 section-caption">Use UTC, not local time. Trial includes Pro access until this time, then automatically returns to Basic.</p>
+      <p id={`${id}-expiry-help`} className="mt-2 section-caption">Use UTC, not local time. Trial includes Pro access until this time, then automatically returns to Basic. Accounts that signed themselves up have no plan after a trial unless they subscribe.</p>
     </div>}
   </>;
 }
@@ -155,7 +128,7 @@ export function DeleteAccountForm({ userId, email, action }: { userId: string; e
     <summary className="cursor-pointer text-sm text-rose-900">Delete account</summary>
     <form action={formAction} className="mt-3 max-w-xl space-y-3">
       <Status state={state} />
-      <p className="text-sm text-ink-soft">This permanently deletes the account and all of its roles, candidates, people, notes, searches, templates, bookings and settings. It cannot be undone. The audit history is kept.</p>
+      <p className="text-sm text-ink-soft">This permanently deletes the account and all of its roles, candidates, people, notes, searches, templates, bookings and settings. It cannot be undone. A paid subscription is cancelled with it. The audit history is kept.</p>
       <input type="hidden" name="userId" value={userId} />
       <div><label htmlFor={`confirm-delete-${userId}`} className="field-label">Type {email} to confirm</label><input id={`confirm-delete-${userId}`} name="confirmEmail" autoComplete="off" required className="field-input" /></div>
       <DeleteSubmit />

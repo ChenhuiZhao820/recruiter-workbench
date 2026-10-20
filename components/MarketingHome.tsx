@@ -12,7 +12,9 @@ import "@/app/landing.css";
 // Each figure animates from --d, its start time within the figure.
 const d = (delay: string) => ({ "--d": delay }) as CSSProperties;
 
-export function MarketingHome({ signedIn = false }: { signedIn?: boolean }) {
+// signupOpen: self-serve sign-up is configured (lib/signup-config.ts). Until
+// it is, every way in is the contact box, as before.
+export function MarketingHome({ signedIn = false, signupOpen = false }: { signedIn?: boolean; signupOpen?: boolean }) {
   const account = signedIn ? { href: "/", label: "Open workspace" } : { href: "/login", label: "Sign in" };
   return <div className="lp-page">
     <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
@@ -59,7 +61,7 @@ export function MarketingHome({ signedIn = false }: { signedIn?: boolean }) {
                   <h1>Good recruiting.<br /><span>Without the busywork.</span></h1>
                   <p>From the first profile to the client’s yes. Retrivr keeps every step in one place, and you make every move.</p>
                   <div className="lp-hero-actions">
-                    <a href="#pricing" className="lp-btn lp-btn-primary">Try Pro free for 7 days<svg><use href="#lp-i-arrow"/></svg></a>
+                    <a href={signupOpen && !signedIn ? "/signup" : "#pricing"} className="lp-btn lp-btn-primary">Try Pro free for 7 days<svg><use href="#lp-i-arrow"/></svg></a>
                     <a href="#how" className="lp-btn">See how it works<svg><use href="#lp-i-down"/></svg></a>
                   </div>
                 </div>
@@ -216,7 +218,7 @@ export function MarketingHome({ signedIn = false }: { signedIn?: boolean }) {
 
       {/* Pricing */}
       <div className="lp-wrap">
-        <section className="lp-frame lp-section" id="pricing"><Pricing /></section>
+        <section className="lp-frame lp-section" id="pricing"><Pricing signupOpen={signupOpen && !signedIn} /></section>
       </div>
 
     {/* FAQ */}
@@ -234,7 +236,7 @@ export function MarketingHome({ signedIn = false }: { signedIn?: boolean }) {
             <details><summary><span className="lp-idx">04</span>Which plan do I need? Is there a trial?<svg><use href="#lp-i-plus"/></svg></summary>
               <div>Lite covers the day-to-day pipeline. Basic adds your own talent database and screening summaries. Pro adds client sign-off and reply suggestions, and you can try it free for 7 days.</div></details>
             <details><summary><span className="lp-idx">05</span>How do I get an account?<svg><use href="#lp-i-plus"/></svg></summary>
-              <div>Retrivr is in beta testing right now, so there is no public sign-up yet. Email us and we will set up your account, then send you a one-time link to register your password.</div></details>
+              <div>{signupOpen ? <>Sign up yourself with Google, Microsoft or your email. You get seven days of Pro with no card; when it ends, choose a plan to keep working. For a team account or Pro Max, write to us.</> : <>Retrivr is in beta testing right now, so there is no public sign-up yet. Email us and we will set up your account, then send you a one-time link to register your password.</>}</div></details>
           </div>
         </div>
       </section>
@@ -246,7 +248,7 @@ export function MarketingHome({ signedIn = false }: { signedIn?: boolean }) {
           <span className="lp-eyebrow">Less friction. More focus.</span>
           <h2>Make room for<br /><span>the human part.</span></h2>
           <ContactBox />
-          <p className="lp-closing-note">Plans, trials or a team account: write to us. Already invited? <Link href={account.href}>{account.label}</Link>.</p>
+          <p className="lp-closing-note">{signupOpen && !signedIn ? <>Ready to try it? <Link href="/signup">Start your free trial</Link>. Pro Max or a team account: write to us.</> : <>Plans, trials or a team account: write to us. Already invited? <Link href={account.href}>{account.label}</Link>.</>}</p>
         </section>
       </div>
     </main>

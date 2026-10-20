@@ -19,10 +19,10 @@ export async function GET() {
   }
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { active: true, role: true, extensionAccess: { select: { activatedAt: true } } },
+    select: { role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true },
   });
   if (!user || !canUseExtension(user)) {
-    return NextResponse.json({ error: "Activate extension access in Your account before downloading." }, { status: 403, headers });
+    return NextResponse.json({ error: "Choose a plan in Billing before downloading the extension." }, { status: 403, headers });
   }
   try {
     const inputs = Object.fromEntries(await Promise.all(["manifest.json", "popup.html", "popup.css", "popup.js"].map(async (name) => [

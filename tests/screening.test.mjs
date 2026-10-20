@@ -188,9 +188,10 @@ test("the request carries the schema, keeps the transcript delimited, and adds t
 });
 
 test("the monthly cap, the month key and the CV page count", () => {
-  assert.equal(screeningMonthlyCap({}), 100);
+  // A ceiling only when set; the plan's allowance (lib/features.ts) decides otherwise.
+  assert.equal(screeningMonthlyCap({}), null);
   assert.equal(screeningMonthlyCap({ CAPTURE_SCREENING_MONTHLY_CAP: "0" }), 0);
-  assert.equal(screeningMonthlyCap({ CAPTURE_SCREENING_MONTHLY_CAP: "lots" }), 100);
+  assert.equal(screeningMonthlyCap({ CAPTURE_SCREENING_MONTHLY_CAP: "lots" }), null);
   assert.equal(monthKey(new Date("2026-10-31T23:59:59Z")), "2026-10");
   const pdf = Buffer.from("%PDF-1.7\n1 0 obj << /Type /Pages /Count 2 >>\n2 0 obj << /Type /Page >>\n3 0 obj << /Type/Page >>\n");
   assert.equal(pdfPageCount(pdf), 2);

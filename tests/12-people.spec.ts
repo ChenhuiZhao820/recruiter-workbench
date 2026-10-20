@@ -86,7 +86,7 @@ test("P2 a capture with LinkedIn's member id joins the existing person and the l
   expect(body.suppressed).toBe(false);
 });
 
-test("P3 with people search the words reach recorded facts; on Basic the search stays on name and headline", async ({ page, browser }) => {
+test("P3 with people search the words reach recorded facts; on Lite the search stays on name and headline", async ({ page, browser }) => {
   const person = await db.person.findFirstOrThrow({ where: { userId: TEST_ADMIN_ID, memberId: "ACoAAImogen01" } });
   await db.person.update({ where: { id: person.id }, data: { skillsSummary: "kubernetes", searchText: `${person.searchText} kubernetes` } });
   await page.goto("/people?q=imogen");
@@ -100,8 +100,8 @@ test("P3 with people search the words reach recorded facts; on Basic the search 
   await page.getByRole("link", { name: "Clear search" }).click();
   await expect(page).toHaveURL(/\/people$/);
 
-  // A Basic account searching its own people never reaches what they said.
-  const basic = await db.user.create({ data: { email: `people-basic-${Date.now()}@test.capture.invalid`, name: "Basic Recruiter", role: "recruiter", accountTier: "basic", settings: { create: { seenRelease: CURRENT_RELEASE } } } });
+  // A Lite account searching its own people never reaches what they said.
+  const basic = await db.user.create({ data: { email: `people-basic-${Date.now()}@test.capture.invalid`, name: "Basic Recruiter", role: "recruiter", accountTier: "lite", settings: { create: { seenRelease: CURRENT_RELEASE } } } });
   await db.person.create({ data: { userId: basic.id, fullName: "Odile Brannagh", headline: "Platform engineer", skillsSummary: "kubernetes", searchText: "odile brannagh platform engineer kubernetes" } });
   const token = randomBytes(32).toString("base64url");
   await db.session.create({ data: { tokenHash: hashToken(token), userId: basic.id, authVersion: basic.authVersion, expiresAt: new Date(Date.now() + 3_600_000) } });

@@ -90,7 +90,7 @@ test("a suggested reply is a short Haiku request with their message delimited as
   assert.match(request.messages[0].content, /Booking link for a call: https:\/\/capture\.example\/book\/x/);
   assert.match(buildReplyRequest({ recruiterName: "", candidateName: "A", roleTitle: "R", theirReply: "x".repeat(9000) }).messages[0].content, /x{4000}\n<\/candidate_reply>/);
   assert.equal(replyModel({ CAPTURE_REPLY_MODEL: "claude-sonnet-5-5" }), "claude-sonnet-5-5");
-  assert.equal(replyMonthlyCap({}), 300);
+  assert.equal(replyMonthlyCap({}), null, "no ceiling unless set; the plan decides");
   assert.equal(replyMonthlyCap({ CAPTURE_REPLY_MONTHLY_CAP: "20" }), 20);
 });
 
@@ -99,7 +99,7 @@ test("the suggestion route spends only for the account's own writable workspace,
   assert.match(route, /request\.headers\.get\("origin"\) !== appOrigin\(\)/);
   assert.match(route, /if \(readOnly\) return fail\(403/);
   assert.match(route, /role: \{ userId: user\.id \}/);
-  assert.match(route, /replyMonthlyCap\(\)/);
+  assert.match(route, /monthlyQuota\(user, "replies", replyMonthlyCap\(\), now\)/);
   assert.match(route, /recordUsage\(db, user\.id, "reply_suggested", null, 1\)/);
   assert.doesNotMatch(route, /db\.\w+\.(create|update|upsert)\(/);
 });

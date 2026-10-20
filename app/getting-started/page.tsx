@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getOnboardingStatus, type OnboardingStepId } from "@/lib/onboarding";
 import { getWorkspace } from "@/lib/workspace";
-import { ExtensionActivationForm } from "@/components/AccountForms";
 import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
@@ -15,17 +14,19 @@ type Content = {
 };
 
 export default async function GettingStartedPage() {
-  const { user, readOnly } = await getWorkspace();
+  // With no plan the guide still shows: its plan step is the way forward.
+  const { user, readOnly: viewing, noPlan } = await getWorkspace();
+  const readOnly = viewing && !noPlan;
   const status = await getOnboardingStatus();
   const firstName = user.name.trim().split(/\s+/)[0] || user.name;
   const next = status.steps.find((step) => !step.done);
 
   const content: Record<OnboardingStepId, Content> = {
     password: {
-      title: "Set your password",
-      summary: "Your administrator sent a one-time setup link. Opening it and choosing a password created your sign-in.",
+      title: "Your sign-in",
+      summary: "A password, or Google or Microsoft: whichever you used to create the account is how you get back in.",
       doneNote: "You are signed in, so this one is behind you.",
-      action: <Link href="/account" className="btn-secondary">Change your password</Link>,
+      action: <Link href="/account" className="btn-secondary">Your account</Link>,
     },
     profile: {
       title: "Add your outreach details",
@@ -46,14 +47,10 @@ export default async function GettingStartedPage() {
         : <Link href="/roles/new" className="btn-primary"><Icon name="plus" size={18} />New role</Link>,
     },
     extension: {
-      title: "Activate extension access",
-      summary: "Extension access is granted per account. Ask your administrator for your activation code, then redeem it here.",
-      detail: <>
-        <p>A code works once, for your account only, and expires 7 days after it is issued. A replacement code invalidates the previous one.</p>
-        {status.extensionCodeExpired && <p role="status">Your activation code has expired. Ask your administrator for a replacement.</p>}
-      </>,
-      doneNote: status.isAdmin ? "Administrator access includes the extension; no code is needed." : "Extension access is activated for this account.",
-      action: status.isAdmin || status.extensionEnabled ? undefined : <ExtensionActivationForm />,
+      title: "A plan with the extension",
+      summary: "The browser extension comes with the trial and with every plan.",
+      doneNote: status.isAdmin ? "Administrator access includes the extension." : "Your plan includes the extension.",
+      action: status.isAdmin || status.extensionEnabled ? undefined : <Link href="/billing" className="btn-primary">Choose a plan<Icon name="arrow" size={17} /></Link>,
     },
     install: {
       title: "Install the extension in Chrome",
@@ -67,7 +64,7 @@ export default async function GettingStartedPage() {
       doneNote: "Download the ZIP again whenever you reinstall or update. Unpacked extensions do not update themselves.",
       action: status.extensionEnabled
         ? <a href="/api/extension/download" download className="btn-primary">Download extension ZIP<Icon name="down" size={17} /></a>
-        : <p className="onboarding-blocked"><Icon name="lock" size={15} />Activate extension access first.</p>,
+        : <p className="onboarding-blocked"><Icon name="lock" size={15} />Choose a plan first.</p>,
     },
     captureKey: {
       title: "Generate your capture key and connect",
@@ -79,7 +76,7 @@ export default async function GettingStartedPage() {
       doneNote: "A capture key exists for this account. Generate a new one in Settings if you need to reconnect; the old key stops working.",
       action: status.extensionEnabled
         ? <Link href="/settings" className="btn-primary">Generate a capture key<Icon name="arrow" size={17} /></Link>
-        : <p className="onboarding-blocked"><Icon name="lock" size={15} />Activate extension access first.</p>,
+        : <p className="onboarding-blocked"><Icon name="lock" size={15} />Choose a plan first.</p>,
     },
   };
 
@@ -90,7 +87,7 @@ export default async function GettingStartedPage() {
         <h1>{status.complete ? `You are set up, ${firstName}.` : `Welcome, ${firstName}.`}</h1>
         <p className="page-description">{status.complete
           ? "Every setup step is done. Keep this page for reinstalling the extension or connecting a new computer."
-          : "Six short steps take a new account to a connected workspace. Each one is saved as you go, so you can stop and come back."}</p>
+          : "A few short steps take a new account to a connected workspace. Each one is saved as you go, so you can stop and come back."}</p>
       </div>
       <span aria-hidden="true" className="onboarding-badge"><Icon name="spark" size={22} /></span>
     </header>
@@ -130,7 +127,7 @@ export default async function GettingStartedPage() {
       <section className="onboarding-help" aria-label="If something goes wrong">
         <h2>If something does not line up</h2>
         <ul>
-          <li>No activation code, or an expired one: your administrator issues and replaces codes. A forwarded ZIP does not grant access.</li>
+          <li>The download or the capture key is refused: your trial or plan has ended. Choose a plan in Billing; a copy someone forwarded to you saves nothing without a plan of your own.</li>
           <li>Chrome refuses Developer mode: your organisation may block unpacked extensions. Ask your IT administrator.</li>
           <li>The extension cannot connect: check that you pasted the most recent capture key. Changing your password revokes the key, so generate a new one afterwards.</li>
           <li>Nothing to save a profile to: create an open role first. The extension only offers your open roles.</li>

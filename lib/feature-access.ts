@@ -1,8 +1,13 @@
 import { notFound } from "next/navigation";
 import { assertSameOrigin } from "@/lib/auth";
 import { canUseProFeatures } from "@/lib/account-tiers";
-import { getWorkspace } from "@/lib/workspace";
+import { NO_PLAN_MESSAGE, getWorkspace, type Workspace } from "@/lib/workspace";
 import { FEATURES, canUseFeature, type Feature } from "@/lib/features";
+
+function refuseReadOnly(workspace: Workspace) {
+  if (workspace.noPlan) throw new Error(NO_PLAN_MESSAGE);
+  if (workspace.readOnly) throw new Error("This workspace is read-only. Return to your own workspace before making changes.");
+}
 
 export async function requireProWorkspace() {
   const workspace = await getWorkspace();
@@ -14,7 +19,7 @@ export async function requireProWorkspace() {
 export async function requireWritableProWorkspace() {
   assertSameOrigin();
   const workspace = await requireProWorkspace();
-  if (workspace.readOnly) throw new Error("This workspace is read-only. Return to your own workspace before making changes.");
+  refuseReadOnly(workspace);
   return workspace.user;
 }
 
@@ -32,7 +37,7 @@ export async function requireFeature(feature: Feature) {
 export async function requireWritableFeature(feature: Feature) {
   assertSameOrigin();
   const workspace = await requireFeature(feature);
-  if (workspace.readOnly) throw new Error("This workspace is read-only. Return to your own workspace before making changes.");
+  refuseReadOnly(workspace);
   return workspace.user;
 }
 

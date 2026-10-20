@@ -1,27 +1,27 @@
-import { canUseProFeatures, type TierAccount } from "./account-tiers";
+import { PLAN_RANK, getAccountTier, type AccountTier, type TierAccount } from "./account-tiers";
 
-// The one place that says which tier a feature belongs to. The Basic/Pro split
-// is not final, so nothing else in the app compares tiers: pages, actions,
-// routes and navigation ask canUseFeature (or the guards in feature-access.ts)
-// about a named feature, and the tier tests are generated from this table.
-// Moving a feature between tiers is a change to one line here.
+// The one place that says which plan a feature belongs to, matching the
+// homepage's pricing table. Nothing else in the app compares plans: pages,
+// actions, routes and navigation ask canUseFeature (or the guards in
+// feature-access.ts) about a named feature, and the tier tests are generated
+// from this table. Moving a feature between plans is a change to one line here.
 export const FEATURE_TIERS = {
-  people: "basic",          // person records and the people list by name
+  people: "lite",           // person records and the people list by name
   peopleImport: "basic",    // bringing people in from an Excel or CSV file
-  privacy: "basic",         // delete, do not contact, suppression
-  export: "basic",          // full data export
-  booking: "basic",         // booking page and its settings
-  calendarFreeBusy: "basic",
-  followUpRuns: "basic",    // walking through everyone due a follow-up
-  replySuggestions: "basic", // a suggested answer to someone who replied
-  screening: "pro",         // screening assistant
-  clientEmail: "pro",
-  peopleSearch: "pro",      // filters and keyword search across people
-  talentMatches: "pro",     // "From your database" on a role
-  revisitReminders: "pro",
-  instantMatch: "pro",      // a brief in, people from your own database out
-  clientShortlists: "basic", // client links and shortlists; Basic has a limit below
-} as const satisfies Record<string, "basic" | "pro">;
+  privacy: "lite",          // delete, do not contact, suppression
+  export: "lite",           // full data export
+  booking: "lite",          // booking page and its settings
+  calendarFreeBusy: "lite",
+  followUpRuns: "lite",     // walking through everyone due a follow-up; Lite has a limit below
+  replySuggestions: "pro",  // a suggested answer to someone who replied
+  screening: "basic",       // screening assistant; the monthly allowance is per plan
+  clientEmail: "pro",       // "one-click sign-off to clients"
+  peopleSearch: "basic",    // filters and keyword search across people
+  talentMatches: "basic",   // "From your database" on a role
+  revisitReminders: "basic",
+  instantMatch: "basic",    // a brief in, people from your own database out
+  clientShortlists: "lite", // client links and shortlists; a limit below Pro
+} as const satisfies Record<string, "lite" | "basic" | "pro">;
 
 export type Feature = keyof typeof FEATURE_TIERS;
 
@@ -31,17 +31,44 @@ export function isFeature(value: string): value is Feature {
   return Object.prototype.hasOwnProperty.call(FEATURE_TIERS, value);
 }
 
-export function canUseFeature(account: TierAccount & { active: boolean }, feature: Feature, now = new Date()): boolean {
-  if (!account.active) return false;
-  return FEATURE_TIERS[feature] === "basic" || canUseProFeatures(account, now);
+// An account with no plan still reads what every plan has, so its work stays
+// in view; lib/workspace.ts makes that view read-only.
+function effectiveRank(tier: AccountTier): number {
+  return tier === "none" ? PLAN_RANK.lite : PLAN_RANK[tier];
 }
 
-// How many custom shortlists an account may have active at once, by whether it
-// has Pro features; null means no limit. A role's own client link never
-// counts, and reaching the limit only refuses a new one: links already sent
-// keep working after a downgrade or the end of a trial.
-export const SHORTLIST_LIMITS = { basic: 3, pro: null } as const;
+export function canUseFeature(account: TierAccount & { active: boolean }, feature: Feature, now = new Date()): boolean {
+  if (!account.active) return false;
+  return effectiveRank(getAccountTier(account, now)) >= PLAN_RANK[FEATURE_TIERS[feature]];
+}
+
+// How many custom shortlists an account may have active at once; null means no
+// limit. A role's own client link never counts, and reaching the limit only
+// refuses a new one: links already sent keep working after a downgrade or the
+// end of a trial.
+export const SHORTLIST_LIMITS = { belowPro: 3, pro: null } as const;
 
 export function activeShortlistLimit(account: TierAccount & { active: boolean }, now = new Date()): number | null {
-  return canUseProFeatures(account, now) ? SHORTLIST_LIMITS.pro : SHORTLIST_LIMITS.basic;
+  return account.active && effectiveRank(getAccountTier(account, now)) >= PLAN_RANK.pro ? SHORTLIST_LIMITS.pro : SHORTLIST_LIMITS.belowPro;
+}
+
+// Lite has "batch follow-up"; Basic and above have it unlimited. A Lite run
+// takes this many people at a time.
+export const LITE_FOLLOWUP_RUN_LIMIT = 10;
+
+export function followUpRunLimit(account: TierAccount & { active: boolean }, now = new Date()): number | null {
+  return account.active && effectiveRank(getAccountTier(account, now)) >= PLAN_RANK.basic ? null : LITE_FOLLOWUP_RUN_LIMIT;
+}
+
+// Monthly AI allowances per plan. A deployment may lower them all with the
+// CAPTURE_*_MONTHLY_CAP variables (see the *MonthlyCap functions), never raise them.
+export const MONTHLY_QUOTAS: Record<"screening" | "replies" | "matches", Record<AccountTier, number>> = {
+  screening: { none: 0, lite: 0, basic: 30, trial: 10, pro: 120, promax: 300, admin: 120 },
+  replies: { none: 0, lite: 0, basic: 0, trial: 30, pro: 300, promax: 300, admin: 300 },
+  matches: { none: 0, lite: 0, basic: 300, trial: 30, pro: 300, promax: 300, admin: 300 },
+};
+
+export function monthlyQuota(account: TierAccount, kind: keyof typeof MONTHLY_QUOTAS, ceiling: number | null, now = new Date()): number {
+  const quota = MONTHLY_QUOTAS[kind][getAccountTier(account, now)];
+  return ceiling === null ? quota : Math.min(quota, ceiling);
 }

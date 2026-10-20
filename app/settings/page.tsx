@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
 import { canUseExtension } from "@/lib/extension-access";
 import { getSettings } from "@/lib/settings";
 import { getWorkspace } from "@/lib/workspace";
@@ -37,8 +36,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { n
   const showApps = !readOnly && notionConfigured() && canUseFeature(user, "screening");
   const notion = showApps ? await notionConnection(user.id) : null;
   const settings = await getSettings();
-  const access = await db.extensionAccess.findUnique({ where: { userId: owner.id }, select: { activatedAt: true } });
-  const extensionEnabled = canUseExtension({ ...owner, extensionAccess: access });
+  const extensionEnabled = canUseExtension(owner);
 
   return (
     <fieldset key={owner.id} disabled={readOnly} className="min-w-0">
@@ -197,9 +195,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: { n
           <CaptureKeyPanel enabled={Boolean(settings.captureTokenHash)} readOnly={readOnly} />
           {!readOnly && <Link href="/account" className="text-sm text-accent underline">Download extension and installation instructions</Link>}
         </> : <div className="card space-y-3">
-          <h2 className="text-lg">Activate extension access first</h2>
-          <p className="text-sm text-ink-soft">Redeem the extension activation code from your administrator in Your account before generating a capture key.</p>
-          <Link href="/account" className="btn-secondary">Activate extension in your account</Link>
+          <h2 className="text-lg">Choose a plan first</h2>
+          <p className="text-sm text-ink-soft">The extension and its capture key come with every plan and with the trial.</p>
+          <Link href="/billing" className="btn-secondary">Go to Billing</Link>
           <Link href="/getting-started" className="block text-sm text-accent underline">Open the step-by-step setup guide</Link>
         </div>}
       </section>

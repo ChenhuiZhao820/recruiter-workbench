@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "Instant Match is not set up on this server yet: it needs an AI key. The filters on People still work." }, { status: 503 });
   }
-  const left = await matchReadsLeft(user.id);
+  const left = await matchReadsLeft(user);
   if (left <= 0) {
     const resets = nextMonthStart().toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
     return NextResponse.json({ error: `You have used this month’s briefs. It resets on ${resets}. Your current criteria still work: edit them by hand.` }, { status: 429 });

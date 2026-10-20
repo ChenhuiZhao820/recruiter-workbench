@@ -6,6 +6,7 @@ import { getWorkspace } from "@/lib/workspace";
 import { ApplicationShell } from "@/components/ApplicationShell";
 import { hasSeenCurrentRelease } from "@/lib/release";
 import { unreadCount } from "@/lib/notifications";
+import { getAccountTier } from "@/lib/account-tiers";
 import "./globals.css";
 
 // Vendored rather than fetched from Google at build time: next/font/google
@@ -47,6 +48,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const unreadRelease = Boolean(setup && !setup.untouched && !(await hasSeenCurrentRelease(workspace!.owner.id)));
   // The release is one more notification on the bell until it is read.
   const unreadActivity = (workspace ? await unreadCount(workspace.owner.id) : 0) + (unreadRelease ? 1 : 0);
+  // The account's own plan, said once at the top: days left on a trial, or
+  // that it has ended. Never for an administrator viewing someone else.
+  const ownTier = workspace && (workspace.noPlan || !workspace.readOnly) ? getAccountTier(workspace.user) : null;
+  const plan = workspace?.noPlan ? { ended: true, daysLeft: 0 }
+    : ownTier === "trial" && workspace?.user.trialExpiresAt ? { ended: false, daysLeft: Math.max(1, Math.ceil((workspace.user.trialExpiresAt.getTime() - Date.now()) / 86_400_000)) }
+    : null;
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body style={{
@@ -56,7 +63,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       }}>
         <ApplicationShell
           user={session ? { name: session.user.name, email: session.user.email, role: session.user.role } : null}
-          viewing={workspace?.readOnly ? { name: workspace.owner.name, email: workspace.owner.email } : null}
+          viewing={workspace?.readOnly && !workspace.noPlan ? { name: workspace.owner.name, email: workspace.owner.email } : null}
+          plan={plan}
           setupPending={Boolean(setup && !setup.complete)}
           releasePending={unreadRelease}
           unreadActivity={unreadActivity}

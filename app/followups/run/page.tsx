@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireFeature } from "@/lib/feature-access";
+import { followUpRunLimit } from "@/lib/features";
 import { getFollowUpBuckets } from "@/lib/followups";
 import { getSettings } from "@/lib/settings";
 import { firstName, hasGaps, renderTemplate } from "@/lib/render";
@@ -52,7 +53,10 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
     b: templates.some((t) => t.id === searchParams.tb) ? searchParams.tb! : "",
     q: templates.some((t) => t.id === searchParams.tq) ? searchParams.tq! : "",
   };
-  const entries = readRunEntries(searchParams.c);
+  // Lite takes a batch at a time; Basic and above have no limit.
+  const limit = followUpRunLimit(owner);
+  const allEntries = readRunEntries(searchParams.c);
+  const entries = limit === null ? allEntries : allEntries.slice(0, limit);
 
   const header = (
     <header className="page-header">
@@ -64,6 +68,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
         </p>
       </div>
       <Link href="/followups" className="btn-quiet">Back to follow-ups</Link>
+      {limit !== null && <p className="section-caption basis-full">On Lite a run takes {limit} people at a time; start another when it is done. Basic and above have no limit. <Link href="/billing" className="text-accent underline">See plans</Link></p>}
     </header>
   );
 
@@ -102,12 +107,18 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
   if (entries.length === 0 || searchParams.review === "1") {
     const buckets = await getFollowUpBuckets();
     const only = GROUPS.find((group: Group) => group === searchParams.only) ?? null;
+    let ticked = 0;
     const planned = planRun(buckets, { only }).map((row: ReturnType<typeof planRun>[number]) =>
       // Re-read after a template change: the ticks are the recruiter's now.
       searchParams.review === "1" && !row.locked
         ? { ...row, checked: entries.some((entry: { candidateId: string }) => entry.candidateId === row.row.candidateId) }
         : row,
-    );
+    ).map((row: ReturnType<typeof planRun>[number]) => {
+      // Past a Lite batch, people start unticked.
+      if (!row.checked || limit === null) return row;
+      ticked += 1;
+      return ticked > limit ? { ...row, checked: false } : row;
+    });
     const ids = planned.map((row: { row: { candidateId: string } }) => row.row.candidateId);
     const people = await db.candidate.findMany({
       where: { id: { in: ids }, role: { userId: owner.id } },

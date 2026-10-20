@@ -17,8 +17,7 @@ export default async function WhatsNewPage() {
   const { owner, readOnly } = await getWorkspace();
   const limit = activeShortlistLimit(owner);
   const openRole = await db.role.findFirst({ where: { userId: owner.id, status: "open" }, orderBy: { updatedAt: "desc" }, select: { id: true, title: true } });
-  const access = currentRelease.extension ? await db.extensionAccess.findUnique({ where: { userId: owner.id }, select: { activatedAt: true } }) : null;
-  const canDownload = !readOnly && canUseExtension({ ...owner, extensionAccess: access });
+  const canDownload = !readOnly && canUseExtension(owner);
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 max-w-3xl">

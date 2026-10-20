@@ -1,32 +1,33 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { signupConfig } from "@/lib/signup-config";
 import { LoginForm } from "@/components/AccountForms";
+import { AuthFrame } from "@/components/AuthFrame";
+import { ProviderButtons } from "@/components/SignupForms";
 import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Retrivr" };
 
-export default async function LoginPage({ searchParams }: { searchParams: { activated?: string; changed?: string } }) {
+const ERRORS: Record<string, string> = {
+  provider: "That Google or Microsoft account is not linked to a Retrivr account. New here? Create an account first.",
+  unavailable: "This account is unavailable. Ask your administrator if you think that is wrong.",
+};
+
+export default async function LoginPage({ searchParams }: { searchParams: { activated?: string; changed?: string; error?: string } }) {
   if (await getSession()) redirect("/");
-  return <div className="login-page">
-    <section className="login-story" aria-label="Retrivr workspace introduction">
-      <div className="login-story-heading"><span className="eyebrow">RECRUITING, IN FOCUS</span><span className="login-coordinate">01 / RETRIVR</span></div>
-      <h2>Less scattered.<br />More connected.<br /><span>All in focus.</span></h2>
-      <p>The details in one place.<br />The next conversation in your hands.</p>
-      <div className="login-art" aria-hidden="true"><div className="login-art-grid" /><div className="login-orbit orbit-one" /><div className="login-orbit orbit-two" /><div className="login-art-core"><Image src="/brand/retrivr-mark.png" alt="" width={265} height={215} unoptimized /></div><span className="login-art-node login-art-node-a"><Icon name="file" size={18} />A sharper brief</span><span className="login-art-node login-art-node-b"><Icon name="people" size={18} />The right context</span><span className="login-art-node login-art-node-c"><Icon name="message" size={18} />A better conversation</span></div>
-      <div className="login-story-footer"><span className="status-dot" />Prepared by software. Decided by you.</div>
-    </section>
-    <section className="login-form-panel">
-      <div className="login-form-content"><div className="login-symbol"><Image src="/brand/retrivr-mark.png" alt="" width={265} height={215} unoptimized /></div><p className="page-eyebrow">WELCOME BACK</p><h1>Sign in to Retrivr</h1><p className="login-description">Your workspace is ready.<br />Pick up where the conversation left off.</p>
-        {(searchParams.activated || searchParams.changed) && <p role="status" className="auth-success"><Icon name="check" size={17} />Password saved. Sign in with your new password.</p>}
-        <LoginForm />
-        <div className="login-security"><Icon name="shield" size={15} /><span>Your recruiting work stays in your own workspace.</span></div>
-      </div>
-      <Link href="/welcome" className="login-back"><Icon name="arrow" size={15} />Back to Retrivr</Link>
-    </section>
-  </div>;
+  const config = signupConfig();
+  const providers = [config.google && "google", config.microsoft && "microsoft"].filter(Boolean) as ("google" | "microsoft")[];
+  const error = searchParams.error ? ERRORS[searchParams.error] : undefined;
+  return <AuthFrame eyebrow="WELCOME BACK" title="Sign in to Retrivr" description={<>Your workspace is ready.<br />Pick up where the conversation left off.</>}>
+    {(searchParams.activated || searchParams.changed) && <p role="status" className="auth-success"><Icon name="check" size={17} />Password saved. Sign in with your new password.</p>}
+    {error && <p role="alert" className="mb-4 rounded border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900">{error}</p>}
+    <ProviderButtons providers={providers} mode="signin" />
+    {providers.length > 0 && <p className="auth-divider"><span>or with your password</span></p>}
+    <LoginForm />
+    <p className="auth-links"><Link href="/forgot-password">Forgot your password?</Link>{config.open && <> · <Link href="/signup">Create an account</Link></>}</p>
+  </AuthFrame>;
 }

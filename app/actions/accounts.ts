@@ -4,12 +4,14 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { appOrigin, assertSameOrigin, getSession, requireAdmin } from "@/lib/auth";
+import { appOrigin, assertSameOrigin, endSession, getSession, requireAdmin } from "@/lib/auth";
 import { hashToken, newSecret, normalizeEmail, validEmail } from "@/lib/auth-crypto";
 import { CURRENT_RELEASE } from "@/lib/release";
 import type { FormState } from "@/lib/formState";
 import { parseAccountTier } from "@/lib/account-tiers";
-import { requireWritableWorkspace } from "@/lib/workspace";
+import { requireOwnAccount, requireWritableWorkspace } from "@/lib/workspace";
+import { deleteAccountData } from "@/lib/account-deletion";
+import { billingConfigured, hasLiveSubscription, stripe } from "@/lib/billing";
 
 export type AccountActionState = FormState & { activationUrl?: string; accountUrl?: string };
 
@@ -116,19 +118,43 @@ export async function deleteAccount(_state: FormState, form: FormData): Promise<
   const target = await db.user.findFirst({ where: { id: userId, role: "recruiter" }, select: { id: true, email: true } });
   if (!target) return { error: "This account cannot be deleted here." };
   if (normalizeEmail(String(form.get("confirmEmail") ?? "")) !== target.email) return { error: "Type the account's email address exactly to confirm deletion." };
+  if (!await cancelSubscriptionFor(userId)) return { error: "The account's Stripe subscription could not be cancelled, so nothing was deleted. Try again, or cancel it in Stripe first." };
   await db.$transaction(async (tx) => {
-    await tx.session.updateMany({ where: { viewUserId: userId }, data: { viewUserId: null } });
-    await tx.booking.deleteMany({ where: { userId } });
-    await tx.savedSearch.deleteMany({ where: { userId } });
-    await tx.role.deleteMany({ where: { userId } });
-    await tx.person.deleteMany({ where: { userId } });
-    await tx.messageTemplate.deleteMany({ where: { userId } });
-    await tx.settings.deleteMany({ where: { userId } });
-    await tx.user.delete({ where: { id: userId } });
+    await deleteAccountData(tx, userId);
     await tx.auditEvent.create({ data: { actorId: admin.id, targetUserId: userId, action: "account_deleted" } });
   });
   revalidatePath("/", "layout");
   redirect("/admin");
+}
+
+// A paid subscription ends with the account, so nobody is billed for one that
+// no longer exists. False when it is live and Stripe could not be reached.
+async function cancelSubscriptionFor(userId: string): Promise<boolean> {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { stripeSubscriptionId: true, billingStatus: true } });
+  if (!user || !hasLiveSubscription(user)) return true;
+  if (!billingConfigured()) return false;
+  try {
+    await stripe().subscriptions.cancel(user.stripeSubscriptionId!);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// A recruiter deleting their own account, plan or not: the same removal an
+// administrator makes, after the account's email is typed. Administrators are
+// removed by another administrator, never by themselves.
+export async function deleteOwnAccount(_state: FormState, form: FormData): Promise<FormState> {
+  const user = await requireOwnAccount();
+  if (user.role !== "recruiter") return { error: "Administrator accounts are removed by another administrator." };
+  if (normalizeEmail(String(form.get("confirmEmail") ?? "")) !== user.email) return { error: "Type your account's email address exactly to confirm." };
+  if (!await cancelSubscriptionFor(user.id)) return { error: "Your subscription could not be cancelled just now, so nothing was deleted. Try again in a minute." };
+  await db.$transaction(async (tx) => {
+    await deleteAccountData(tx, user.id);
+    await tx.auditEvent.create({ data: { actorId: user.id, targetUserId: user.id, action: "account_deleted_by_owner" } });
+  });
+  await endSession();
+  redirect("/welcome");
 }
 
 export async function startViewing(form: FormData) {

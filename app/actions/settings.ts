@@ -58,23 +58,19 @@ export async function regenerateCaptureToken(): Promise<FormState & { token?: st
     const generated = await db.$transaction(async (tx) => {
       const account = await tx.user.findUnique({
         where: { id: user.id },
-        select: { role: true, active: true, extensionAccess: { select: { activatedAt: true } } },
+        select: { role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true },
       });
       if (!account || !canUseExtension(account)) return null;
       const secret = newCaptureToken();
       const captureTokenHash = hashToken(secret);
       await tx.user.update({
-        where: {
-          id: user.id,
-          active: true,
-          OR: [{ role: "admin" }, { extensionAccess: { activatedAt: { not: null } } }],
-        },
+        where: { id: user.id, active: true },
         data: { settings: { upsert: { update: { captureTokenHash }, create: { captureTokenHash } } } },
         select: { id: true },
       });
       return secret;
     }, { isolationLevel: "Serializable" });
-    if (!generated) return { error: "Extension activation is required before generating a capture key. Activate the extension on your Account page, or ask your administrator for a code." };
+    if (!generated) return { error: "A capture key needs a plan. Choose one in Billing first." };
     token = generated;
   } catch {
     return { error: "A capture key could not be generated. Refresh the page and try again." };

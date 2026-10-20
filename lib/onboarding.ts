@@ -18,7 +18,6 @@ export type OnboardingStatus = {
   complete: boolean;
   untouched: boolean;
   extensionEnabled: boolean;
-  extensionCodeExpired: boolean;
   isAdmin: boolean;
   recruiterName: string;
   hasCalendarLink: boolean;
@@ -52,8 +51,14 @@ async function statusFor(userId: string, ownerRole: string): Promise<OnboardingS
         role: true,
         active: true,
         passwordHash: true,
+        accountTier: true,
+        trialExpiresAt: true,
+        signupSource: true,
+        billingPlan: true,
+        billingStatus: true,
+        billingPastDueSince: true,
+        authAccounts: { select: { id: true }, take: 1 },
         settings: { select: { recruiterName: true, calendarLink: true, captureTokenHash: true } },
-        extensionAccess: { select: { activatedAt: true, expiresAt: true } },
       },
     }),
     db.role.findFirst({ where: { userId: owner.id, status: "open" }, orderBy: { createdAt: "asc" }, select: { id: true } }),
@@ -64,7 +69,8 @@ async function statusFor(userId: string, ownerRole: string): Promise<OnboardingS
   const captureKey = Boolean(settings?.captureTokenHash);
   const recruiterName = settings?.recruiterName?.trim() ?? "";
   const steps: OnboardingStep[] = [
-    { id: "password", done: Boolean(account?.passwordHash) },
+    // A password, or Google or Microsoft: either is a way back in.
+    { id: "password", done: Boolean(account?.passwordHash || account?.authAccounts.length) },
     { id: "profile", done: Boolean(recruiterName) },
     { id: "role", done: Boolean(openRole) },
     { id: "extension", done: extensionEnabled },
@@ -79,11 +85,10 @@ async function statusFor(userId: string, ownerRole: string): Promise<OnboardingS
     done,
     total: tracked.length,
     complete: done === tracked.length,
-    // A brand-new account: the password came from the activation link and the
-    // extension may be granted by an admin role, so neither counts as use.
+    // A brand-new account: the sign-in and the plan came with it, so neither
+    // counts as use.
     untouched: !recruiterName && !openRole && !captureKey,
     extensionEnabled,
-    extensionCodeExpired: Boolean(account?.extensionAccess?.expiresAt && account.extensionAccess.expiresAt <= new Date()),
     isAdmin,
     recruiterName,
     hasCalendarLink: Boolean(settings?.calendarLink?.trim()),

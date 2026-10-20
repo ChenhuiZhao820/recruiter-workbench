@@ -1,19 +1,22 @@
 import Link from "next/link";
-import { getWorkspace } from "@/lib/workspace";
 import { db } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 import { canUseExtension } from "@/lib/extension-access";
-import { ExtensionActivationForm, PasswordForm } from "@/components/AccountForms";
+import { DeleteAccountForm, PasswordForm } from "@/components/AccountForms";
 import { Icon } from "@/components/Icon";
 import { accountTierLabels, getAccountTier } from "@/lib/account-tiers";
+import { formatWhen } from "@/lib/dates";
+import { deleteOwnAccount } from "@/app/actions/accounts";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
-  const { user, readOnly } = await getWorkspace();
-  const access = await db.extensionAccess.findUnique({ where: { userId: user.id }, select: { activatedAt: true, expiresAt: true } });
-  const extensionEnabled = canUseExtension({ ...user, extensionAccess: access });
+  const { user, readOnly, noPlan } = await getWorkspace();
+  const viewing = readOnly && !noPlan;
+  const extensionEnabled = canUseExtension(user);
   const tier = getAccountTier(user);
-  const trialExpiry = user.trialExpiresAt?.toISOString().replace("T", " ").replace(":00.000Z", " UTC");
+  const signIn = await db.user.findUnique({ where: { id: user.id }, select: { passwordHash: true, authAccounts: { select: { providerId: true } } } });
+  const providers = Array.from(new Set(signIn?.authAccounts.map((account) => account.providerId === "google" ? "Google" : account.providerId === "microsoft" ? "Microsoft" : null).filter(Boolean)));
   return <div className="max-w-4xl space-y-8">
     <header className="page-header">
       <div>
@@ -31,21 +34,26 @@ export default async function AccountPage() {
           <p className="mt-1 break-words text-sm text-ink-soft">{user.email}</p>
         </div>
         <div className="space-y-2 border-t border-line pt-4">
-          <p className="field-label">Account type</p>
+          <p className="field-label">Plan</p>
           <p className="font-medium">{accountTierLabels[tier]}</p>
-          {tier === "trial" && <p className="section-caption">Pro access until {trialExpiry}. Your account automatically returns to Basic at expiry.</p>}
-          {user.role !== "admin" && user.accountTier === "trial" && tier === "basic" && <p className="section-caption">Trial expired{trialExpiry ? ` · ${trialExpiry}` : ""}. Your account now uses Basic. Your workspace data is unchanged.</p>}
+          {tier === "trial" && user.trialExpiresAt && <p className="section-caption">Pro features until {formatWhen(user.trialExpiresAt)}.</p>}
+          {user.role !== "admin" && user.signupSource !== "self" && user.accountTier === "trial" && tier === "basic" && <p className="section-caption">Trial expired. Your account now uses Basic. Your workspace data is unchanged.</p>}
+          {!viewing && user.role !== "admin" && <Link href="/billing" className="text-sm text-accent underline">Billing and plans</Link>}
         </div>
+        {providers.length > 0 && <div className="space-y-1 border-t border-line pt-4">
+          <p className="field-label">Also signs in with</p>
+          <p className="text-sm">{providers.join(" and ")}</p>
+        </div>}
       </section>
       <section className="space-y-4" aria-label="Account security">
-        <h2 className="section-heading"><span aria-hidden="true" className="section-number">02</span> Change password</h2>
-        <PasswordForm />
+        <h2 className="section-heading"><span aria-hidden="true" className="section-number">02</span> {signIn?.passwordHash ? "Change password" : "Password"}</h2>
+        {signIn?.passwordHash ? <PasswordForm /> : <p className="card text-sm text-ink-soft">You sign in with {providers.join(" or ") || "a provider"}. To add a password as well, use <Link href="/forgot-password" className="text-accent underline">Forgot password</Link> from the sign-in page after signing out.</p>}
       </section>
     </div>
     <section aria-label="Browser extension" className="card space-y-5">
       <h2 className="section-heading"><span aria-hidden="true" className="section-number">03</span> Browser extension</h2>
-      {readOnly ? <p className="section-caption">Return to your own workspace to manage extension access. Downloads and activation are unavailable in read-only view.</p> : extensionEnabled ? <>
-        <p className="text-sm text-ink-soft">{user.role === "admin" ? "Administrator access is included." : "Extension access is activated for your account."} Download again whenever you need to reinstall. Your activation code is not needed again.</p>
+      {viewing ? <p className="section-caption">Return to your own workspace to download the extension. Downloads are unavailable in read-only view.</p> : extensionEnabled ? <>
+        <p className="text-sm text-ink-soft">{user.role === "admin" ? "Administrator access is included." : "The extension comes with your plan."} Download again whenever you need to reinstall.</p>
         <a href="/api/extension/download" download className="btn-primary">Download extension ZIP<Icon name="down" size={17} /></a>
         <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-ink-soft">
           <li>Extract the ZIP into a permanent folder on your computer. Keep this folder after installation.</li>
@@ -53,13 +61,14 @@ export default async function AccountPage() {
           <li>Pin the extension from Chrome’s extensions menu. Go to <Link href="/settings" className="text-accent underline">Settings</Link> and generate your personal capture key. <strong className="font-medium text-ink">Copy it before you leave that page: the key is shown once and cannot be displayed again.</strong> Paste it into the extension; the workbench address is already filled in. If you lose it, generate another one — that replaces the old key rather than recovering it.</li>
           <li>Create an open role in your workspace if you do not have one yet. Click Connect and check that the extension shows your name and email.</li>
         </ol>
-        <p className="section-caption">The ZIP contains no personal key or activation code. Installation requires your clicks; a website cannot install it automatically. Unpacked extensions do not update automatically. Download a fresh ZIP when an update is available. If your organisation blocks Developer mode, ask your IT administrator.</p>
+        <p className="section-caption">The ZIP contains no personal key. It saves nothing until a capture key from an account with a plan is pasted into it, and that key stops working when the plan ends or a new key is generated. Installation requires your clicks; a website cannot install it automatically. Unpacked extensions do not update automatically. If your organisation blocks Developer mode, ask your IT administrator.</p>
       </> : <>
-        <p className="text-sm leading-relaxed text-ink-soft">Ask your administrator for your account’s extension activation code. It can be used once, by this account only, within 7 days of being issued. A replacement invalidates the previous code.</p>
-        {access?.expiresAt && access.expiresAt <= new Date() && <p role="status" className="text-sm text-ink-soft">Your activation code has expired. Ask your administrator for a replacement.</p>}
-        <ExtensionActivationForm />
-        <p className="section-caption">Activation unlocks downloading and using the extension. After installation, generate a separate personal capture key in Settings. <Link href="/getting-started" className="text-accent underline">Follow the step-by-step setup guide</Link> if you would rather be walked through it.</p>
+        <p className="text-sm leading-relaxed text-ink-soft">The extension comes with every plan and with the trial.</p>
+        <Link href="/billing" className="btn-secondary">Choose a plan</Link>
       </>}
     </section>
+    {!viewing && user.role === "recruiter" && <section aria-label="Delete your account" className="card">
+      <DeleteAccountForm userId={user.id} email={user.email} action={deleteOwnAccount} />
+    </section>}
   </div>;
 }

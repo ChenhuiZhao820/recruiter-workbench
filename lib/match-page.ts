@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { TierAccount } from "@/lib/account-tiers";
 import { matchReadsLeft } from "@/lib/match";
 import { parseObjectArray, parseStringArray } from "@/lib/json";
 import { locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
@@ -27,7 +28,7 @@ function href(encoded: string, hidden: string[]) {
 }
 
 
-export async function loadMatchPage(owner: { id: string }, readOnly: boolean, searchParams: MatchParams): Promise<MatchPageData> {
+export async function loadMatchPage(owner: TierAccount & { id: string }, readOnly: boolean, searchParams: MatchParams): Promise<MatchPageData> {
   const now = new Date();
   const criteria = decodeCriteria(searchParams.c);
   const hidden = criteria ? hiddenIds(searchParams.x) : [];
@@ -38,7 +39,7 @@ export async function loadMatchPage(owner: { id: string }, readOnly: boolean, se
       orderBy: { updatedAt: "desc" },
       select: { id: true, title: true, client: true, jobDesc: true, budgetMin: true, budgetMax: true, budgetCurrency: true, briefing: { select: { keySkills: true, searchTitles: true } } },
     }),
-    readOnly ? 0 : matchReadsLeft(owner.id, now),
+    readOnly ? 0 : matchReadsLeft(owner, now),
   ]);
   const startRole = roles.find((role) => role.id === searchParams.role) ?? null;
 

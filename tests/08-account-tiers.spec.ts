@@ -80,7 +80,7 @@ function article(page: Page, email: string) {
 async function expectAccountType(page: Page, label: string) {
   await expect(page.getByRole("heading", { name: "Your account", exact: true })).toBeVisible();
   const details = page.getByRole("region", { name: "Account details", exact: true });
-  await expect(details.getByText("Account type", { exact: true })).toBeVisible();
+  await expect(details.getByText("Plan", { exact: true })).toBeVisible();
   await expect(details.getByText(label, { exact: true })).toBeVisible();
 }
 
@@ -125,7 +125,7 @@ test("T1 ordinary accounts default to Basic while administrators remain Admin wi
   await admin.page.goto("/admin");
   await expectArticleType(admin.page, actor.email, "Basic");
   await expectArticleType(admin.page, admin.email, "Admin");
-  await expectArticleType(admin.page, trial.email, "Trial");
+  await expectArticleType(admin.page, trial.email, "Pro trial");
   await expect(article(admin.page, trial.email)).not.toContainText(expiry.toISOString().slice(0, 10));
   for (const name of ["Account types", "Create account", "Manage account type", "Extension access", "Audit history"]) {
     await expect(admin.page.getByRole("region", { name, exact: true })).toHaveCount(0);
@@ -159,9 +159,9 @@ test("T1 ordinary accounts default to Basic while administrators remain Admin wi
   await expect(management).toContainText("Enabled");
   const editor = management.getByLabel("Account type", { exact: true });
   await expect(editor).toHaveValue("basic");
-  await expect(editor.locator("option")).toHaveText(["Basic", "Pro", "Trial"]);
+  await expect(editor.locator("option")).toHaveText(["Lite", "Basic", "Pro", "Pro Max", "Trial"]);
   await expect(management.getByLabel("Trial expires at (UTC)", { exact: true })).toHaveCount(0);
-  for (const name of ["Save account type", "View workspace (read-only)", "Generate extension code", "Disable account"]) {
+  for (const name of ["Save account type", "View workspace (read-only)", "Disable account"]) {
     await expect(management.getByRole("button", { name, exact: true })).toBeVisible();
   }
   await management.getByText("Activation / password reset", { exact: true }).click();
@@ -196,7 +196,7 @@ for (const tier of ["basic", "pro", "trial"] as const) {
     const select = create.getByLabel("Account type", { exact: true });
     await expect(select).toHaveValue("basic");
     await expect(select).toHaveAttribute("name", "accountTier");
-    await expect(select.locator("option")).toHaveText(["Basic", "Pro", "Trial"]);
+    await expect(select.locator("option")).toHaveText(["Lite", "Basic", "Pro", "Pro Max", "Trial"]);
     await expect(create.getByLabel("Trial expires at (UTC)", { exact: true })).toHaveCount(0);
     await create.getByLabel("Name", { exact: true }).fill(`Created ${tier} recruiter`);
     await create.getByLabel("Email", { exact: true }).fill(email);
@@ -212,7 +212,7 @@ for (const tier of ["basic", "pro", "trial"] as const) {
     await expect(setup).toBeVisible();
     const user = await db.user.findUniqueOrThrow({ where: { email }, include: { extensionAccess: true } });
     expect(user).toMatchObject({ role: "recruiter", accountTier: tier, trialExpiresAt: tier === "trial" ? new Date(`${expiry}:00.000Z`) : null, extensionAccess: null });
-    const label = tier[0].toUpperCase() + tier.slice(1);
+    const label = tier === "trial" ? "Pro trial" : tier[0].toUpperCase() + tier.slice(1);
     await expect(admin.page).toHaveURL(`${BASE}/admin/new`);
     const activationUrl = await setup.inputValue();
     const manageLink = admin.page.getByRole("link", { name: "Manage account", exact: true });
@@ -235,8 +235,8 @@ for (const tier of ["basic", "pro", "trial"] as const) {
     await expect(page).toHaveURL(`${BASE}/`);
     await page.goto("/account");
     await expectAccountType(page, label);
-    expect((await page.request.get("/api/extension/download")).status()).toBe(403);
-    await expect(page.getByRole("region", { name: "Browser extension", exact: true }).getByLabel("Extension activation code", { exact: true })).toBeVisible();
+    expect((await page.request.get("/api/extension/download")).status()).toBe(200);
+    await expect(page.getByRole("region", { name: "Browser extension", exact: true }).getByRole("link", { name: "Download extension ZIP", exact: true })).toBeVisible();
   });
 }
 
@@ -258,7 +258,7 @@ test("T3 upgrades and downgrades update existing sessions without changing role,
     else await expect(card.getByLabel("Trial expires at (UTC)", { exact: true })).toHaveCount(0);
     await card.getByRole("button", { name: "Save account type", exact: true }).click();
     await expect.poll(async () => (await db.user.findUniqueOrThrow({ where: { id: actor.id } })).accountTier).toBe(tier);
-    const label = tier[0].toUpperCase() + tier.slice(1);
+    const label = tier === "trial" ? "Pro trial" : tier[0].toUpperCase() + tier.slice(1);
     await expectArticleType(admin.page, actor.email, label);
     await actor.page.reload();
     await expectAccountType(actor.page, label);
@@ -303,7 +303,7 @@ test("T5 an expired trial becomes effectively Basic without rewriting historical
   const actor = await accounts.create({ accountTier: "trial", trialExpiresAt: expiry });
   const admin = await accounts.create({ role: "admin" });
   await actor.page.goto("/account");
-  await expectAccountType(actor.page, "Trial");
+  await expectAccountType(actor.page, "Pro trial");
   const expiredAt = new Date(Date.now() - 1000);
   await db.user.update({ where: { id: actor.id }, data: { trialExpiresAt: expiredAt } });
   await actor.page.reload();
@@ -313,7 +313,7 @@ test("T5 an expired trial becomes effectively Basic without rewriting historical
   await expectArticleType(admin.page, actor.email, "Basic");
   expect(await db.user.findUniqueOrThrow({ where: { id: actor.id } })).toMatchObject({ role: "recruiter", accountTier: "trial", trialExpiresAt: expiredAt });
   expect(await tierEvents(admin.id)).toEqual([]);
-  expect((await actor.page.request.get("/api/extension/download")).status()).toBe(403);
+  expect((await actor.page.request.get("/api/extension/download")).status()).toBe(200);
 });
 
 for (const tier of ["basic", "pro", "trial"] as const) {
@@ -421,7 +421,7 @@ test("T8 same-origin and writable-workspace checks protect all account managemen
     await admin.page.goto(path);
     await expect(admin.page.getByRole("link", { name: "Create an account", exact: true })).toHaveCount(0);
     await expect(admin.page.locator(CREATE_FORM)).toHaveCount(0);
-    await expect(admin.page.locator('select[name="accountTier"], input[name="trialExpiresAt"], input[aria-label="New extension activation code"]')).toHaveCount(0);
+    await expect(admin.page.locator('select[name="accountTier"], input[name="trialExpiresAt"], input[aria-label="One-time setup link"]')).toHaveCount(0);
     for (const name of ["Create account", "Save account type", "Generate setup/reset link", "Disable account", "Enable account", "Generate extension code", "Replace extension code"]) {
       await expect(admin.page.getByRole("button", { name, exact: true })).toHaveCount(0);
     }
@@ -517,13 +517,14 @@ for (const state of ["basic", "pro", "trial", "expired"] as const) {
     const foreign = await accounts.create({ accountTier: "pro" });
     const foreignRole = await db.role.create({ data: { userId: foreign.id, title: `Foreign private role ${foreign.id}`, jobDesc: `Foreign private description ${foreign.id}` } });
     await actor.page.goto(`/account?userId=${foreign.id}`);
-    const label = state === "expired" ? "Basic" : state[0].toUpperCase() + state.slice(1);
+    const label = state === "expired" ? "Basic" : state === "trial" ? "Pro trial" : state[0].toUpperCase() + state.slice(1);
     await expectAccountType(actor.page, label);
     const details = actor.page.getByRole("region", { name: "Account details", exact: true });
     await expect(details).toContainText(actor.email);
     await expect(details).not.toContainText(foreign.email);
     await expect(actor.page.getByRole("button", { name: "Change password", exact: true })).toBeEnabled();
-    expect((await actor.page.request.get("/api/extension/download")).status()).toBe(403);
+    // Each of these has a plan (an expired trial an administrator gave falls back to Basic), so the extension comes with it.
+    expect((await actor.page.request.get("/api/extension/download")).status()).toBe(200);
     await actor.page.goto("/roles/new");
     const form = await snapshotForm(actor.page, "/roles/new", 'form:has(input[name="title"])');
     const title = `Ordinary ${state} role ${actor.id}`;
@@ -536,7 +537,8 @@ for (const state of ["basic", "pro", "trial", "expired"] as const) {
     expect((await actor.page.request.get(`/roles/${foreignRole.id}`)).status()).toBe(404);
     await actor.page.goto("/settings");
     await expect(actor.page.getByRole("button", { name: "Save settings", exact: true })).toBeEnabled();
-    await expect(actor.page.getByRole("button", { name: /Generate a (capture|new) key/ })).toHaveCount(0);
+    // Every plan includes the extension; no activation code is involved.
+    await expect(actor.page.getByRole("button", { name: /Generate a (capture|new) key/ })).toBeVisible();
     expect(await db.extensionAccess.findUnique({ where: { userId: actor.id } })).toBeNull();
   });
 }

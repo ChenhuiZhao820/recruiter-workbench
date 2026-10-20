@@ -27,7 +27,7 @@ async function makeCandidate(fullName: string, withPerson = true) {
 
 async function basicPage(browser: Browser) {
   const user = await db.user.create({ data: {
-    email: `notes-basic-${randomUUID()}@test.capture.invalid`, name: "Basic Recruiter", role: "recruiter", accountTier: "basic",
+    email: `notes-basic-${randomUUID()}@test.capture.invalid`, name: "Basic Recruiter", role: "recruiter", accountTier: "lite",
     settings: { create: { seenRelease: CURRENT_RELEASE } },
   } });
   const token = randomBytes(32).toString("base64url");
@@ -171,7 +171,7 @@ test("N4 an expired Notion token is refreshed once and kept encrypted", async ({
   await stub({ expireAccess: false });
 });
 
-test("N5 forged replies, read-only views, Basic accounts and odd ids get nothing; Settings disconnects", async ({ page, browser }) => {
+test("N5 forged replies, read-only views, Lite accounts and odd ids get nothing; Settings disconnects", async ({ page, browser }) => {
   await page.goto("/api/notion/callback?code=stub-notion-code&state=forged.notion.1.x.y");
   await expect(page).toHaveURL(/notion=failed/);
   expect((await page.request.get(`${BASE}/api/notion/pages/not-a-page-id`)).status()).toBe(404);
@@ -180,7 +180,7 @@ test("N5 forged replies, read-only views, Basic accounts and odd ids get nothing
   try {
     expect((await basic.page.request.get(`${BASE}/api/notion/pages?q=`)).status()).toBe(404);
     expect((await basic.page.request.get(`${BASE}/api/notion/connect`, { maxRedirects: 0 })).status()).toBe(404);
-    // A Basic account still keeps notes on its own people.
+    // A Lite account still keeps notes on its own people.
     const person = await db.person.create({ data: { userId: basic.user.id, fullName: "Basil Notekeeper", searchText: "basil" } });
     await basic.page.goto(`/people/${person.id}`, { timeout: 90_000 });
     await basic.page.getByLabel("New note").fill("Met at the meetup.");

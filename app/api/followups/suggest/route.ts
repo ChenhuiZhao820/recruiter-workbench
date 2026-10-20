@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { appOrigin, getSession } from "@/lib/auth";
 import { getWorkspace } from "@/lib/workspace";
-import { canUseFeature } from "@/lib/features";
+import { canUseFeature, monthlyQuota } from "@/lib/features";
 import { getSettings } from "@/lib/settings";
 import { firstName, normalizeMessage } from "@/lib/render";
 import { bookingLinkFor } from "@/lib/booking";
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const used = await db.usageEvent.count({ where: { userId: user.id, kind: "reply_suggested", at: { gte: monthStart } } });
-  if (used >= replyMonthlyCap()) return fail(429, "This month's suggested replies are used up. Write this one yourself.");
+  if (used >= monthlyQuota(user, "replies", replyMonthlyCap(), now)) return fail(429, "This month's suggested replies are used up. Write this one yourself.");
 
   const settings = await getSettings();
   try {

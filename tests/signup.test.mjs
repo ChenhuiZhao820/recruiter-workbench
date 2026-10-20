@@ -196,3 +196,23 @@ test("only the provider round trip is reachable over HTTP", () => {
   const open = route.match(/const OPEN = new Set\(\[([^\]]*)\]\)/)[1].split(",").map((entry) => entry.trim().replace(/"/g, "")).filter(Boolean);
   assert.deepEqual(open.sort(), ["GET /callback/google", "GET /callback/microsoft", "POST /sign-in/social"]);
 });
+
+test("the legal pages name who runs Retrivr, and stay a draft until the required details are in", () => {
+  const filename = path.join(root, "lib/legal.ts");
+  const source = ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const module = { exports: {} };
+  vm.runInNewContext(source, { module, exports: module.exports }, { filename });
+  const legal = module.exports;
+  const filled = { ...legal.OPERATOR, legalName: "Jane Doe", address: "1 High Street, London", contactEmail: "jane@example.com" };
+  assert.equal(legal.legalDetailsComplete(filled), true);
+  for (const field of ["legalName", "address", "contactEmail"]) {
+    for (const value of [null, "", "  "]) assert.equal(legal.legalDetailsComplete({ ...filled, [field]: value }), false, `${field} ${JSON.stringify(value)}`);
+  }
+  assert.equal(legal.operatorName(filled), "Jane Doe, trading as Basanite");
+  assert.equal(legal.operatorName({ ...filled, legalName: "Basanite Ltd", companyNumber: "12345678" }), "Basanite Ltd (company number 12345678)");
+  assert.match(legal.operatorName({ ...filled, legalName: null }), /^\[.+\], trading as Basanite$/);
+  assert.match(legal.LEGAL_VERSION, /^\d{4}-\d{2}-\d{2}$/);
+  // Sign-up never opens on our own pages while they are a draft.
+  const config = readFileSync(path.join(root, "lib/signup-config.ts"), "utf8");
+  assert.match(config, /!pointsAtDraft\(termsUrl\) && !pointsAtDraft\(privacyUrl\)/);
+});

@@ -80,7 +80,14 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   and nothing else: `/book/[token]` and its `.ics`, a candidate's booking page
   (see Booking page), and `/s/[token]`, a client's shortlist (see Client
   links). The ways in - `/login`, `/signup`, `/signup/verify`,
-  `/forgot-password`, `/activate` - are public too (see Self-serve sign-up).
+  `/forgot-password`, `/activate` - are public too (see Self-serve sign-up),
+  and so are `/terms` and `/privacy`, which use the public header signed in or
+  not. Their text describes what the software does; change it, and
+  `LEGAL_VERSION` in `lib/legal.ts`, when the product changes. Who runs
+  Retrivr (`OPERATOR`: Basanite is not incorporated yet, so the contract is
+  with its runner, trading as Basanite) lives there too; until the name,
+  address and contact email are filled in both pages say they are a draft and
+  `signupConfig()` will not open sign-up on them.
   All other business routes still require authentication.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
   on the homepage it renders only the skip link, because `MarketingHome` brings

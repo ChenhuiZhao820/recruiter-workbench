@@ -53,6 +53,7 @@ model User {
   calendar         CalendarConnection?
   aiUsage          AiUsage[]
   usageEvents      UsageEvent[]
+  emailLookups     EmailLookup[]
   integrations     IntegrationConnection[]
   suppressions     Suppression[]
   importBatches    ImportBatch[]
@@ -329,6 +330,9 @@ model OutreachLog {
   // Copied from the template at send time so the record survives the
   // template being edited or deleted.
   kind         String   @default("message")
+  // How it went out: "linkedin", "email" or "both", as the recruiter marked
+  // it. Null for everything recorded before email existed, which was LinkedIn.
+  channel      String?
   sentAt       DateTime @default(now())   // when the recruiter marked it sent
 }
 
@@ -372,7 +376,7 @@ model Person {
   memberId         String?
   headline         String?
   email            String?
-  emailSource      String?   // "booking" | "manual"
+  emailSource      String?   // "booking" | "manual" | "import" | "finder" (found by Enrow, unverified)
   emailConsentAt   DateTime?
   salaryMin        Int?
   salaryMax        Int?
@@ -401,6 +405,7 @@ model Person {
   importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   shortlistItems   ShortlistItem[]
   cv               PersonCv?
+  emailLookups     EmailLookup[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -614,6 +619,29 @@ model UsageEvent {
   at     DateTime @default(now())
 
   @@index([userId, kind, at])
+}
+
+// One email search, started by a click on Find email. It holds no name, no
+// address and no email: the found email goes onto the person, and this row
+// is what the plan's allowance counts (found, or still pending) and what the
+// page polls by. enrowId is the provider's search id, cleared once the
+// result is read. The person may be erased afterwards; the row stays, so
+// erasing someone does not give the search back.
+model EmailLookup {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personId   String?
+  person     Person?   @relation(fields: [personId], references: [id], onDelete: SetNull)
+  method     String    // linkedin | name
+  status     String    @default("pending") // pending | found | not_found | failed
+  reason     String?   // the provider's reason for a LinkedIn search that found nothing
+  enrowId    String?
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([userId, createdAt])
+  @@index([personId])
 }
 
 // Kept after a person is deleted so the same profile is recognised if it is

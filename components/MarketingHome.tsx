@@ -234,7 +234,7 @@ export function MarketingHome({ signedIn = false, signupOpen = false }: { signed
             <details><summary><span className="lp-idx">03</span>Does Retrivr adapt to my own workflow?<svg><use href="#lp-i-plus"/></svg></summary>
               <div>Yes. Each part of Retrivr works on its own, so you use the parts that fit how you already work and leave the rest. It also works with the mainstream calendar, meeting and note-taking apps you already use. On Pro and Pro Max you can talk to our team directly about custom features for your own desk.</div></details>
             <details><summary><span className="lp-idx">04</span>Which plan do I need? Is there a trial?<svg><use href="#lp-i-plus"/></svg></summary>
-              <div>Lite covers the day-to-day pipeline. Basic adds your own talent database and screening summaries. Pro adds client sign-off and reply suggestions, and you can try it free for 7 days.</div></details>
+              <div>Lite covers the day-to-day pipeline. Basic adds your own talent database and screening summaries. Pro adds client sign-off, reply suggestions and an email finder, and you can try it free for 7 days.</div></details>
             <details><summary><span className="lp-idx">05</span>How do I get an account?<svg><use href="#lp-i-plus"/></svg></summary>
               <div>{signupOpen ? <>Sign up yourself with Google, Microsoft or your email. You get seven days of Pro with no card; when it ends, choose a plan to keep working. For a team account or custom work, write to us.</> : <>Retrivr is in beta testing right now, so there is no public sign-up yet. Email us and we will set up your account, then send you a one-time link to register your password.</>}</div></details>
           </div>

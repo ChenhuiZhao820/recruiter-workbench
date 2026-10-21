@@ -25,6 +25,22 @@ const STAGES_SENDING_DOES_NOT_CHANGE = new Set([
 // towards the nudge history the follow-up guard reads.
 const STAGES_WHERE_SENDING_IS_A_NUDGE = new Set(["contacted", "booking_pending"]);
 
+// How the recruiter says it went out. Anything else, or nothing, is recorded
+// as no channel, which reads as LinkedIn like every message before email.
+const CHANNELS = new Set(["linkedin", "email", "both"]);
+function channelFrom(formData: FormData): string | null {
+  const value = String(formData.get("channel") ?? "");
+  return CHANNELS.has(value) ? value : null;
+}
+// The same message marked once on LinkedIn and again by email is one message
+// that went both ways. No channel reads as LinkedIn.
+function joinChannels(before: string | null, now: string | null): string | null {
+  if (!now) return before;
+  const ways = new Set([before ?? "linkedin", now].flatMap((way) => (way === "both" ? ["linkedin", "email"] : [way])));
+  if (!ways.has("email")) return before;
+  return ways.has("linkedin") ? "both" : "email";
+}
+
 // Recording one send, for whichever screen the recruiter did it from. The
 // single-candidate page and the guided queue share this so that "contacted"
 // cannot come to mean two different things depending on the route taken.
@@ -34,7 +50,8 @@ async function recordSend(
   userId: string,
   candidateId: string,
   templateId: string | null,
-  body: string
+  body: string,
+  channel: string | null = null
 ): Promise<string | null> {
   // The body arrives from the page rather than from the template, so it is
   // tidied here too: the record of what was sent should read like what was sent.
@@ -57,9 +74,13 @@ async function recordSend(
     // second click records nothing more and does not count as another nudge.
     const already = await tx.outreachLog.findFirst({
       where: { candidateId, renderedBody, sentAt: { gte: utcDayStart(new Date()) } },
-      select: { id: true },
+      select: { id: true, channel: true },
     });
-    if (already) return candidate.roleId;
+    if (already) {
+      const joined = joinChannels(already.channel, channel);
+      if (joined !== already.channel) await tx.outreachLog.update({ where: { id: already.id }, data: { channel: joined } });
+      return candidate.roleId;
+    }
 
     await tx.outreachLog.create({
       data: {
@@ -67,6 +88,7 @@ async function recordSend(
         ...(templateId ? { template: { connect: { id: templateId, userId } } } : {}),
         renderedBody,
         kind,
+        channel,
       },
     });
 
@@ -102,7 +124,8 @@ export async function markAsSent(formData: FormData) {
     user.id,
     String(formData.get("candidateId") ?? ""),
     String(formData.get("templateId") ?? "").trim() || null,
-    String(formData.get("renderedBody") ?? "")
+    String(formData.get("renderedBody") ?? ""),
+    channelFrom(formData)
   );
 }
 
@@ -116,7 +139,8 @@ export async function markSentAndAdvance(formData: FormData) {
     user.id,
     String(formData.get("candidateId") ?? ""),
     String(formData.get("templateId") ?? "").trim() || null,
-    String(formData.get("renderedBody") ?? "")
+    String(formData.get("renderedBody") ?? ""),
+    channelFrom(formData)
   );
   if (isQueuePath(next)) redirect(next);
 }

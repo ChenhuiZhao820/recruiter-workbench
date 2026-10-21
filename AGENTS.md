@@ -264,6 +264,61 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `tests/followup-run.test.mjs` covers the list rules, the address and the
   request.
 
+## Email finder
+
+- A Pro feature (`emailFinder` in `FEATURE_TIERS`, so Pro, Pro Max, the
+  trial and Admin). Searches are `MONTHLY_QUOTAS.emails`: Pro 250 and Pro Max
+  1,000 a UTC month, the trial 50 for the whole trial (counted from the
+  account's creation, so a trial crossing a month gets no second allowance),
+  `CAPTURE_EMAIL_FINDER_MONTHLY_CAP` only lowering them. Used up, Find email
+  is refused and everything else works as before.
+- The provider is Enrow (`ENROW_API_KEY`, server only; without it Find email
+  is not offered and the route answers 503). The rules are in
+  `lib/enrow-core.mjs` (`tests/email-finder.test.mjs`), the requests in
+  `lib/email-finder.ts`. Enrow is asked, never LinkedIn: a search sends the
+  person's canonical `/in/` address, or their name and a company the
+  recruiter confirmed (guessed from the headline, shown in the field first,
+  never sent unseen). When Enrow refuses the address or finds nothing, the
+  page offers the name-and-company search; it never retries on its own.
+- `POST /api/email-finder` checks the origin, both accounts' feature, refuses
+  read-only views, other accounts' people, do not contact and anyone who
+  already has an email, and in one serializable transaction either returns
+  the search already running for that person or claims a place in the
+  allowance with an `EmailLookup` row. Only found searches, and pending ones
+  younger than ten minutes, count: not found and failed are free, as Enrow
+  charges for them little or nothing. `GET /api/email-finder/[id]` reads
+  Enrow once per ask (free) while the page polls every two seconds for at
+  most a minute, and records the end once; a found email is written onto the
+  person (`emailSource` "finder", no consent date) only while they still
+  have none, so a typed one wins. Webhooks are not used: Enrow signs none.
+- `EmailLookup` holds no name, address or email, and the provider's search
+  id is cleared when the result is read. A person's erasure sets its
+  `personId` to null and keeps the row, so erasing does not refund the
+  search. It is not exported or imported. Usage events count
+  `email_search_started`, `email_found` and `email_not_found` only.
+- Find email is on the person page (the Email block, with "Add it by hand" /
+  "Change or remove" through `setPersonEmail`, which marks the address
+  "manual"), on a role's candidate rows and on the outreach queue and
+  follow-up run cards.
+- Emailing: with an address, the outreach card offers "Also email it to
+  ..." (remembered per browser). The same click that copies and opens
+  LinkedIn then opens a `mailto:` draft with the subject and the edited
+  message (past `MAILTO_LIMIT`, the subject only; the message is already on
+  the clipboard). The recruiter sends it from their own email app: Retrivr
+  still sends nothing to candidates, and the queue rules above are unchanged.
+  Mark as sent records `OutreachLog.channel` ("linkedin", "email" or
+  "both"; null for everything before, read as LinkedIn); the same text
+  marked again the same day joins the channels rather than adding a message.
+  Sending from a connected Gmail or Outlook mailbox is a later phase, waiting
+  on Google's verification of the `gmail.send` scope.
+- `20261025000000_email_finder` adds `EmailLookup` and the nullable
+  `OutreachLog.channel` (additive; `channel` is in `lateColumns`). It has
+  not been applied to the hosted or the local account database.
+  `scripts/enrow-probe.mjs` makes one real search through the paid-run
+  guard, logging the outcome and credits only. `tests/31-email-finder.spec.ts`
+  plays it against the local stub (`CAPTURE_TEST_ENROW_BASE_URL`, outside
+  production only).
+
 ## Telling people what changed
 
 - There is one current release with a page: `RELEASES[0]` in `lib/release.ts`
@@ -1114,10 +1169,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   pipeline, outreach, booking, client links and follow-up runs (`LITE_FOLLOWUP_RUN_LIMIT`
   people a run); Basic adds the talent database (people search, matches,
   Instant Match, revisit reminders, import) and screening; Pro adds the client
-  email and reply suggestions. A trial is Pro. Custom shortlists are limited
-  below Pro. Monthly AI allowances are `MONTHLY_QUOTAS` per plan (screening
-  Basic 30, Pro 120, Pro Max 300, trial 10); the `CAPTURE_*_MONTHLY_CAP`
-  variables only lower them.
+  email, reply suggestions and the email finder. A trial is Pro. Custom
+  shortlists are limited below Pro. Monthly allowances are `MONTHLY_QUOTAS`
+  per plan (screening Basic 30, Pro 120, Pro Max 300, trial 10; email
+  searches Pro 250, Pro Max 1,000, trial 50 for the whole trial); the
+  `CAPTURE_*_MONTHLY_CAP` variables only lower them.
 - Only Admin in their own writable workspace can create classified accounts or
   change tiers. Trial requires an explicit future UTC expiry. Changes are audited
   transactionally, clear obsolete expiry, and never change business ownership,
@@ -1508,7 +1564,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 Review LinkedIn references: allow clicked profile/search URLs, placeholders,
 documentation, fixtures, and the extension's single-profile extraction. Never
-fetch LinkedIn from the app or extension. Verify extension permissions remain
+fetch LinkedIn from the app or extension. The email finder sends a profile address to Enrow,
+not to LinkedIn, and only on a click. Verify extension permissions remain
 `activeTab`, `scripting`, `sidePanel`, `storage`, no content scripts/background, granted
 host access limited to loopback plus the packaged workbench host, and
 `optional_host_permissions` exactly `["https://*.linkedin.com/*"]` - optional, never

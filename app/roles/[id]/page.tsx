@@ -35,6 +35,9 @@ import { openOfferTimes } from "@/lib/arrange-core.mjs";
 import { MarkSeen } from "@/components/MarkSeen";
 import { adoptShortlistAnswer, newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
 import { ShortlistSharing } from "@/components/ShortlistSharing";
+import { FindEmail } from "@/components/FindEmail";
+import { emailAllowance } from "@/lib/email-finder";
+import { finderTarget } from "@/lib/enrow-core.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +59,7 @@ function BriefingSection({ title, children }: { title: string; children: ReactNo
 export default async function RolePage({ params }: { params: { id: string } }) {
   const { owner, readOnly } = await getWorkspace();
   const features = await featureAvailability();
+  const finder = features.emailFinder && !readOnly ? await emailAllowance(owner) : null;
   const settings = await getSettings();
   const now = new Date();
   const role = await db.role.findUnique({
@@ -66,7 +70,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
         orderBy: { lastActivityAt: "desc" },
         include: {
           outreach: { orderBy: { sentAt: "desc" }, take: 1 },
-          person: { select: { ...consentPersonSelect, cv: { select: { uploadedAt: true } } } },
+          person: { select: { ...consentPersonSelect, id: true, fullName: true, profileUrl: true, headline: true, email: true, cv: { select: { uploadedAt: true } } } },
           bookings: { where: { status: "booked", endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 1 },
         },
       },
@@ -641,6 +645,11 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                         <Link href={`/candidates/${c.id}/outreach`} className="btn-quiet">
                           Draft outreach
                         </Link>
+                        {c.person?.email ? (
+                          <span className="text-sm text-ink/70" title="Email">{c.person.email}</span>
+                        ) : finder && c.person && !c.person.doNotContact && (
+                          <FindEmail {...finderTarget(c.person)} allowance={finder} compact />
+                        )}
                         {features.screening && (
                           <Link href={`/candidates/${c.id}/screening`} className="btn-quiet" title={SCREENING_HINT}>
                             Screening call

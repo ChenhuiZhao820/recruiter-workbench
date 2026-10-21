@@ -30,7 +30,7 @@ export const accountColumns = {
   Briefing: legacyColumns.Briefing,
   SavedSearch: { ...legacyColumns.SavedSearch, userId: "id", searchUrl: "text?" },
   Candidate: { ...legacyColumns.Candidate, stage: "stage", memberId: "text?", submittedAt: "date?", personId: "id?", importBatchId: "discard" },
-  OutreachLog: legacyColumns.OutreachLog,
+  OutreachLog: { ...legacyColumns.OutreachLog, channel: "text?" },
   PersonNote: { id: "id", personId: "id", candidateId: "id?", body: "text", createdAt: "date", updatedAt: "date" },
   Screening: {
     id: "id", candidateId: "id", status: "text", transcript: "text?", transcriptSource: "text?",
@@ -59,7 +59,7 @@ export const accountColumns = {
   Suppression: { userId: "id", keyHash: "text", createdAt: "date" },
 };
 // Tables a source may not have yet: it was written before they existed.
-const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification", "InterviewOffer", "PersonCv",
+const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification", "InterviewOffer", "PersonCv", "EmailLookup",
   "AuthSession", "AuthAccount", "AuthVerification", "PendingSignup", "TrialClaim", "StripeEvent"]);
 // Accepted in a source but never copied. Calendar and integration tokens are
 // encrypted with the source deployment's key and must be reconnected; monthly
@@ -89,6 +89,9 @@ const notImportedColumns = {
   // to the deployment that saw them.
   TrialClaim: { keyHash: "text", createdAt: "date" },
   StripeEvent: { id: "id", type: "text", receivedAt: "date" },
+  // Email searches count against this deployment's allowance, with this
+  // deployment's provider ids; the count starts again after a move.
+  EmailLookup: { id: "id", userId: "id", personId: "id?", method: "text", status: "text", reason: "text?", enrowId: "text?", createdAt: "date", finishedAt: "date?" },
 };
 const ephemeralColumns = {
   Session: { tokenHash: "text", userId: "id", viewUserId: "id?", authVersion: "int", expiresAt: "date", createdAt: "date" },
@@ -137,6 +140,7 @@ const lateColumns = {
   ],
   Person: [{ importBatchId: { value: null, sql: "NULL" } }],
   SavedSearch: [{ searchUrl: { value: null, sql: "NULL" } }],
+  OutreachLog: [{ channel: { value: null, sql: "NULL" } }],
   Candidate: [{ memberId: { value: null, sql: "NULL" } }, { personId: { value: null, sql: "NULL" } }, { importBatchId: { value: null, sql: "NULL" } }, { submittedAt: { value: null, sql: "NULL" } }],
   Booking: [{ kind: { value: "screening", sql: "'screening'" } }, { place: { value: null, sql: "NULL" }, timeZone: { value: null, sql: "NULL" } }],
   Settings: [
@@ -382,7 +386,7 @@ async function verifyData(db, validated) {
     }
     if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent"]) {
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent", "EmailLookup"]) {
     if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar, usage-counter or shortlist-link state in target.");
   }
   const held = validated.data.booking.filter((booking) => booking.status === "booked");

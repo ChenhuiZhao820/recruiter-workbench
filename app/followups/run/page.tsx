@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { requireFeature } from "@/lib/feature-access";
+import { featureAvailability, requireFeature } from "@/lib/feature-access";
 import { followUpRunLimit } from "@/lib/features";
 import { getFollowUpBuckets } from "@/lib/followups";
 import { getSettings } from "@/lib/settings";
@@ -21,6 +21,7 @@ import { Icon } from "@/components/Icon";
 import { RememberRun, StartRunButton, TemplateSelect } from "@/components/FollowUpRun";
 
 import { interviewLinkFor } from "@/lib/interviews";
+import { outreachEmail } from "@/lib/email-finder";
 
 export const dynamic = "force-dynamic";
 
@@ -228,7 +229,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
     where: { id: { in: entries.map((entry: { candidateId: string }) => entry.candidateId) }, role: { userId: owner.id } },
     include: {
       role: true,
-      person: { select: { doNotContact: true } },
+      person: { select: { doNotContact: true, id: true, fullName: true, profileUrl: true, headline: true, email: true, emailSource: true } },
       outreach: { orderBy: { sentAt: "desc" }, take: 1 },
     },
   });
@@ -274,6 +275,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
   const next = runHref(kept, { templates: templateIds, index: index + 1 });
   const previous = index > 0 ? runHref(kept, { templates: templateIds, index: index - 1 }) : "";
   const lastSent = candidate.outreach[0];
+  const email = await outreachEmail(candidate.person, candidate.role.title, { owner, canFind: (await featureAvailability()).emailFinder, readOnly });
 
   return (
     <fieldset disabled={readOnly} className="min-w-0 max-w-4xl space-y-8">
@@ -340,6 +342,7 @@ export default async function FollowUpRunPage({ searchParams }: { searchParams: 
           readOnly={readOnly}
           sentLabel="Mark as sent"
           replyTo={group === "r" ? { candidateId: candidate.id, name: firstName(candidate.fullName) } : undefined}
+          email={email}
         />
 
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">

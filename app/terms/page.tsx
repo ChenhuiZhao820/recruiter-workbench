@@ -59,7 +59,12 @@ export default function TermsPage() {
       <p>AI output can be wrong. Retrivr marks facts it could not find in a transcript, and you confirm each one before it is saved, but checking the output is your responsibility. Do not use it as the only basis for a decision about a person: the decision is yours.</p>
     </Section>
 
-    <Section id="service" title="7. The service">
+    <Section id="email-finder" title="7. Email finder">
+      <p>On Pro and Pro Max, Find email asks our provider, Enrow, for a person&rsquo;s work email from their LinkedIn profile address or their name and company. It runs only when you press it, and each plan has a number of searches a month (a trial has 50 for the whole trial); a search that finds nothing does not count.</p>
+      <p>A found email is not verified and may be wrong or out of date. It did not come from the person, so before you write to them you need a lawful basis to use it, and you must tell them where you got it and how to object, for example with the privacy line Retrivr can add to your messages. Retrivr does not send email: it opens a draft in your own email app, and you send it.</p>
+    </Section>
+
+    <Section id="service" title="8. The service">
       <ul>
         <li>We work to keep Retrivr available and your data safe, but we do not promise it will always be available or free of errors. We may need to stop it for maintenance.</li>
         <li>We may change, add or remove features. If we remove something that is central to your paid plan, we will give you reasonable notice, and you may cancel and get back what you paid for the time after the change.</li>
@@ -67,11 +72,11 @@ export default function TermsPage() {
       </ul>
     </Section>
 
-    <Section id="ending" title="8. Suspension and ending">
+    <Section id="ending" title="9. Suspension and ending">
       <p>You can delete your account at any time from Your account; a paid subscription is cancelled with it. We may suspend or close an account that breaks these terms, does not pay, or puts Retrivr or other people at risk. Where we reasonably can, we will tell you first and give you the chance to export your data. When an account is deleted, its data is deleted as described in the privacy policy.</p>
     </Section>
 
-    <Section id="liability" title="9. Our liability">
+    <Section id="liability" title="10. Our liability">
       <ul>
         <li>Nothing in these terms limits liability that the law does not allow to be limited, such as for death or personal injury caused by negligence, or for fraud.</li>
         <li>We are not liable for loss of profit, revenue, business, contracts, goodwill or data you could have exported, or for any indirect loss.</li>
@@ -79,11 +84,11 @@ export default function TermsPage() {
       </ul>
     </Section>
 
-    <Section id="changes" title="10. Changes to these terms">
+    <Section id="changes" title="11. Changes to these terms">
       <p>We may update these terms. We will tell you about a change that matters at least 30 days before it applies, by email or in the app. The date at the top shows which version this is, and your account records the version you agreed to.</p>
     </Section>
 
-    <Section id="law" title="11. Law">
+    <Section id="law" title="12. Law">
       <p>These terms are governed by the law of {OPERATOR.jurisdiction}, and the courts of {OPERATOR.jurisdiction} decide any dispute about them. Questions about these terms: {contact}.</p>
     </Section>
 

@@ -1153,3 +1153,15 @@ label > .im-editor-note { margin-top: 6px; }
 .legal-intro { margin-top: 20px; }
 .legal-draft { margin-top: 16px; padding: 10px 12px; border: 1px solid #f0c36d; background: #fff8e6; border-radius: 5px; font-size: 13px; color: #6b4a00; }
 .legal-footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--color-line); font-size: 12px; color: var(--color-ink-soft); }
+
+/* Email finder: the search on a person, a role row and a queue card, and the
+   email beside the LinkedIn message in a run. */
+.email-finder { display: grid; gap: 8px; min-width: 0; }
+.email-finder-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.email-finder-row .field-input { flex: 1 1 12rem; }
+.email-finder-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; overflow-wrap: anywhere; }
+.person-email { display: grid; gap: 10px; }
+.person-email-address { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; overflow-wrap: anywhere; }
+.outreach-email { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-sunken); }
+.outreach-email > label { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; overflow-wrap: anywhere; }
+.outreach-email > label input { margin-top: 3px; }

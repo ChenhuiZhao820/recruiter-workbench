@@ -110,6 +110,49 @@ function handleNotion(req, res, body) {
   json(res, 404, { object: "error", code: "object_not_found" });
 }
 
+// Enrow's email finder, played locally for tests/31-email-finder.spec.ts. The
+// app points at /enrow through CAPTURE_TEST_ENROW_BASE_URL. A search answers
+// "ongoing" on its first read, so the page's polling is exercised. A LinkedIn
+// address with "nobody" in it, or the company "Nowhere", finds nothing; any
+// other finds a made-up address. `requests` keeps what each search sent.
+const enrow = { fail: false, noCredits: false, refuseLinkedin: false, requests: [], searches: {} };
+let enrowSearches = 0;
+
+function handleEnrow(req, res, body) {
+  const url = new URL(req.url, "http://localhost");
+  if (url.pathname !== "/enrow/email/find/single") return json(res, 404, { message: "Unknown Enrow path" });
+  if (req.headers["x-api-key"] !== "test-enrow-key") return json(res, 401, { message: "Invalid API key" });
+  if (req.method === "GET") {
+    const search = enrow.searches[url.searchParams.get("id")];
+    if (!search) return json(res, 500, { message: "Results could not be retrieved" });
+    search.reads += 1;
+    if (search.reads === 1) return json(res, 202, { qualification: "ongoing" });
+    return json(res, 200, search.result);
+  }
+  const request = JSON.parse(body || "{}");
+  enrow.requests.push(request);
+  if (enrow.noCredits) return json(res, 402, { reason: "Not enough credits", success: false });
+  if (enrow.fail) return json(res, 500, { message: "Internal error" });
+  let result;
+  if (request.linkedin_url) {
+    if (enrow.refuseLinkedin) return json(res, 400, { message: "invalid linkedin_url format" });
+    const slug = String(request.linkedin_url).split("/in/")[1]?.replace(/\/$/, "") ?? "";
+    result = slug.includes("nobody")
+      ? { qualification: "invalid", linkedin_status: "no_current_company", credits_used: 0.25, linkedin_url: request.linkedin_url }
+      : { email: `${slug.replace(/-/g, ".")}@enrow-stub.example`, qualification: "valid", linkedin_status: "found", credits_used: 1, linkedin_url: request.linkedin_url, info: { company_name: "Stub Ltd" } };
+  } else {
+    const [first, ...rest] = String(request.fullname ?? "").toLowerCase().split(/\s+/);
+    const company = String(request.company_name ?? "");
+    result = company === "Nowhere"
+      ? { qualification: "invalid", credits_used: 0 }
+      : { email: `${first}.${rest.join("")}@${company.toLowerCase().replace(/\W+/g, "")}.example`, qualification: "valid", credits_used: 1 };
+  }
+  enrowSearches += 1;
+  const id = `enrow-search-${enrowSearches}`;
+  enrow.searches[id] = { reads: 0, result };
+  return json(res, 200, { message: "Single search operating", id, credits_used: 1 });
+}
+
 function json(res, status, body) {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
@@ -357,6 +400,15 @@ const server = http.createServer((req, res) => {
     }
     if (req.url?.startsWith("/v1/checkout/") || req.url?.startsWith("/v1/billing_portal/") || req.url?.startsWith("/v1/subscriptions/") || req.url?.startsWith("/stripe-")) {
       handleStripe(req, res, body);
+      return;
+    }
+    if (req.url?.startsWith("/enrow/")) {
+      handleEnrow(req, res, body);
+      return;
+    }
+    if (req.url === "/__enrow") {
+      if (req.method === "POST") Object.assign(enrow, JSON.parse(body || "{}"));
+      json(res, 200, enrow);
       return;
     }
     if (req.url?.startsWith("/notion/")) {

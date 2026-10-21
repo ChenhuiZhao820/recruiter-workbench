@@ -26,7 +26,7 @@ const ephemeralTables = ["Session", "ActivationToken", "LoginThrottle", "AuthSes
 // Accepted in a source, never copied: calendar tokens, AI counters, slot
 // locks (rebuilt from bookings), shortlist links (issued again) and import
 // batches (undone only where they ran).
-const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch", "InterviewSlot", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent"];
+const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch", "InterviewSlot", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent", "EmailLookup"];
 // Tables a source written before them may lack.
 const optionalTables = ["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "PersonNote", "Shortlist", "ShortlistItem"];
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
@@ -62,7 +62,7 @@ async function seedSource(db) {
     const startsAt = new Date(`2025-0${index + 3}-04T09:30:00.000Z`);
     await db.booking.create({ data: { id: bookingId, candidateId, userId, startsAt, endsAt: new Date(startsAt.getTime() + 1800000), mode: index ? "phone" : "video", meetingUrl: index ? null : "https://meet.fixture.invalid/x", phone: index ? "+440000000000" : null, email: `${label}@person.fixture.invalid`, consentAt: createdAt, noticeVersion: "fixture-1", status: index ? "cancelled" : "booked", kind: index ? "interview" : "screening", createdAt } });
     if (!index) await db.bookedSlot.create({ data: { userId, startsAt, bookingId } });
-    await db.outreachLog.create({ data: { id: `fixture-outreach-${label}`, candidateId, templateId, renderedBody: `${label} private rendered outreach`, kind: index ? "connection_note" : "message", sentAt: updatedAt } });
+    await db.outreachLog.create({ data: { id: `fixture-outreach-${label}`, candidateId, templateId, renderedBody: `${label} private rendered outreach`, kind: index ? "connection_note" : "message", channel: index ? "both" : null, sentAt: updatedAt } });
     await db.settings.create({ data: { id: index + 7, userId, recruiterName: `${label} custom name`, calendarLink: `https://calendar.fixture.invalid/${label}`, bookingChaseDays: index + 3, quietNudgeDays: index + 8, captureTokenHash: captureHashes[index], bookingWindows: '[{"day":0,"startMin":540,"endMin":720}]', bookingTimezone: "Europe/London", bookingDurationMins: 45, bookingMinNoticeHours: 24, bookingHorizonDays: 21, meetingLink: `https://meet.fixture.invalid/${label}`, offerPhone: true, privacyNotice: `${label} privacy notice`, privacyContactEmail: `privacy-${label}@fixture.invalid` } });
     await db.usageEvent.create({ data: { id: `fixture-usage-${label}`, userId, kind: "screening_confirmed", value: 30 + index, at: updatedAt } });
     await db.suppression.create({ data: { userId, keyHash: `${index}`.repeat(64), createdAt } });
@@ -675,6 +675,7 @@ test("every nonempty target model is refused without modifying existing rows", a
     AuthAccount: { id: "fixture-auth-account", accountId: "google-sub", providerId: "google", userId: "fixture-user-admin", createdAt: createdAt.getTime(), updatedAt: updatedAt.getTime() },
     TrialClaim: { keyHash: "fixture-claim", createdAt: createdAt.getTime() },
     StripeEvent: { id: "evt_fixture", type: "customer.subscription.updated", receivedAt: createdAt.getTime() },
+    EmailLookup: { id: "fixture-email-lookup", userId: "fixture-user-admin", personId: "fixture-person-admin", method: "linkedin", status: "found", createdAt: createdAt.getTime() },
   };
   for (const table of [...tables, ...ephemeralTables, ...notImportedTables]) await t.test(table, async () => {
     await withTarget(async (db) => {
@@ -934,6 +935,18 @@ test("a held interview takes the client's time, not the recruiter's, and two can
   const twice = structuredClone(sameTime);
   twice.Booking.push({ ...twice.Booking.find((row) => row.kind === "interview"), id: "fixture-interview-twice" });
   assert.throws(() => validateAccounts(twice, adminEmail), /two bookings hold the same time/);
+});
+
+test("sources from before outreach channels import with no channel, and current ones keep theirs", async () => {
+  assert.deepEqual(validateAccounts(source, adminEmail).data.outreachLog.map((row) => row.channel).sort(), source.OutreachLog.map((row) => row.channel).sort());
+  const old = structuredClone(source);
+  for (const row of old.OutreachLog) delete row.channel;
+  for (const row of validateAccounts(old, adminEmail).data.outreachLog) assert.equal(row.channel, null);
+  await withTarget(async (db) => {
+    await importAccounts(db, old, adminEmail, { provider: "sqlite", confirmed: true });
+    assert.deepEqual((await db.outreachLog.findMany()).map((row) => row.channel), old.OutreachLog.map(() => null));
+    await verifyAccounts(db, old, adminEmail);
+  });
 });
 
 test("a source with only part of a late column group is refused, not guessed at", async (t) => {

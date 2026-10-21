@@ -7,8 +7,9 @@ import { included, money, tiers } from "@/lib/plan-prices";
 // A plan button scrolls to Contact and carries its plan into the email subject.
 export const PLAN_EVENT = "lp-plan";
 
-// With sign-up open, a plan button leads there (every plan starts with the
-// Pro trial); Pro Max, and every plan before sign-up opens, goes to Contact.
+// With sign-up open, every plan button leads there (every plan starts with the
+// Pro trial, and any plan can be bought from Billing); before sign-up opens,
+// each goes to Contact with its plan.
 export function Pricing({ signupOpen = false }: { signupOpen?: boolean }) {
   const [yearly, setYearly] = useState(false);
   return <>
@@ -34,7 +35,7 @@ export function Pricing({ signupOpen = false }: { signupOpen?: boolean }) {
         <div className="lp-price-sub">{yearly
           ? <>≈ {money(Number((tier.yearly / 12).toFixed(2)))} / mo · <span className="lp-good">save {Math.round((1 - tier.yearly / (tier.monthly * 12)) * 100)}%</span></>
           : <>or {money(tier.yearly)} / year</>}</div>
-        {signupOpen && tier.key !== "promax"
+        {signupOpen
           ? <a href="/signup" className={tier.featured ? "lp-btn lp-btn-primary" : "lp-btn"}>{tier.featured ? tier.cta : "Start with a free trial"}</a>
           : <a href="#contact" className={tier.featured ? "lp-btn lp-btn-primary" : "lp-btn"} onClick={() => window.dispatchEvent(new CustomEvent(PLAN_EVENT, { detail: tier.plan }))}>{tier.cta}</a>}
         <ul className="lp-feat">

@@ -80,7 +80,14 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   and nothing else: `/book/[token]` and its `.ics`, a candidate's booking page
   (see Booking page), and `/s/[token]`, a client's shortlist (see Client
   links). The ways in - `/login`, `/signup`, `/signup/verify`,
-  `/forgot-password`, `/activate` - are public too (see Self-serve sign-up).
+  `/forgot-password`, `/activate` - are public too (see Self-serve sign-up),
+  and so are `/terms` and `/privacy`, which use the public header signed in or
+  not. Their text describes what the software does; change it, and
+  `LEGAL_VERSION` in `lib/legal.ts`, when the product changes. Who runs
+  Retrivr (`OPERATOR`: Basanite is not incorporated yet, so the contract is
+  with its runner, trading as Basanite) lives there too; until the name,
+  address and contact email are filled in both pages say they are a draft and
+  `signupConfig()` will not open sign-up on them.
   All other business routes still require authentication.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
   on the homepage it renders only the skip link, because `MarketingHome` brings
@@ -94,9 +101,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   copy, not entitlements: `FEATURE_TIERS` still decides what an account can
   use, and it follows the homepage's table (see Account classification). The
   price numbers live in `lib/plan-prices.ts`, shared with `/billing`. Once
-  sign-up is open (`signupConfig().open`), "Try Pro free" and the Lite, Basic
-  and Pro buttons go to `/signup`; Pro Max, and every button before sign-up
-  opens, goes to the contact box. The page uses explicitly illustrative,
+  sign-up is open (`signupConfig().open`), "Try Pro free" and every plan's
+  button, Pro Max included, go to `/signup`; before sign-up opens each goes to
+  the contact box with its plan. The page uses explicitly illustrative,
   static data only. Never feed real recruiting data into a public preview or
   invent customer claims.
 - Dashboard search/sort in `RoleDirectory` works only on server-authorized records
@@ -1062,8 +1069,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 - Stripe holds the card and the subscription. `/billing` (own account only,
   open with or without a plan) shows the plan and starts Stripe Checkout
-  (`startCheckout`) for Lite, Basic or Pro, monthly or yearly
-  (`STRIPE_PRICE_<PLAN>_<MONTHLY|YEARLY>`); Pro Max stays "Contact us". An
+  (`startCheckout`) for any of the four plans, monthly or yearly
+  (`STRIPE_PRICE_<PLAN>_<MONTHLY|YEARLY>`, eight prices). An
   account already paying goes to Stripe's customer portal instead, which also
   changes plan, cancels, updates the card and holds invoices. `STRIPE_TAX=1`
   turns on Stripe Tax at checkout. Nothing on these pages changes a plan.
@@ -1437,15 +1444,21 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   table came out unchanged and the new table empty; Prisma reports 13
   migrations and no difference. The local account database has not received
   it.
-- `20261024000000_self_serve_accounts` (the user's sign-up and billing
-  columns; `AuthSession`, `AuthAccount`, `AuthVerification`, `PendingSignup`,
-  `TrialClaim`, `StripeEvent`) is additive and has NOT been applied anywhere.
-  Every existing account comes out `signupSource` `admin` with no billing,
-  which keeps what it has. Apply it the same way, with approval, before
-  deploying the code that needs it, then set `BETTER_AUTH_SECRET`, `TERMS_URL`,
-  `PRIVACY_URL`, `TERMS_VERSION`, `RESEND_API_KEY`, `MAIL_FROM`,
-  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the `STRIPE_PRICE_*` ids on
-  the service; sign-up and billing stay closed until they are set.
+- On 2026-10-20, `20261024000000_self_serve_accounts` (fourteen sign-up and
+  billing columns on `User`; `AuthSession`, `AuthAccount`, `AuthVerification`,
+  `PendingSignup`, `TrialClaim`, `StripeEvent`) was applied and registered on
+  the hosted database the same way, through WSL
+  (`prisma/private-local/migrate-hosted-self-serve.mjs`, which logs account
+  counts only, never names or emails), checked against the reviewed file's
+  SHA-256: a dump from a locked snapshot, restored into a disposable database
+  and rehearsed, then one transaction. Every existing table came out unchanged,
+  the six new tables empty, and all five accounts `signupSource` `admin` with
+  no billing, terms or verified email, so each keeps what it had; Prisma
+  reports 14 migrations and no difference. The local account database has not
+  received it. Sign-up and billing stay closed until `BETTER_AUTH_SECRET`,
+  `TERMS_URL`, `PRIVACY_URL`, `TERMS_VERSION`, `RESEND_API_KEY`, `MAIL_FROM`,
+  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the `STRIPE_PRICE_*` ids
+  are set on the service.
 
 ## Searches and LinkedIn industry filters
 

@@ -178,16 +178,13 @@ async function inspectPricing(page: Page) {
   await expect(pricing.getByText("7 days free", { exact: true })).toBeVisible();
   await monthly.click();
   await expect(lite).toContainText("£5.99/ month");
-  // With sign-up open (the test server has it), the trial and the self-serve
-  // plans go to /signup; Pro Max carries its plan into the email, and Retrivr
-  // sends nothing.
+  // With sign-up open (the test server has it), every plan goes to /signup,
+  // Pro Max included; the contact box stays for teams, and Retrivr sends nothing.
   await expect(pricing.getByRole("link", { name: "Start free trial", exact: true })).toHaveAttribute("href", "/signup");
-  await expect(pricing.getByRole("link", { name: "Start with a free trial", exact: true })).toHaveCount(2);
-  await pricing.getByRole("link", { name: "Contact us", exact: true }).click();
-  await expect(page).toHaveURL(/#contact$/);
+  await expect(pricing.getByRole("link", { name: "Start with a free trial", exact: true })).toHaveCount(3);
+  await expect(pricing.getByRole("link", { name: /Contact us|Get /, exact: false })).toHaveCount(0);
   const contact = page.locator("#contact");
-  await expect(contact.getByText("About: Pro Max", { exact: true })).toBeVisible();
-  await expect(contact.getByRole("link", { name: "Email us", exact: true })).toHaveAttribute("href", "mailto:aditya.shah@basanite.co.uk?subject=Retrivr%20Pro%20Max");
+  await expect(contact.getByRole("link", { name: "Email us", exact: true })).toHaveAttribute("href", "mailto:aditya.shah@basanite.co.uk?subject=Retrivr");
   await expect(contact.getByText("aditya.shah@basanite.co.uk", { exact: true })).toBeVisible();
   await expectNoOverflow(page);
 }

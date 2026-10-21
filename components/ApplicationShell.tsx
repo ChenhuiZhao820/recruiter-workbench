@@ -45,7 +45,8 @@ export function ApplicationShell({ user, viewing, plan = null, setupPending = fa
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => setMenuOpen(false), [pathname]);
   const unread = useUnreadActivity(unreadActivity);
-  const publicPage = !user || pathname === "/welcome";
+  // The terms and privacy policy read the same signed in or not.
+  const publicPage = !user || pathname === "/welcome" || pathname === "/terms" || pathname === "/privacy";
   const active = (href: string) => href === "/" ? pathname === "/" || pathname.startsWith("/roles") : pathname.startsWith(href);
   const items = setupPending ? [setupNavigation, ...navigation] : navigation;
   const pageName = items.find((item) => active(item.href))?.label ?? (pathname.startsWith("/getting-started") ? setupNavigation.label : pathname.startsWith("/admin") ? "Accounts" : pathname.startsWith("/account") ? "Your account" : pathname.startsWith("/billing") ? "Billing" : pathname.startsWith("/whats-new") ? "What’s new" : pathname.startsWith("/candidates/") && pathname.endsWith("/screening") ? "Screening" : pathname.startsWith("/candidates/") && pathname.endsWith("/interview") ? "Interview" : "Outreach");

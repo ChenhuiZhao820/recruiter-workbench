@@ -10,9 +10,9 @@ import type { FormState } from "@/lib/formState";
 type Provider = "google" | "microsoft";
 const PROVIDER_LABEL: Record<Provider, string> = { google: "Google", microsoft: "Microsoft" };
 
-function Submit({ children }: { children: React.ReactNode }) {
+function Submit({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const { pending } = useFormStatus();
-  return <button type="submit" className="btn-primary" disabled={pending}>{pending ? "Please wait…" : children}</button>;
+  return <button type="submit" className={`btn-primary ${className}`.trim()} disabled={pending}>{pending ? "Please wait…" : children}</button>;
 }
 
 function Status({ state }: { state: FormState }) {
@@ -74,14 +74,10 @@ export function SignupPanel({ email, providers, termsUrl, privacyUrl }: { email:
   const [state, action] = useFormState(startSignup, {} as FormState);
   const [accepted, setAccepted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  // The terms box sits above the provider buttons, outside the email form, so
-  // it joins that form through `form=` and is posted with it even before the
-  // page's script has loaded.
+  // The terms box sits below the email form and also covers the provider
+  // buttons, so it stays outside that form and joins it through `form=`; it is
+  // posted with it even before the page's script has loaded.
   return <div className="auth-form">
-    <label className="signup-terms">
-      <input type="checkbox" name="terms" form="signup-email-form" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
-      <span>I agree to the <a href={termsUrl} target="_blank" rel="noreferrer" className="text-accent underline">terms</a> and the <a href={privacyUrl} target="_blank" rel="noreferrer" className="text-accent underline">privacy policy</a>, including that Retrivr processes the candidate details I keep in it on my behalf.</span>
-    </label>
     <ProviderButtons providers={providers} mode="signup" termsAccepted={accepted} />
     {email && providers.length > 0 && <p className="auth-divider"><span>or with your email</span></p>}
     {email && <form id="signup-email-form" action={action} className="auth-form">
@@ -89,9 +85,13 @@ export function SignupPanel({ email, providers, termsUrl, privacyUrl }: { email:
       <div><label htmlFor="signup-name" className="field-label">Your name</label><input id="signup-name" name="name" autoComplete="name" maxLength={120} required className="field-input" /></div>
       <div><label htmlFor="signup-email" className="field-label">Work email</label><input id="signup-email" name="email" type="email" autoComplete="email" maxLength={254} required className="field-input" placeholder="you@company.com" /></div>
       <div><label htmlFor="signup-password" className="field-label">Password</label><div className="password-field"><input id="signup-password" name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={12} maxLength={128} required className="field-input" placeholder="12 characters or more" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} aria-controls="signup-password" onClick={() => setShowPassword(!showPassword)}><Icon name="eye" size={18} /></button></div></div>
-      <Submit>Email me a code<Icon name="arrow" size={17} /></Submit>
+      <Submit className="auth-submit-compact">Create account<Icon name="arrow" size={17} /></Submit>
     </form>}
-    <p className="auth-help">Seven days of Pro, no card. When it ends, choose a plan to keep working; nothing you saved is lost either way.</p>
+    <label className="signup-terms">
+      <input type="checkbox" name="terms" form="signup-email-form" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
+      <span>I agree to the <a href={termsUrl} target="_blank" rel="noreferrer" className="text-accent underline">terms</a> and the <a href={privacyUrl} target="_blank" rel="noreferrer" className="text-accent underline">privacy policy</a>, including that Retrivr processes the candidate details I keep in it on my behalf.</span>
+    </label>
+    {email && <p className="auth-help">We email you a six-digit code to confirm your address. If it does not arrive, check your spam folder.</p>}
   </div>;
 }
 

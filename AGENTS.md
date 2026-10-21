@@ -101,9 +101,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   copy, not entitlements: `FEATURE_TIERS` still decides what an account can
   use, and it follows the homepage's table (see Account classification). The
   price numbers live in `lib/plan-prices.ts`, shared with `/billing`. Once
-  sign-up is open (`signupConfig().open`), "Try Pro free" and the Lite, Basic
-  and Pro buttons go to `/signup`; Pro Max, and every button before sign-up
-  opens, goes to the contact box. The page uses explicitly illustrative,
+  sign-up is open (`signupConfig().open`), "Try Pro free" and every plan's
+  button, Pro Max included, go to `/signup`; before sign-up opens each goes to
+  the contact box with its plan. The page uses explicitly illustrative,
   static data only. Never feed real recruiting data into a public preview or
   invent customer claims.
 - Dashboard search/sort in `RoleDirectory` works only on server-authorized records
@@ -1069,8 +1069,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 - Stripe holds the card and the subscription. `/billing` (own account only,
   open with or without a plan) shows the plan and starts Stripe Checkout
-  (`startCheckout`) for Lite, Basic or Pro, monthly or yearly
-  (`STRIPE_PRICE_<PLAN>_<MONTHLY|YEARLY>`); Pro Max stays "Contact us". An
+  (`startCheckout`) for any of the four plans, monthly or yearly
+  (`STRIPE_PRICE_<PLAN>_<MONTHLY|YEARLY>`, eight prices). An
   account already paying goes to Stripe's customer portal instead, which also
   changes plan, cancels, updates the card and holds invoices. `STRIPE_TAX=1`
   turns on Stripe Tax at checkout. Nothing on these pages changes a plan.

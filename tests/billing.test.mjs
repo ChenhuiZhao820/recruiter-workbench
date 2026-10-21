@@ -20,7 +20,7 @@ test("prices map to plans and back; malformed ids are ignored", () => {
   assert.equal(priceFor("basic", "yearly", env), null);
   assert.equal(priceFor("enterprise", "monthly", env), null);
   assert.equal(priceFor("pro", "weekly", env), null);
-  assert.deepEqual(CHECKOUT_PLANS, ["lite", "basic", "pro"], "Pro Max is not sold through Checkout");
+  assert.deepEqual(CHECKOUT_PLANS, ["lite", "basic", "pro", "promax"], "every plan is sold through Checkout");
 });
 
 test("a subscription becomes the plan, its interval, status and period end", () => {

@@ -78,6 +78,8 @@ export default defineConfig({
         STRIPE_PRICE_BASIC_YEARLY: "price_BasicYearly",
         STRIPE_PRICE_PRO_MONTHLY: "price_ProMonthly",
         STRIPE_PRICE_PRO_YEARLY: "price_ProYearly",
+        STRIPE_PRICE_PROMAX_MONTHLY: "price_ProMaxMonthly",
+        STRIPE_PRICE_PROMAX_YEARLY: "price_ProMaxYearly",
         CAPTURE_TEST_STRIPE_BASE_URL: "http://localhost:8766",
       },
     },

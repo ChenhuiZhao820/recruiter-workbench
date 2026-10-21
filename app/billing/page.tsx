@@ -62,7 +62,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { ch
 
     {user.role === "recruiter" && !live && (configured ? <section aria-label="Choose a plan" className="space-y-4">
       <h2 className="section-heading">Choose a plan</h2>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {offered.map((plan) => <article key={plan.key} className="card space-y-3">
           <h3 className="text-lg font-medium">{plan.name}</h3>
           <ul className="space-y-1 text-sm text-ink-soft">
@@ -78,7 +78,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { ch
           </div>
         </article>)}
       </div>
-      <p className="section-caption">Prices per seat, excl. VAT. Payment happens on Stripe&rsquo;s page; Retrivr never sees your card. Cancel any time from Manage billing. Pro Max or a team account: <Link href="/welcome#contact" className="text-accent underline">write to us</Link>.</p>
+      <p className="section-caption">Prices per seat, excl. VAT. Payment happens on Stripe&rsquo;s page; Retrivr never sees your card. Cancel any time from Manage billing. A team account or custom work: <Link href="/welcome#contact" className="text-accent underline">write to us</Link>.</p>
     </section> : <p className="card text-sm text-ink-soft">Paying online is not set up yet. <Link href="/welcome#contact" className="text-accent underline">Write to us</Link> and we will sort out your plan.</p>)}
   </div>;
 }

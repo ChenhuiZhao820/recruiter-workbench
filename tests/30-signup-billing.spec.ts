@@ -190,7 +190,7 @@ test("SU4 an ended trial is a read-only workspace; paying through Stripe opens i
   // Choosing a plan goes to Stripe's page, for this account and nothing else.
   await page.goto("/billing");
   await expect(page.getByRole("heading", { name: "Choose a plan" })).toBeVisible();
-  await expect(page.locator("article", { hasText: "Pro Max" })).toHaveCount(0);
+  await expect(page.locator("article").filter({ has: page.getByRole("heading", { name: "Pro Max", exact: true }) })).toHaveCount(1);
   await page.locator("article").filter({ has: page.getByRole("heading", { name: "Basic", exact: true }) }).getByRole("button", { name: /month/ }).click();
   await expect(page).toHaveURL(/localhost:8766\/stripe-checkout\/cs_test_/);
   const checkout = (await (await page.request.get(`${STUB}/__stripe`)).json()).lastCheckout;

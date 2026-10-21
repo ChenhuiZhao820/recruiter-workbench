@@ -1444,15 +1444,21 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   table came out unchanged and the new table empty; Prisma reports 13
   migrations and no difference. The local account database has not received
   it.
-- `20261024000000_self_serve_accounts` (the user's sign-up and billing
-  columns; `AuthSession`, `AuthAccount`, `AuthVerification`, `PendingSignup`,
-  `TrialClaim`, `StripeEvent`) is additive and has NOT been applied anywhere.
-  Every existing account comes out `signupSource` `admin` with no billing,
-  which keeps what it has. Apply it the same way, with approval, before
-  deploying the code that needs it, then set `BETTER_AUTH_SECRET`, `TERMS_URL`,
-  `PRIVACY_URL`, `TERMS_VERSION`, `RESEND_API_KEY`, `MAIL_FROM`,
-  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the `STRIPE_PRICE_*` ids on
-  the service; sign-up and billing stay closed until they are set.
+- On 2026-10-20, `20261024000000_self_serve_accounts` (fourteen sign-up and
+  billing columns on `User`; `AuthSession`, `AuthAccount`, `AuthVerification`,
+  `PendingSignup`, `TrialClaim`, `StripeEvent`) was applied and registered on
+  the hosted database the same way, through WSL
+  (`prisma/private-local/migrate-hosted-self-serve.mjs`, which logs account
+  counts only, never names or emails), checked against the reviewed file's
+  SHA-256: a dump from a locked snapshot, restored into a disposable database
+  and rehearsed, then one transaction. Every existing table came out unchanged,
+  the six new tables empty, and all five accounts `signupSource` `admin` with
+  no billing, terms or verified email, so each keeps what it had; Prisma
+  reports 14 migrations and no difference. The local account database has not
+  received it. Sign-up and billing stay closed until `BETTER_AUTH_SECRET`,
+  `TERMS_URL`, `PRIVACY_URL`, `TERMS_VERSION`, `RESEND_API_KEY`, `MAIL_FROM`,
+  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the `STRIPE_PRICE_*` ids
+  are set on the service.
 
 ## Searches and LinkedIn industry filters
 

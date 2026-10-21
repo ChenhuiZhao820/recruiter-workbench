@@ -14,6 +14,7 @@ export const FEATURE_TIERS = {
   calendarFreeBusy: "lite",
   followUpRuns: "lite",     // walking through everyone due a follow-up; Lite has a limit below
   replySuggestions: "pro",  // a suggested answer to someone who replied
+  emailFinder: "pro",       // a person's work email found through Enrow; the allowance is per plan
   screening: "basic",       // screening assistant; the monthly allowance is per plan
   clientEmail: "pro",       // "one-click sign-off to clients"
   peopleSearch: "basic",    // filters and keyword search across people
@@ -60,12 +61,15 @@ export function followUpRunLimit(account: TierAccount & { active: boolean }, now
   return account.active && effectiveRank(getAccountTier(account, now)) >= PLAN_RANK.basic ? null : LITE_FOLLOWUP_RUN_LIMIT;
 }
 
-// Monthly AI allowances per plan. A deployment may lower them all with the
-// CAPTURE_*_MONTHLY_CAP variables (see the *MonthlyCap functions), never raise them.
-export const MONTHLY_QUOTAS: Record<"screening" | "replies" | "matches", Record<AccountTier, number>> = {
+// Monthly allowances per plan, for the AI features and the email finder. A
+// deployment may lower them all with the CAPTURE_*_MONTHLY_CAP variables (see
+// the *MonthlyCap functions), never raise them. The trial's email searches
+// last the whole trial rather than a month (lib/enrow-core.mjs).
+export const MONTHLY_QUOTAS: Record<"screening" | "replies" | "matches" | "emails", Record<AccountTier, number>> = {
   screening: { none: 0, lite: 0, basic: 30, trial: 10, pro: 120, promax: 300, admin: 120 },
   replies: { none: 0, lite: 0, basic: 0, trial: 30, pro: 300, promax: 300, admin: 300 },
   matches: { none: 0, lite: 0, basic: 300, trial: 30, pro: 300, promax: 300, admin: 300 },
+  emails: { none: 0, lite: 0, basic: 0, trial: 50, pro: 250, promax: 1000, admin: 1000 },
 };
 
 export function monthlyQuota(account: TierAccount, kind: keyof typeof MONTHLY_QUOTAS, ceiling: number | null, now = new Date()): number {

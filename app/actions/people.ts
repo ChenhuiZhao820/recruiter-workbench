@@ -2,7 +2,8 @@
 
 import { db } from "@/lib/db";
 import { requireWritableFeature } from "@/lib/feature-access";
-import { suppressionHashes } from "@/lib/person-keys.mjs";
+import { cleanEmail, suppressionHashes } from "@/lib/person-keys.mjs";
+import type { FormState } from "@/lib/formState";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -24,6 +25,27 @@ export async function setDoNotContact(formData: FormData) {
   revalidatePeople(id);
   const roles = await db.candidate.findMany({ where: { personId: id, role: { userId: user.id } }, select: { roleId: true } });
   for (const { roleId } of roles) revalidatePath(`/roles/${roleId}`);
+}
+
+// The address the recruiter keeps for someone, typed or corrected by hand, or
+// cleared. A changed address is the recruiter's own ("manual"): one found by
+// the email finder and then edited is no longer what was found, and consent
+// given for the old address does not carry over to a new one.
+export async function setPersonEmail(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await requireWritableFeature("people");
+  const id = String(formData.get("id") ?? "");
+  const typed = String(formData.get("email") ?? "").trim();
+  const email = typed ? cleanEmail(typed) : null;
+  if (typed && !email) return { error: "That does not look like an email address." };
+  const person = await db.person.findFirst({ where: { id, userId: user.id }, select: { email: true } });
+  if (!person) return { error: "That person could not be found." };
+  if (person.email === email) return {};
+  await db.person.updateMany({
+    where: { id, userId: user.id },
+    data: { email, emailSource: email ? "manual" : null, emailConsentAt: null },
+  });
+  revalidatePeople(id);
+  return { notice: email ? "Email saved." : "Email removed." };
 }
 
 // Erasure. The person, every candidacy, screening, booking and message log

@@ -18,6 +18,8 @@ import { Icon } from "@/components/Icon";
 import { oncePerDay } from "@/lib/outreach-log";
 
 import { interviewLinkFor } from "@/lib/interviews";
+import { featureAvailability } from "@/lib/feature-access";
+import { outreachEmail } from "@/lib/email-finder";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +60,7 @@ export default async function RoleOutreachPage({
       include: {
         candidates: {
           orderBy: [{ stage: "asc" }, { lastActivityAt: "desc" }],
-          include: { outreach: { orderBy: { sentAt: "desc" }, take: 1 }, person: { select: { doNotContact: true } } },
+          include: { outreach: { orderBy: { sentAt: "desc" }, take: 1 }, person: { select: { doNotContact: true, id: true, fullName: true, profileUrl: true, headline: true, email: true, emailSource: true } } },
         },
       },
     }),
@@ -270,6 +272,7 @@ export default async function RoleOutreachPage({
   const kind = selected?.kind ?? "message";
   const kindLimit = limitForKind(kind);
   const lastSent = candidate.outreach[0];
+  const email = await outreachEmail(candidate.person, role.title, { owner, canFind: (await featureAvailability()).emailFinder, readOnly });
   // The message box directly when LinkedIn's own id for this person was read
   // when they were saved; otherwise their profile, and the Message button is
   // theirs to find. Either way it is one address, opened on one click.
@@ -361,6 +364,7 @@ export default async function RoleOutreachPage({
           isLast={index + 1 === queue.length}
           limit={kindLimit}
           readOnly={readOnly}
+          email={email}
         />
 
         <div className="flex flex-wrap items-center gap-2">

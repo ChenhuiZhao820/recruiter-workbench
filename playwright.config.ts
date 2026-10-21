@@ -64,6 +64,8 @@ export default defineConfig({
         NOTION_CLIENT_ID: "test-notion-client",
         NOTION_CLIENT_SECRET: "test-notion-secret",
         CAPTURE_TEST_NOTION_BASE_URL: "http://localhost:8766/notion",
+        ENROW_API_KEY: "test-enrow-key",
+        CAPTURE_TEST_ENROW_BASE_URL: "http://localhost:8766/enrow",
         // Self-serve sign-up and billing, against the outbox and the local Stripe stand-in.
         BETTER_AUTH_SECRET: "test-only-better-auth-secret-0000000000000",
         TERMS_URL: "http://localhost:3100/welcome#terms",

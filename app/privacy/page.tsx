@@ -47,6 +47,7 @@ export default function PrivacyPage() {
         <li><strong>Anthropic</strong> runs the AI features. Only what you send when you use one (a job description, a transcript or CV, a reply you pasted, a brief) is passed to it, to return the result. Under its commercial terms it does not use this to train its models.</li>
         <li><strong>Google and Microsoft</strong>, if you sign in with them, or connect your calendar to read busy times for your booking page.</li>
         <li><strong>Notion</strong>, if you connect it to import meeting notes.</li>
+        <li><strong>Enrow</strong> looks up a person&rsquo;s work email when you press Find email. Only that person&rsquo;s LinkedIn profile address, or their name and the company you confirm, is sent to it, and only on that click; the email it finds is saved on the person.</li>
         <li><strong>Cloudflare</strong> answers DNS queries for retrivr.app. It does not see what you send to Retrivr.</li>
       </ul>
       <p>We may also share data where the law requires it, or to protect our rights or someone&rsquo;s safety.</p>

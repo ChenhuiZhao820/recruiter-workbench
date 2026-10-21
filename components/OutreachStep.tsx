@@ -3,6 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { hasGaps as messageHasGaps, normalizeMessage } from "@/lib/render";
 import { markSentAndAdvance } from "@/app/actions/outreach";
+import { mailtoHref, mailtoSubjectOnly } from "@/lib/client-email";
+import { FindEmail } from "@/components/FindEmail";
+
+// Remembered per browser: a recruiter who emails alongside LinkedIn once
+// usually wants to every time.
+const ALSO_EMAIL_KEY = "capture-also-email";
+
+export type OutreachEmail = {
+  address: string | null;
+  sourceLabel: string | null;
+  subject: string;
+  // Find email, when this person has no address and the plan has searches.
+  finder: Omit<React.ComponentProps<typeof FindEmail>, "compact" | "onFound"> | null;
+};
 
 // One person's message, and the two controls that surround it.
 //
@@ -16,6 +30,10 @@ import { markSentAndAdvance } from "@/app/actions/outreach";
 // otherwise. Pasting and sending stay with the recruiter, in LinkedIn. This
 // app never types into LinkedIn's page and never sends anything, and there is
 // no control here that acts on more than the one person on screen.
+//
+// With an email address for them, the same click can also open the message
+// as an email draft in the recruiter's own email app ("Also email"). It is a
+// mailto: draft, sent by the recruiter there; Retrivr sends nothing.
 export function OutreachStep({
   candidateId,
   templateId,
@@ -28,6 +46,7 @@ export function OutreachStep({
   readOnly = false,
   sentLabel,
   replyTo,
+  email,
 }: {
   candidateId: string;
   templateId: string;
@@ -43,9 +62,22 @@ export function OutreachStep({
   // Answering someone who replied: their message can be pasted in, and a
   // suggested answer appears in grey for Tab to take.
   replyTo?: { candidateId: string; name: string };
+  email?: OutreachEmail;
 }) {
   const [body, setBody] = useState(initialBody);
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [address, setAddress] = useState(email?.address ?? null);
+  const [subject, setSubject] = useState(email?.subject ?? "");
+  const [alsoEmail, setAlsoEmail] = useState(true);
+  const [emailedShort, setEmailedShort] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(ALSO_EMAIL_KEY) === "0") setAlsoEmail(false);
+    } catch {
+      // Storage refused: keep the default.
+    }
+  }, []);
+  const emailing = Boolean(address) && alsoEmail;
   const [theirReply, setTheirReply] = useState("");
   const suggestion = useSuggestion(replyTo && !readOnly ? replyTo.candidateId : null, theirReply);
   const box = useRef<HTMLTextAreaElement>(null);
@@ -71,8 +103,23 @@ export function OutreachStep({
       setStatus("failed");
     }
     if (openUrl) window.open(openUrl, "_blank", "noopener,noreferrer");
+    if (emailing && address) {
+      // Past the length a mail app reliably takes, the draft opens with the
+      // subject only; the message is already on the clipboard to paste.
+      const full = mailtoHref(address, subject, message);
+      setEmailedShort(!full);
+      // A link followed rather than a change of address, so this page stays
+      // where it is while the email app opens.
+      const draft = document.createElement("a");
+      draft.href = full ?? mailtoSubjectOnly(address, subject);
+      draft.click();
+    }
     setTimeout(() => setStatus("idle"), 4000);
   }
+
+  const channel = emailing ? (openUrl ? "both" : "email") : "linkedin";
+  const linkedInLabel = opensMessageBox ? "Copy and open message box" : "Copy and open profile";
+  const buttonLabel = emailing ? `${linkedInLabel} and email` : linkedInLabel;
 
   return (
     <div className="space-y-4">
@@ -191,6 +238,44 @@ export function OutreachStep({
         </p>
       )}
 
+      {email && (
+        <div className="outreach-email">
+          {address ? (
+            <>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={alsoEmail}
+                  onChange={(event) => {
+                    setAlsoEmail(event.target.checked);
+                    try {
+                      localStorage.setItem(ALSO_EMAIL_KEY, event.target.checked ? "1" : "0");
+                    } catch {
+                      // Not remembered; the box still works for this page.
+                    }
+                  }}
+                  disabled={readOnly}
+                />
+                <span>
+                  Also email it to <strong>{address}</strong>
+                  {email.sourceLabel && <span className="text-ink-soft"> · {email.sourceLabel}</span>}
+                </span>
+              </label>
+              {alsoEmail && (
+                <div>
+                  <label htmlFor="outreach-subject" className="field-label">Email subject</label>
+                  <input id="outreach-subject" value={subject} onChange={(event) => setSubject(event.target.value)} className="field-input" disabled={readOnly} />
+                </div>
+              )}
+            </>
+          ) : email.finder && !readOnly ? (
+            <FindEmail {...email.finder} compact onFound={(found) => setAddress(found)} />
+          ) : (
+            <p className="text-sm text-ink-soft">No email for this person.</p>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -198,13 +283,17 @@ export function OutreachStep({
           disabled={readOnly || !message}
           onClick={copyAndOpen}
         >
-          {opensMessageBox ? "Copy and open message box" : "Copy and open profile"}
+          {buttonLabel}
         </button>
         <span role="status" aria-live="polite" className="text-sm text-ink/70">
           {status === "copied"
             ? gaps
               ? "Copied, but it still has gaps. Fix them before you send it."
-              : "Copied. Paste it in LinkedIn and send it there."
+              : emailing
+                ? emailedShort
+                  ? "Copied. Paste it in LinkedIn, and into the email draft, which has the subject only because the message is long."
+                  : openUrl ? "Copied. Paste it in LinkedIn; the email draft has it too. Send each yourself." : "The email draft has the message. Send it from your email app."
+                : "Copied. Paste it in LinkedIn and send it there."
             : status === "failed"
               ? "Could not copy. Select the message above and copy it by hand."
               : ""}
@@ -223,6 +312,7 @@ export function OutreachStep({
           <input type="hidden" name="candidateId" value={candidateId} />
           <input type="hidden" name="templateId" value={templateId} />
           <input type="hidden" name="renderedBody" value={message} />
+          <input type="hidden" name="channel" value={channel} />
           <input type="hidden" name="next" value={next} />
           <button type="submit" className="btn-secondary" disabled={gaps}>
             {sentLabel ?? (isLast ? "Mark as sent and finish" : "Mark as sent and next")}

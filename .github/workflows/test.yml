@@ -8,7 +8,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The full suite outgrew 20 minutes on 21 October 2026, and every run was
+    # cancelled before it finished. The rest is headroom, not a target.
+    timeout-minutes: 40
 
     env:
       # The suite builds its own SQLite database and never touches dev data.

@@ -58,7 +58,7 @@ async function fillSignup(page: Page, fields: { name?: string; email: string; pa
   await page.getByLabel("Your name").fill(fields.name ?? "Self Serve");
   await page.getByLabel("Work email").fill(fields.email);
   await page.getByLabel("Password", { exact: true }).fill(fields.password ?? PASSWORD);
-  await page.getByRole("button", { name: /Email me a code/ }).click();
+  await page.getByRole("button", { name: /Create account/ }).click();
 }
 
 async function signUp(page: Page, address: string, name = "Self Serve") {
@@ -132,7 +132,7 @@ test("SU2 nothing is made without the terms, a real inbox, a strong password or 
   await expect(page).toHaveURL(`${BASE}/signup`);
   expect(await page.getByLabel("Password", { exact: true }).evaluate((input: HTMLInputElement) => input.validity.tooShort)).toBe(true);
   await page.getByLabel("Password", { exact: true }).evaluate((input: HTMLInputElement) => input.removeAttribute("minlength"));
-  await page.getByRole("button", { name: /Email me a code/ }).click();
+  await page.getByRole("button", { name: /Create account/ }).click();
   await expect(page.locator(ALERT)).toContainText(/12/);
   expect(await db.pendingSignup.findUnique({ where: { email: address } })).toBeNull();
   expect(await mailCount(address)).toBe(0);

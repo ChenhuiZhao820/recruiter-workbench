@@ -19,7 +19,7 @@ export default async function SignupPage({ searchParams }: { searchParams: { err
     </AuthFrame>;
   }
   const providers = [config.google && "google", config.microsoft && "microsoft"].filter(Boolean) as ("google" | "microsoft")[];
-  return <AuthFrame eyebrow="START FREE" title="Create your Retrivr account" description="Seven days of Pro, no card needed.">
+  return <AuthFrame eyebrow="START FREE" title="Create your Retrivr account" description="7 days of Pro, no card needed.">
     {searchParams.error === "provider" && <p role="alert" className="mb-4 rounded border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900">That account could not be used to sign up. Google or Microsoft has to confirm the email address, and the terms box has to be ticked first. Signing up with your email works too.</p>}
     <SignupPanel email={config.email} providers={providers} termsUrl={config.termsUrl} privacyUrl={config.privacyUrl} />
     <p className="auth-links">Already have an account? <Link href="/login">Sign in</Link></p>

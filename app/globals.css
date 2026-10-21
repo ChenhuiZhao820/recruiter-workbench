@@ -287,6 +287,7 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--color-line); }
 .auth-links { margin-top: 16px; color: #71717a; font-size: 11px; }
 .auth-links a { color: var(--color-accent); text-decoration: underline; }
+.signup-offer { color: var(--color-accent); font-size: 15px; font-weight: 600; }
 .signup-terms { display: flex; gap: 9px; align-items: flex-start; font-size: 11px; line-height: 1.6; color: #4d4d55; }
 .signup-terms input { margin-top: 3px; flex: none; }
 .plan-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 18px; padding: 10px 14px; border: 1px solid #d9e1ff; background: #f1f4ff; border-radius: 5px; font-size: 12px; color: #2447bd; }

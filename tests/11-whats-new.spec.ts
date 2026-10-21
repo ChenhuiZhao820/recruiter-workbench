@@ -74,12 +74,11 @@ test("R1 signing in with an unread release lands where it always did, and readin
   await page.getByRole("link", { name: /^What.s new$/ }).click();
   await expect(page).toHaveURL(`${BASE}/whats-new`);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/What.s new/);
-  await expect(page.getByRole("heading", { name: /Show a client who you found, on one page/ })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Shortlists for a client, beyond one role/ })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Candidates book the client.s interview/ })).toBeVisible();
-  await expect(page.getByText("Nothing to set up per client.")).toBeVisible();
-  // A Basic account is told the one limit its plan has.
-  await expect(page.getByText("Your plan keeps 3 shortlists open at once; closed and expired ones do not count.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Email them from the same click" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Retrivr is now at retrivr.app" })).toBeVisible();
+  // A Basic account is not told about the email finder its plan does not have.
+  await expect(page.getByRole("heading", { name: /Find someone.s work email/ })).toHaveCount(0);
+  await expect(page.getByText(/find their work email/)).toHaveCount(0);
   // Reading the page is not reading the release.
   expect((await db.settings.findUniqueOrThrow({ where: { userId: user.id } })).seenRelease).toBeNull();
 
@@ -94,16 +93,16 @@ test("R1 signing in with an unread release lands where it always did, and readin
   await cleanUp(user.id);
 });
 
-test("R1b a Pro account is not told about a limit it does not have", async ({ page }) => {
+test("R1b a Pro account is told about the email finder and how many searches its plan has", async ({ page }) => {
   const user = await account();
   await db.user.update({ where: { id: user.id }, data: { accountTier: "pro" } });
   try {
     await signIn(page, user.email);
     await expect(page).toHaveURL(`${BASE}/`);
     await page.goto("/whats-new");
-    await expect(page.getByRole("heading", { name: /Shortlists for a client, beyond one role/ })).toBeVisible();
-    // Pro has no limit to mention.
-    await expect(page.getByText(/shortlists open at once/)).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Find someone.s work email/ })).toBeVisible();
+    await expect(page.getByText("Your plan has 250 searches a month, and only a search that finds an email counts.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Email them from the same click" })).toBeVisible();
   } finally {
     await cleanUp(user.id);
   }

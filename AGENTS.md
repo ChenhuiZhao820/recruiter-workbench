@@ -312,8 +312,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   Sending from a connected Gmail or Outlook mailbox is a later phase, waiting
   on Google's verification of the `gmail.send` scope.
 - `20261025000000_email_finder` adds `EmailLookup` and the nullable
-  `OutreachLog.channel` (additive; `channel` is in `lateColumns`). It has
-  not been applied to the hosted or the local account database.
+  `OutreachLog.channel` (additive; `channel` is in `lateColumns`); see
+  Hosting for when it was applied.
   `scripts/enrow-probe.mjs` makes one real search through the paid-run
   guard, logging the outcome and credits only. `tests/31-email-finder.spec.ts`
   plays it against the local stub (`CAPTURE_TEST_ENROW_BASE_URL`, outside
@@ -1515,6 +1515,16 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `TERMS_URL`, `PRIVACY_URL`, `TERMS_VERSION`, `RESEND_API_KEY`, `MAIL_FROM`,
   `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the `STRIPE_PRICE_*` ids
   are set on the service.
+- On 2026-10-21, `20261025000000_email_finder` (`EmailLookup`; nullable
+  `OutreachLog.channel`) was applied and registered on the hosted database
+  the same way, through WSL
+  (`prisma/private-local/migrate-hosted-email-finder.mjs`, counts only),
+  checked against the reviewed file's SHA-256: a dump from a locked snapshot,
+  restored into a disposable database and rehearsed, then one transaction.
+  Every existing table came out unchanged, the new table empty and no message
+  with a channel; Prisma reports 15 migrations and no difference. The local
+  account database has not received it. Find email stays off until
+  `ENROW_API_KEY` is set on the service.
 
 ## Searches and LinkedIn industry filters
 

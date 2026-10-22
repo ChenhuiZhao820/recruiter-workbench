@@ -215,7 +215,7 @@ test("V4 putting forward someone without a CV asks first: cancel, skip for now, 
     await expect(juno.getByText("On the client link")).toBeVisible();
     expect((await db.shortlistItem.findFirstOrThrow({ where: { personId: skip.id } })).candidateId).toBe(skipCandidate.id);
     // The row keeps saying so until a CV arrives.
-    await expect(juno.getByRole("link", { name: "No CV · Upload" })).toHaveAttribute("href", `/people/${skip.id}#cv-heading`);
+    await expect(juno.getByRole("link", { name: "No CV (Upload)" })).toHaveAttribute("href", `/people/${skip.id}#cv-heading`);
 
     // Upload it there: the same contact-details check, then it goes ahead by itself.
     const pell = page.locator("li.card", { hasText: "Pell Okonjo" });
@@ -227,7 +227,7 @@ test("V4 putting forward someone without a CV asks first: cancel, skip for now, 
     await second.locator("#no-cv-upload-contacts").check();
     await second.getByRole("button", { name: "Upload and continue" }).click();
     await expect(pell.getByText("On the client link")).toBeVisible();
-    await expect(pell.getByRole("link", { name: "No CV · Upload" })).toHaveCount(0);
+    await expect(pell.getByRole("link", { name: "No CV (Upload)" })).toHaveCount(0);
     expect(await db.personCv.count({ where: { personId: upload.id } })).toBe(1);
     expect((await db.shortlistItem.findFirstOrThrow({ where: { personId: upload.id } })).candidateId).toBe(uploadCandidate.id);
   } finally {

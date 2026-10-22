@@ -81,8 +81,8 @@ test.afterAll(async () => { await db.$disconnect(); });
 
 async function generateKey(actor: Actor, extensions: Extensions) {
   await actor.page.goto("/settings");
-  await actor.page.getByRole("button", { name: /Generate a (capture|new) key/ }).click();
-  const output = actor.page.getByLabel("New capture key", { exact: true });
+  await actor.page.getByRole("button", { name: /Generate (an extension|a new) key/ }).click();
+  const output = actor.page.getByLabel("New extension key", { exact: true });
   await expect(output).toBeVisible();
   const key = await output.inputValue();
   expect(key).toMatch(/^[A-Za-z0-9_-]{24,128}$/);
@@ -163,7 +163,7 @@ async function expectAuditPrivate(actors: Actor[], values: string[]) {
   for (const value of [...values, PASSWORD, passwordHash, ...actors.map((actor) => actor.token)]) expect(audit).not.toContain(value);
 }
 
-test("E1 an account whose trial ended is locked, including an existing capture key and forged key generation", async ({ extensions }) => {
+test("E1 an account whose trial ended is locked, including an existing extension key and forged key generation", async ({ extensions }) => {
   const actor = await extensions.create({ plan: "ended" });
   const admin = await extensions.create({ role: "admin" });
   const guest = await extensions.guest();
@@ -177,7 +177,7 @@ test("E1 an account whose trial ended is locked, including an existing capture k
   await expect(section.getByRole("link", { name: "Choose a plan", exact: true })).toHaveAttribute("href", "/billing");
   await expect(section.getByRole("link", { name: "Download extension ZIP", exact: true })).toHaveCount(0);
   await actor.page.goto("/settings");
-  await expect(actor.page.getByRole("button", { name: /Generate a (capture|new) key/ })).toHaveCount(0);
+  await expect(actor.page.getByRole("button", { name: /Generate (an extension|a new) key/ })).toHaveCount(0);
   const existingKey = secret();
   extensions.secrets.push(existingKey);
   await db.settings.update({ where: { userId: actor.id }, data: { captureTokenHash: hashToken(existingKey) } });
@@ -216,9 +216,11 @@ test("E2 a plan alone opens the extension: downloads are reusable, keys are sepa
   const listed = await guest.request.get("/api/capture", { headers });
   expect(listed.status()).toBe(200);
   expect(await listed.json()).toEqual({
-    account: { id: actor.id, name: actor.name, email: actor.email },
+    account: { id: actor.id, name: actor.name, email: actor.email, plan: "Pro trial" },
     roles: [{ id: role.id, title: role.title, client: null }],
     extension: { version: expect.any(String) },
+    // A trial has the finder; this server's searches are the stub's.
+    emailFinder: { remaining: 50, quota: 50, trial: true },
   });
   expect((await guest.request.post("/api/capture", { headers, data: { roleId: otherRole.id, fullName: "Foreign injection", userId: foreign.id } })).status()).toBe(404);
   expect((await guest.request.post("/api/capture", { headers, data: { roleId: role.id, fullName: "Authorized capture", userId: foreign.id } })).status()).toBe(201);
@@ -260,6 +262,6 @@ test("E3 administrators need no plan, and a read-only view downloads and generat
   await admin.page.goto("/account");
   await expect(admin.page.getByRole("region", { name: "Browser extension", exact: true }).getByRole("link", { name: "Download extension ZIP", exact: true })).toHaveCount(0);
   await admin.page.goto("/settings");
-  await expect(admin.page.getByRole("button", { name: /Generate a (capture|new) key/ })).toHaveCount(0);
+  await expect(admin.page.getByRole("button", { name: /Generate (an extension|a new) key/ })).toHaveCount(0);
   expect((await db.settings.findUniqueOrThrow({ where: { userId: actor.id } })).captureTokenHash).toBeNull();
 });

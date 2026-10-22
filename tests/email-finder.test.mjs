@@ -110,7 +110,8 @@ test("the routes check the origin, refuse read-only views and claim the allowanc
   assert.match(start, /if \(readOnly\) return fail\(403/);
   assert.match(start, /canUseFeature\(user, "emailFinder"\) \|\| !canUseFeature\(owner, "emailFinder"\)/);
   assert.match(start, /person\.doNotContact/);
-  assert.match(start, /isolationLevel: "Serializable"/);
+  assert.match(start, /claimLookup\(user, person\.id, search\.method\)/);
+  assert.match(await read("lib/email-finder.ts"), /isolationLevel: "Serializable"/);
   const poll = await read("app/api/email-finder/[id]/route.ts");
   assert.match(poll, /where: \{ id: params\.id, userId: user\.id \}/);
   assert.match(poll, /if \(readOnly\) return fail\(403/);

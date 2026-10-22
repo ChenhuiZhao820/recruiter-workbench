@@ -70,14 +70,14 @@ export async function regenerateCaptureToken(): Promise<FormState & { token?: st
       });
       return secret;
     }, { isolationLevel: "Serializable" });
-    if (!generated) return { error: "A capture key needs a plan. Choose one in Billing first." };
+    if (!generated) return { error: "An extension key needs a plan. Choose one in Billing first." };
     token = generated;
   } catch {
-    return { error: "A capture key could not be generated. Refresh the page and try again." };
+    return { error: "An extension key could not be generated. Refresh the page and try again." };
   }
   revalidatePath("/settings");
   revalidatePath("/getting-started");
-  return { token, notice: "New capture key generated. Copy it now: it will only be shown once. Paste it into the extension; the old key has stopped working." };
+  return { token, notice: "New extension key generated. Copy it now: it will only be shown once. Paste it into the extension; the old key has stopped working." };
 }
 
 export async function clearCaptureToken(): Promise<FormState> {

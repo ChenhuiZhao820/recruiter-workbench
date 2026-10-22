@@ -66,7 +66,7 @@ function ActivationPasswordForm({ token }: { token: string }) {
     <Status state={state} />
     <input name="token" type="hidden" value={token} />
     {token ? <><NewPasswordFields /><Submit>Set password</Submit></> : <p role="alert">Open the complete link from your email or your administrator. If you refreshed this page, reopen that link.</p>}
-    <p className="text-sm text-ink-soft">Setting a password signs out existing sessions and revokes capture keys. Reconnect your extension after signing in.</p>
+    <p className="text-sm text-ink-soft">Setting a password signs out existing sessions and revokes extension keys. Reconnect your extension after signing in.</p>
   </form>;
 }
 
@@ -76,7 +76,7 @@ export function PasswordForm() {
     <Status state={state} />
     <div><label htmlFor="currentPassword" className="field-label">Current password</label><input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" maxLength={128} required className="field-input" /></div>
     <NewPasswordFields />
-    <p className="text-sm text-ink-soft">Changing your password signs out all sessions and revokes your extension capture key.</p>
+    <p className="text-sm text-ink-soft">Changing your password signs out all sessions and revokes your extension key.</p>
     <Submit>Change password</Submit>
   </form>;
 }

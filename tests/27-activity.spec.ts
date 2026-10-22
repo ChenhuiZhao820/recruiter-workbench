@@ -156,9 +156,10 @@ test("A3 an answer on a custom shortlist shows on the role's row and Follow-ups,
     await expect(row.getByTestId("answer-elsewhere")).toContainText("Analytics people for Brightwater");
     await row.getByRole("button", { name: "Add to client link" }).click();
     await skipNoCv(me.page);
-    await expect(row.getByText("On the client link")).toBeVisible();
+    // On the link now, and the client's answer is what the row says about it.
+    await expect(row.getByRole("list", { name: /on the client link/ })).toBeVisible();
     await expect(row.getByTestId("answer-elsewhere")).toHaveCount(0);
-    await expect(row.locator(".chip.client-said-yes")).toContainText("Brightwater Group Ltd wants to meet");
+    await expect(row.locator(".client-status .is-yes")).toContainText("Brightwater Group Ltd wants to meet");
 
     const onRole = await db.shortlistItem.findFirstOrThrow({ where: { personId: person.id, shortlist: { roleId } } });
     expect(onRole.decision).toBe("interview");
@@ -266,7 +267,7 @@ test("A6 a new version is a notification: counted on the bell until seen, with W
     // Only the current release links to What's new and offers the download.
     await expect(page.getByRole("link", { name: "See what’s new" })).toHaveCount(1);
     await expect(page.getByRole("link", { name: /Download the new extension/ })).toHaveCount(currentRelease.extension ? 1 : 0);
-    await expect(current.getByText("generate a new capture key")).toHaveCount(currentRelease.extension ? 1 : 0);
+    await expect(current.getByText("generate a new extension key")).toHaveCount(currentRelease.extension ? 1 : 0);
     if (currentRelease.extension) await expect(current.getByRole("link", { name: /Download the new extension/ })).toHaveAttribute("href", "/api/extension/download");
     await page.locator("section[aria-label='New']").screenshot({ path: testInfo.outputPath("release-new.png") });
 

@@ -22,7 +22,7 @@ export function CaptureKeyPanel({ enabled, readOnly = false }: { enabled: boolea
       setMessage(result.notice ?? result.error ?? null);
       if (!result.error) setToken(result.token ?? "");
     } catch {
-      setMessage("Could not update the capture key. Reload the page and try again.");
+      setMessage("Could not update the extension key. Reload the page and try again.");
     } finally {
       setPending(false);
     }
@@ -39,13 +39,13 @@ export function CaptureKeyPanel({ enabled, readOnly = false }: { enabled: boolea
       </div>
       {readOnly ? <p className="text-sm text-ink-soft">These keys are private. They cannot be viewed or changed in read-only mode.</p> : <>
         {token && <div className="space-y-2">
-          <span className="field-label">New capture key — shown once</span>
-          <input aria-label="New capture key" className="field-input font-mono" value={token} readOnly autoComplete="off" />
+          <span className="field-label">New extension key — shown once</span>
+          <input aria-label="New extension key" className="field-input font-mono" value={token} readOnly autoComplete="off" />
           <CopyButton text={token} label="Copy key" className="btn-secondary" />
         </div>}
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="btn-secondary" disabled={pending} onClick={() => run(regenerateCaptureToken)}>
-            {enabled ? "Generate a new key" : "Generate a capture key"}
+            {enabled ? "Generate a new key" : "Generate an extension key"}
           </button>
           {enabled && <button type="button" className="btn-quiet" disabled={pending} onClick={() => run(clearCaptureToken)}>Switch capture off</button>}
           {!enabled && <span className="text-sm text-ink-soft">Saving from the extension is switched off.</span>}

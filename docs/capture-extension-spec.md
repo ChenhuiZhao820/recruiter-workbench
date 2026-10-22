@@ -189,7 +189,7 @@ The notes box must be left for him to fill in. His judgement of a candidate is t
 首次打开弹窗时，若 `chrome.storage.local` 中没有 `url` 或 `token`，显示连接表单：
 
 - 工作台地址，默认 `http://localhost:3000`
-- 采集密钥（capture key），由用户在工作台的「设置」页生成后粘贴过来
+- 采集密钥（extension key），由用户在工作台的「设置」页生成后粘贴过来
 - 「连接」按钮：保存到 `chrome.storage.local`，随即请求角色列表；成功则进入采集界面，失败则显示可操作的错误信息
 - 「打开工作台设置」按钮：在新标签页打开该地址的 `/settings`，密钥就在那里生成，不必手工输网址
 - 「返回」按钮：已连接时才出现；进入设置界面不应变成有去无回的死路
@@ -200,7 +200,7 @@ The notes box must be left for him to fill in. His judgement of a candidate is t
 On first open, if `chrome.storage.local` holds no `url` or `token`, show a connection form:
 
 - Workbench address, defaulting to `http://localhost:3000`
-- Capture key, which the user generates on the workbench's Settings page and pastes here
+- Extension key, which the user generates on the workbench's Settings page and pastes here
 - A "Connect" button: stores both in `chrome.storage.local`, then requests the role list; on success show the capture screen, on failure show an actionable error
 - An "Open workbench settings" button: opens `/settings` at that address in a new tab, where the key is generated, so nobody has to retype a URL to find it
 - A "Back" button, shown only while an account is connected: opening settings must not be a one-way trip
@@ -442,7 +442,7 @@ The following already lives on the server; the extension should submit what the 
 
 1. In the workbench run `npx prisma migrate deploy`, then `npm run dev`.
    **Note**: if the dev server was started before the Prisma client was regenerated, it holds the old client and will reject every valid key. Always restart the dev server after a schema change.
-2. Generate a capture key under Settings → Browser extension.
+2. Generate an extension key under Settings → Browser extension.
 3. Open `chrome://extensions`, enable Developer mode, choose "Load unpacked", and point it at the extension directory.
 4. Click the extension and enter the address and key.
 

@@ -159,7 +159,7 @@ test("capture and extension code hashes and pending expiries are redacted in the
   }
 });
 
-test("validation preserves every persisted field except auth versions, capture keys and pending extension codes/expiries", () => {
+test("validation preserves every persisted field except auth versions, extension keys and pending extension codes/expiries", () => {
   const original = structuredClone(source);
   const result = validateAccounts(source, adminEmail);
   assert.equal(result.adminId, "fixture-user-admin");
@@ -744,7 +744,7 @@ test("post-import verification detects content, ownership, audit and authenticat
     ["extra import audit", (db) => db.auditEvent.create({ data: { actorId: "fixture-user-admin", targetUserId: "fixture-user-admin", action: "accounts.import" } })],
     ["wrong import actor", (db) => db.auditEvent.updateMany({ where: { action: "accounts.import" }, data: { actorId: "fixture-user-recruiter" } })],
     ["wrong import target", (db) => db.auditEvent.updateMany({ where: { action: "accounts.import" }, data: { targetUserId: "fixture-user-recruiter" } })],
-    ["capture key", (db) => db.settings.update({ where: { userId: "fixture-user-admin" }, data: { captureTokenHash: captureHashes[0] } })],
+    ["extension key", (db) => db.settings.update({ where: { userId: "fixture-user-admin" }, data: { captureTokenHash: captureHashes[0] } })],
     ["unauthorized extension activation", (db) => db.extensionAccess.update({ where: { userId: "fixture-user-recruiter" }, data: { activatedAt: updatedAt } })],
     ["revoked extension grant", (db) => db.extensionAccess.update({ where: { userId: "fixture-user-admin" }, data: { activatedAt: null } })],
     ["deleted extension grant", (db) => db.extensionAccess.delete({ where: { userId: "fixture-user-admin" } })],

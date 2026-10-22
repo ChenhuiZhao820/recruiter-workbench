@@ -26,18 +26,19 @@ export const STAGE_LABELS: Record<Stage, string> = {
   placed: "Placed",
 };
 
-// Colour is decorative only. The text label always appears beside it.
+// Colour is decorative only. The text label always appears beside it. Each
+// stage has its own hue, so a glance down a list tells them apart.
 export const STAGE_COLORS: Record<Stage, string> = {
-  sourced: "bg-ink/30",
-  contacted: "bg-accent/50",
-  replied: "bg-accent",
-  booking_pending: "bg-ink/50",
-  booked: "bg-accent",
-  screened: "bg-accent",
-  submitted: "bg-ink/70",
-  interview: "bg-accent",
-  rejected: "bg-ink/20",
-  placed: "bg-ink",
+  sourced: "#a1a1aa",
+  contacted: "#22d3ee",
+  replied: "#315cff",
+  booking_pending: "#facc15",
+  booked: "#a855f7",
+  screened: "#84cc16",
+  submitted: "#ec4899",
+  interview: "#f97316",
+  rejected: "#52525b",
+  placed: "#16a34a",
 };
 
 export function isStage(value: string): value is Stage {

@@ -326,8 +326,8 @@ test("08 add candidates and open a profile", async ({ page }) => {
 test("09 stage dropdown moves a candidate and updates grouping", async ({ page }) => {
   await page.goto(`/roles/${roleId}`);
   const aliceCard = page.locator("li.card", { hasText: "Alice Example" });
-  await aliceCard.getByRole("combobox").selectOption("contacted");
-  await aliceCard.getByRole("button", { name: "Set stage" }).click();
+  await aliceCard.getByRole("button", { name: /^Change stage for / }).click();
+  await aliceCard.getByRole("option", { name: "Contacted", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Contacted (1)" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sourced (2)" })).toBeVisible();
   await expect(
@@ -417,21 +417,21 @@ test("13 follow-up buckets fill from stages and backdated timestamps", async ({ 
   // Alice -> replied (immediate bucket).
   await page.goto(`/roles/${roleId}`);
   const alice = page.locator("li.card", { hasText: "Alice Example" });
-  await alice.getByRole("combobox").selectOption("replied");
-  await alice.getByRole("button", { name: "Set stage" }).click();
+  await alice.getByRole("button", { name: /^Change stage for / }).click();
+  await alice.getByRole("option", { name: "Replied", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Replied (1)" })).toBeVisible();
 
   // Bob -> booking_pending, backdated 3 days.
   const bob = page.locator("li.card", { hasText: "Bob Sample" });
-  await bob.getByRole("combobox").selectOption("booking_pending");
-  await bob.getByRole("button", { name: "Set stage" }).click();
+  await bob.getByRole("button", { name: /^Change stage for / }).click();
+  await bob.getByRole("option", { name: "Booking pending", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Booking pending (1)" })).toBeVisible();
   await backdateCandidate("Bob Sample", { lastActivityAt: daysAgo(3) });
 
   // Cara -> contacted, backdated 6 days.
   const cara = page.locator("li.card", { hasText: "Cara Test" });
-  await cara.getByRole("combobox").selectOption("contacted");
-  await cara.getByRole("button", { name: "Set stage" }).click();
+  await cara.getByRole("button", { name: /^Change stage for / }).click();
+  await cara.getByRole("option", { name: "Contacted", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Contacted (1)" })).toBeVisible();
   await backdateCandidate("Cara Test", { lastActivityAt: daysAgo(6) });
 

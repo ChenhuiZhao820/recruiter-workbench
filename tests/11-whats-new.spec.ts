@@ -75,7 +75,8 @@ test("R1 signing in with an unread release lands where it always did, and readin
   await expect(page).toHaveURL(`${BASE}/whats-new`);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/What.s new/);
   await expect(page.getByRole("heading", { name: "Email them from the same click" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Retrivr is now at retrivr.app" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Their email, in the extension" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Download the new extension/ })).toBeVisible();
   // A Basic account is not told about the email finder its plan does not have.
   await expect(page.getByRole("heading", { name: /Find someone.s work email/ })).toHaveCount(0);
   await expect(page.getByText(/find their work email/)).toHaveCount(0);
@@ -103,6 +104,7 @@ test("R1b a Pro account is told about the email finder and how many searches its
     await expect(page.getByRole("heading", { name: /Find someone.s work email/ })).toBeVisible();
     await expect(page.getByText("Your plan has 250 searches a month, and only a search that finds an email counts.", { exact: false })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Email them from the same click" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Find their email from the extension" })).toBeVisible();
   } finally {
     await cleanUp(user.id);
   }

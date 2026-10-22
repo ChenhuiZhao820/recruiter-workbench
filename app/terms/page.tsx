@@ -18,8 +18,8 @@ export default function TermsPage() {
     <Section id="account" title="1. Your account">
       <ul>
         <li>Give us your real name and an email address you control, and keep them up to date.</li>
-        <li>An account is for one person. Each plan is priced per seat: do not share your sign-in or your extension&rsquo;s capture key with anyone else.</li>
-        <li>Keep your password and capture key secret. You are responsible for what happens under your account. Tell us at {contact} if you think someone else has used it.</li>
+        <li>An account is for one person. Each plan is priced per seat: do not share your sign-in or your extension key with anyone else.</li>
+        <li>Keep your password and extension key secret. You are responsible for what happens under your account. Tell us at {contact} if you think someone else has used it.</li>
       </ul>
     </Section>
 

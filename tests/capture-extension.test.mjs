@@ -34,6 +34,7 @@ class Element {
     this.className = "";
     this.children = [];
     this.handlers = new Map();
+    this.dataset = {};
   }
   set innerHTML(value) {
     assert.equal(value, "");
@@ -166,6 +167,7 @@ async function popup(options = {}) {
     get queries() { return queries; },
     click: (id) => elements[id].dispatch("click"),
     edit: async (id, value) => { elements[id].value = value; await elements[id].dispatch("input"); await elements[id].dispatch("change"); },
+    toggle: async (id, checked) => { elements[id].checked = checked; await elements[id].dispatch("change"); },
   };
 }
 
@@ -191,11 +193,11 @@ function extract(func, options = {}) {
 const saved = { status: 201, body: { ok: true, candidateId: "candidate-a", fullName: "Priya Kaur", warning: null } };
 
 test("manifest grants only click-triggered reading and loopback workbench access", () => {
-  assert.equal(manifest.name, "Capture");
-  assert.equal(manifest.action.default_title, "Save this profile to Capture");
-  assert.match(manifest.description, /\bCapture\b/);
+  assert.equal(manifest.name, "Retrivr");
+  assert.equal(manifest.action.default_title, "Save this profile to Retrivr");
+  assert.match(manifest.description, /\bRetrivr\b/);
   for (const text of [manifest.name, manifest.action.default_title, manifest.description]) {
-    assert.doesNotMatch(text, /basanite|recruiter workbench|capture capture/i);
+    assert.doesNotMatch(text, /basanite|recruiter workbench|capture/i);
   }
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "sidePanel", "storage"]);
@@ -451,7 +453,7 @@ test("a refused re-read keeps whatever was typed by hand", async () => {
 test("an extension older than the workbench's says so, and says why it waits", async () => {
   const p = await popup({ packagedVersion: "9.9.9" });
   assert.equal(p.elements.update.hidden, false);
-  assert.match(p.elements["update-text"].textContent, /Capture 9\.9\.9 is ready to download/);
+  assert.match(p.elements["update-text"].textContent, /Retrivr 9\.9\.9 is ready to download/);
   assert.match(p.elements["update-text"].textContent, new RegExp(`You have ${manifest.version.replace(/\./g, "\.")}`));
   // Chrome will not do it for them, which is the part worth explaining.
   assert.match(p.elements["update-text"].textContent, /does not update an extension you loaded yourself/);
@@ -472,40 +474,50 @@ test("an extension level with the workbench, or ahead of it, says nothing", asyn
   assert.equal(nonsense.elements.update.hidden, true);
 });
 
-test("the panel offers to follow along, and asks Chrome for LinkedIn when told to", async () => {
+test("the panel's follow switch asks Chrome for LinkedIn when it is turned on, and says nothing else", async () => {
   const p = await popup({ sidePanel: true, hash: "#panel" });
-  // Not granted at install, so the panel says what the click buys.
+  // Not granted at install, so the switch starts off, with no explanation beside it.
   assert.equal(p.elements.follow.hidden, false);
-  assert.equal(p.elements["follow-allow"].hidden, false);
-  assert.equal(p.elements["follow-toggle"].hidden, true);
-  assert.match(p.elements["follow-text"].textContent, /fills itself in/);
+  assert.equal(p.elements["follow-toggle"].checked, false);
+  assert.equal(p.elements["follow-text"], undefined);
+  assert.equal(p.elements["follow-allow"], undefined);
+  assert.equal(p.permissionAsks.filter((ask) => ask.kind === "request").length, 0);
 
-  await p.click("follow-allow");
+  await p.toggle("follow-toggle", true);
   const asked = p.permissionAsks.filter((ask) => ask.kind === "request");
   assert.equal(asked.length, 1);
   assert.deepEqual(asked[0].origins, ["https://*.linkedin.com/*"]);
   assert.equal(p.stored.autoRead, true);
-  assert.equal(p.elements["follow-allow"].hidden, true);
-  assert.equal(p.elements["follow-toggle"].hidden, false);
-  assert.equal(p.elements["follow-toggle"].textContent, "Pause");
-  assert.match(p.elements["follow-text"].textContent, /Following along/);
+  assert.equal(p.elements["follow-toggle"].checked, true);
 });
 
-test("refusing the permission changes nothing and says so", async () => {
-  const p = await popup({ sidePanel: true, hash: "#panel", grantRefused: true });
-  await p.click("follow-allow");
+test("once LinkedIn is allowed, following is on by default", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel", linkedInGranted: true });
   assert.equal(p.stored.autoRead, undefined);
-  assert.equal(p.elements["follow-allow"].hidden, false);
+  assert.equal(p.elements["follow-toggle"].checked, true);
+});
+
+test("the popup has no follow switch: following is the panel's", async () => {
+  const p = await popup({ linkedInGranted: true });
+  assert.equal(p.elements.follow.hidden, true);
+});
+
+test("refusing the permission puts the switch back off and changes nothing else", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel", grantRefused: true });
+  await p.toggle("follow-toggle", true);
+  assert.equal(p.stored.autoRead, undefined);
+  assert.equal(p.elements["follow-toggle"].checked, false);
   assert.match(p.elements.message.textContent, /fine answer/);
 });
 
-test("pausing keeps the panel open and stops it reading", async () => {
+test("turning the switch off keeps the panel open and stops it reading", async () => {
   const p = await popup({ sidePanel: true, hash: "#panel", linkedInGranted: true });
-  assert.equal(p.elements["follow-toggle"].textContent, "Pause");
-  await p.click("follow-toggle");
+  assert.equal(p.elements["follow-toggle"].checked, true);
+  await p.toggle("follow-toggle", false);
   assert.equal(p.stored.autoRead, false);
-  assert.equal(p.elements["follow-toggle"].textContent, "Resume");
-  assert.match(p.elements["follow-text"].textContent, /Paused/);
+  assert.equal(p.elements["follow-toggle"].checked, false);
+  // Turned off, it is not asked again: the permission is still Chrome's.
+  assert.equal(p.permissionAsks.filter((ask) => ask.kind === "request").length, 0);
   // The panel is still the panel: nothing about it closed.
   assert.equal(p.panel.closed, 0);
   assert.equal(p.elements["panel-close"].hidden, false);
@@ -642,6 +654,7 @@ for (const [label, options] of [
     assert.deepEqual(JSON.parse(p.requests.at(-1).body), {
       roleId: "role-b", fullName: "Manual Name", headline: "Edited headline",
       profileUrl: "www.linkedin.com/in/manual/", notes: "My own judgement", memberId: "",
+      email: "", emailFound: false,
     });
   });
 }
@@ -894,7 +907,7 @@ test("connected account identity is prominent and independent of website login",
   assert.equal(p.elements["account-name"].textContent, account.name);
   assert.equal(p.elements["account-email"].textContent, account.email);
   assert.equal(p.elements["account-origin"].textContent, config.url);
-  assert.match(html, /Website login is independent/);
+  assert.match(html, /independently of your website login/);
   assert.match(html, /paste that account's key/);
   const nameless = await popup({ responses: [{ status: 200, body: { account: { ...account, name: null }, roles } }] });
   assert.equal(nameless.elements["account-name"].textContent, account.email);
@@ -928,7 +941,7 @@ test("legacy global role preference is ignored rather than assigned to an unknow
   assert.equal(p.stored.lastRoleId, "role-b");
 });
 
-test("switching capture keys isolates account role preferences, keeps the draft and reads only once", async () => {
+test("switching extension keys isolates account role preferences, keeps the draft and reads only once", async () => {
   const p = await popup();
   await p.edit("notes", "My private manual draft");
   await p.edit("name", "Edited name");
@@ -985,7 +998,7 @@ test("failed account switch clears the old identity, preserves notes and permits
   await p.edit("notes", "Keep my draft");
   await p.click("settings");
   await p.edit("token", "refused-key");
-  p.responses.push({ status: 401, body: { error: "Capture key revoked." } });
+  p.responses.push({ status: 401, body: { error: "Extension key revoked." } });
   await p.click("connect");
   assert.equal(p.elements.connection.hidden, true);
   assert.equal(p.elements["account-email"].textContent, "");
@@ -1164,7 +1177,7 @@ test("packager makes a standalone exact-host build and leaves source loopback-on
   const packagedHtml = await readFile(join(output, "popup.html"), "utf8");
   const packagedSource = await readFile(join(output, "popup.js"), "utf8");
   const configSource = await readFile(join(output, "workbench.js"), "utf8");
-  assert.equal(packaged.name, "Capture");
+  assert.equal(packaged.name, "Retrivr");
   assert.equal(packaged.action.default_title, manifest.action.default_title);
   assert.equal(packaged.description, manifest.description);
   assert.equal(configSource, `"use strict";\nglobalThis.CAPTURE_WORKBENCH_ORIGINS = ${JSON.stringify([hostedOrigin])};\n`);
@@ -1233,3 +1246,82 @@ for (const status of [200, 201]) {
     assert.equal(p.elements.save.disabled, false);
   });
 }
+
+// --- Find email ---------------------------------------------------------------
+
+const finder = { remaining: 249, quota: 250, trial: false };
+const withFinder = (extra = {}) => ({ status: 200, body: { account, roles, emailFinder: finder, ...extra } });
+
+test("Find email asks the workbench, fills the field, counts down and says Found; the save keeps it as found", async () => {
+  const p = await popup({ timeout: 0, responses: [withFinder(), withFinder({ existing: null, person: null })] });
+  assert.equal(p.elements["find-email"].hidden, false);
+  assert.equal(p.elements["email-left"].textContent, "249 of 250 left");
+  p.responses.push({ status: 200, body: { id: "lookup-1", status: "pending", remaining: 249 } }, { status: 200, body: { status: "found", email: "priya@example.test", remaining: 248 } });
+  await p.click("find-email");
+  const started = p.requests.at(-2);
+  assert.equal(started.url, "http://localhost:3000/api/capture/email");
+  assert.equal(started.method, "POST");
+  assert.deepEqual(JSON.parse(started.body), { profileUrl: "https://www.linkedin.com/in/priya-kaur/" });
+  assert.equal(p.requests.at(-1).url, "http://localhost:3000/api/capture/email/lookup-1");
+  // Never LinkedIn, never Enrow: only the workbench is asked.
+  assert.ok(p.requests.every((request) => request.url.startsWith("http://localhost:3000/api/capture")));
+  assert.equal(p.elements.email.value, "priya@example.test");
+  assert.equal(p.elements["email-note"].textContent, "Found.");
+  assert.equal(p.elements["email-note"].className, "note good");
+  assert.equal(p.elements["email-left"].textContent, "248 of 250 left");
+  assert.equal(p.elements["find-email"].disabled, true);
+  p.responses.push(saved);
+  await p.click("save");
+  const body = JSON.parse(p.requests.at(-1).body);
+  assert.equal(body.email, "priya@example.test");
+  assert.equal(body.emailFound, true);
+});
+
+test("Find email that finds nothing says so in red, that no credit was used, and offers nothing else", async () => {
+  const p = await popup({ timeout: 0, responses: [withFinder(), withFinder({ existing: null, person: null })] });
+  p.responses.push({ status: 200, body: { id: "lookup-2", status: "pending", remaining: 249 } }, { status: 200, body: { status: "not_found", remaining: 249 } });
+  await p.click("find-email");
+  assert.equal(p.elements.email.value, "");
+  assert.equal(p.elements["email-note"].textContent, "Email cannot be found. No credit was used.");
+  assert.equal(p.elements["email-note"].className, "note bad");
+  assert.equal(p.elements["email-left"].textContent, "249 of 250 left");
+  assert.equal(p.elements["find-email"].disabled, false);
+});
+
+test("Find email is greyed out with the reason on hover when no searches are left", async () => {
+  const used = { ...finder, remaining: 0 };
+  const p = await popup({ responses: [{ status: 200, body: { account, roles, emailFinder: used } }, { status: 200, body: { account, roles, emailFinder: used, existing: null, person: null } }] });
+  assert.equal(p.elements["find-email"].disabled, true);
+  assert.equal(p.elements["find-email-wrap"].dataset.tip, "You have no email searches left this month.");
+  assert.equal(p.elements["email-left"].className, "finder-count empty");
+  const before = p.requests.length;
+  await p.click("find-email");
+  assert.equal(p.requests.length, before);
+});
+
+test("an address this account already keeps is shown and not searched for", async () => {
+  const p = await popup({ responses: [withFinder(), withFinder({ existing: null, person: { id: "person-a", email: "kept@example.test", doNotContact: false, roles: [] } })] });
+  assert.equal(p.elements.email.value, "kept@example.test");
+  assert.equal(p.elements["find-email"].disabled, true);
+  assert.equal(p.elements["find-email-wrap"].dataset.tip, "This person already has an email saved.");
+});
+
+test("without the finder on this plan or server there is no Find email, and the field is a plain email field", async () => {
+  const p = await popup();
+  assert.equal(p.elements["find-email"].hidden, true);
+  assert.equal(p.elements["email-left"].hidden, true);
+  assert.equal(p.elements.email.hidden, false);
+  await p.edit("email", "typed@example.test");
+  p.responses.push(saved);
+  await p.click("save");
+  const body = JSON.parse(p.requests.at(-1).body);
+  assert.equal(body.email, "typed@example.test");
+  assert.equal(body.emailFound, false);
+});
+
+test("a red warning is words alone, not a box", () => {
+  const css = readFileSync(new URL("../extension/popup.css", import.meta.url), "utf8");
+  assert.match(css, /\.message\.bad \{ padding: 0; border-color: transparent; background: none; color: var\(--color-bad\); \}/);
+  assert.match(css, /--color-bad: #d70218;/);
+  assert.match(css, /\.note\.bad \{ color: var\(--color-bad\); \}/);
+});

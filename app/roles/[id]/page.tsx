@@ -6,22 +6,22 @@ import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
 import { featureAvailability } from "@/lib/feature-access";
 import { getSettings } from "@/lib/settings";
-import { bookingLinkFor } from "@/lib/booking";
 import { googleCalendarUrl } from "@/lib/booking-core.mjs";
 import { factsAreStale, matchTerms, rankMatches } from "@/lib/talent.mjs";
 import { locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
 import { addPersonToRole } from "@/app/actions/talent";
 import { SCREENING_HINT } from "@/lib/screening";
-import { CopyButton } from "@/components/CopyButton";
 import { cancelBooking } from "@/app/actions/booking";
 import { parseObjectArray, parseStringArray } from "@/lib/json";
 import { STAGES, STAGE_LABELS } from "@/lib/stages";
 import { formatWhen } from "@/lib/dates";
 import { profileHref } from "@/lib/urls";
-import { addCandidate, deleteCandidate, setCandidateStage, updateCandidate } from "@/app/actions/candidates";
+import { addCandidate, setCandidateStage } from "@/app/actions/candidates";
 import { deleteRole } from "@/app/actions/roles";
 import { GenerateBriefingButton } from "@/components/GenerateBriefingButton";
-import { StageBadge } from "@/components/StageBadge";
+import { StageMenu } from "@/components/StageMenu";
+import { ConfirmActionButton, EditCandidateButton, RemoveCandidateButton } from "@/components/CandidateDialogs";
+import { LinkedInLogo } from "@/components/LinkedInLogo";
 import { industryIds, parseIndustries } from "@/lib/linkedin-industries";
 import { RunSearchButton } from "@/components/RunSearchButton";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
@@ -35,7 +35,6 @@ import { openOfferTimes } from "@/lib/arrange-core.mjs";
 import { MarkSeen } from "@/components/MarkSeen";
 import { adoptShortlistAnswer, newClientLink, putForward, revokeClientLink, takeOffClientLink } from "@/app/actions/shortlists";
 import { ShortlistSharing } from "@/components/ShortlistSharing";
-import { FindEmail } from "@/components/FindEmail";
 import { emailAllowance } from "@/lib/email-finder";
 import { finderTarget } from "@/lib/enrow-core.mjs";
 
@@ -458,131 +457,76 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                 </summary>
                 <ul className="space-y-2">
                   {inStage.map((c) => (
-                    <li key={c.id} id={`candidate-${c.id}`} className="card">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          {c.personId ? (
-                            <Link href={`/people/${c.personId}`} className="person-row-name">{c.fullName}</Link>
-                          ) : (
-                            <span className="font-medium">{c.fullName}</span>
-                          )}
-                          {c.headline && <span className="text-ink/70"> · {c.headline}</span>}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {unread.candidates.has(c.id) && <span className="new-chip">New</span>}
-                          <StageBadge stage={c.stage} />
-                          {c.person?.doNotContact && <span className="chip person-flag">Do not contact</span>}
-                          {c.outreach[0] && (
-                            <span className="text-sm text-ink/60">
-                              {isTemplateKind(c.outreach[0].kind)
-                                ? OUTREACH_KIND_SUMMARY[c.outreach[0].kind]
-                                : "Sent"}{" "}
-                              {formatWhen(c.outreach[0].sentAt)}
-                            </span>
-                          )}
-                          <span className="text-sm text-ink/60">
-                            last activity {formatWhen(c.lastActivityAt)}
-                          </span>
-                        </div>
-                      </div>
-                      {c.notes && <p className="mt-2 text-sm text-ink/80">{c.notes}</p>}
-                      {features.clientShortlists && role.status === "open" && !CLOSED_STAGES.includes(c.stage) && !c.person?.doNotContact && (
-                        onLink.has(c.id) ? (
-                          <div className="put-forward">
-                            <span className="chip screening-chip-done">On the client link</span>
-                            {onLink.get(c.id)!.decision === "interview" && (
-                              <span className="chip client-said-yes">
-                                {clientName} wants to meet
-                                {onLink.get(c.id)!.decisionAccessId && answeredBy.get(onLink.get(c.id)!.decisionAccessId!) ? ` · ${answeredBy.get(onLink.get(c.id)!.decisionAccessId!)}` : ""}
+                    <li key={c.id} id={`candidate-${c.id}`} className="card candidate-row">
+                      <div className="candidate-row-head">
+                        <div className="min-w-0">
+                          <div className="candidate-row-title">
+                            {c.personId ? (
+                              <Link href={`/people/${c.personId}`} className="person-row-name candidate-row-name">{c.fullName}</Link>
+                            ) : (
+                              <span className="person-row-name">{c.fullName}</span>
+                            )}
+                            <EditCandidateButton
+                              candidateId={c.id}
+                              details={{ fullName: c.fullName, profileUrl: c.profileUrl ?? "", headline: c.headline ?? "", notes: c.notes ?? "", email: c.person?.email ?? "" }}
+                              finder={finder && c.person && !c.person.doNotContact ? { ...finderTarget(c.person), allowance: finder } : null}
+                            />
+                            <RemoveCandidateButton candidateId={c.id} name={c.fullName} />
+                            {unread.candidates.has(c.id) && <span className="new-chip">New</span>}
+                            {c.person?.doNotContact && <span className="chip person-flag">Do not contact</span>}
+                          </div>
+                          <p className="candidate-row-meta">
+                            {c.headline && <span>{c.headline}</span>}
+                            {c.outreach[0] && (
+                              <span>
+                                {isTemplateKind(c.outreach[0].kind)
+                                  ? OUTREACH_KIND_SUMMARY[c.outreach[0].kind]
+                                  : "Sent"}{" "}
+                                {formatWhen(c.outreach[0].sentAt)}
                               </span>
                             )}
-                            {onLink.get(c.id)!.decision === "declined" && (
-                              <>
-                                <span className="chip">
-                                  Not for {clientName}
-                                  {onLink.get(c.id)!.decisionReason ? ` · ${DECISION_REASON_LABELS[onLink.get(c.id)!.decisionReason as keyof typeof DECISION_REASON_LABELS] ?? onLink.get(c.id)!.decisionReason}` : ""}
-                                  {onLink.get(c.id)!.decisionAccessId && answeredBy.get(onLink.get(c.id)!.decisionAccessId!) ? ` · ${answeredBy.get(onLink.get(c.id)!.decisionAccessId!)}` : ""}
-                                </span>
-                                {onLink.get(c.id)!.decisionNote && <span className="client-said-note">&ldquo;{onLink.get(c.id)!.decisionNote}&rdquo;</span>}
-                                <form action={setCandidateStage}>
-                                  <input type="hidden" name="id" value={c.id} />
-                                  <input type="hidden" name="stage" value="rejected" />
-                                  <button type="submit" className="btn-quiet">Mark rejected</button>
-                                </form>
-                              </>
-                            )}
-                            {/* The client sees the confirmed details until a CV is uploaded. */}
-                            {!c.person?.cv && c.personId && (
-                              <Link href={`/people/${c.personId}#cv-heading`} className="chip no-cv-chip">No CV · Upload</Link>
-                            )}
-                            <form action={takeOffClientLink}>
-                              <input type="hidden" name="itemId" value={onLink.get(c.id)!.id} />
-                              <ConfirmSubmitButton label="Take off" confirmText={`Take ${c.fullName} off the client link? ${clientName} stops seeing them at once.`} />
-                            </form>
-                          </div>
-                        ) : knownConsentAt(c.person, c.id, role.client) ? (
-                          <ActionForm action={putForward} className="put-forward">
-                            <input type="hidden" name="candidateId" value={c.id} />
-                            <NoCvGuard label={`Put forward to ${clientName}`} client={clientName} missing={c.person?.cv ? [] : [{ name: c.fullName, personId: c.personId, candidateId: c.id }]} />
-                          </ActionForm>
-                        ) : (
-                          <details className="mt-2">
-                            <summary className="btn-quiet cursor-pointer list-none [&::-webkit-details-marker]:hidden">Put forward to {clientName}</summary>
-                            <ActionForm action={putForward} className="put-forward-confirm">
-                              <input type="hidden" name="candidateId" value={c.id} />
-                              <label>
-                                <input type="checkbox" name="agreed" required />
-                                <span>{c.fullName} agreed to be put forward to {clientName}.</span>
-                              </label>
-                              <span className="justify-self-start"><NoCvGuard label="Put forward" className="btn-primary" client={clientName} missing={c.person?.cv ? [] : [{ name: c.fullName, personId: c.personId, candidateId: c.id }]} /></span>
-                            </ActionForm>
-                          </details>
-                        )
-                      )}
-                      {answerElsewhere(c) && (() => {
-                        const answer = answerElsewhere(c)!;
-                        const canAdopt = features.clientShortlists && !readOnly && role.status === "open" && !CLOSED_STAGES.includes(c.stage) && !c.person?.doNotContact;
-                        return (
-                          <div className="put-forward" data-testid="answer-elsewhere">
-                            <span className={answer.decision === "interview" ? "chip client-said-yes" : "chip"}>
-                              {answer.decision === "interview" ? `${clientName} wants to meet` : `Not for ${clientName}`}
-                              {answer.decision !== "interview" && answer.decisionReason ? ` · ${DECISION_REASON_LABELS[answer.decisionReason as keyof typeof DECISION_REASON_LABELS] ?? answer.decisionReason}` : ""}
-                            </span>
-                            <span className="text-sm text-ink-soft">on the shortlist &ldquo;{answer.shortlistTitle}&rdquo;</span>
-                            {canAdopt && (
-                              <ActionForm action={adoptShortlistAnswer}>
-                                <input type="hidden" name="candidateId" value={c.id} />
-                                <input type="hidden" name="itemId" value={answer.id} />
-                                {onLink.has(c.id)
-                                  ? <button type="submit" className="btn-quiet">Use this answer for the role</button>
-                                  : <NoCvGuard label="Add to client link" client={clientName} missing={c.person?.cv ? [] : [{ name: c.fullName, personId: c.personId, candidateId: c.id }]} />}
-                              </ActionForm>
-                            )}
-                          </div>
-                        );
-                      })()}
-                      {(() => {
-                        // The client wants to meet them and nothing is booked yet: one
-                        // button to the page that arranges it, whichever link they asked on.
-                        const wantsToMeet = onLink.get(c.id)?.decision === "interview" || answerElsewhere(c)?.decision === "interview";
-                        const interviewBooked = c.bookings[0]?.kind === "interview";
-                        if (!features.clientShortlists || readOnly || role.status !== "open" || CLOSED_STAGES.includes(c.stage) || c.person?.doNotContact || interviewBooked) return null;
-                        if (offered.has(c.id)) {
+                            <span>last activity {formatWhen(c.lastActivityAt)}</span>
+                          </p>
+                        </div>
+                        <StageMenu candidateId={c.id} name={c.fullName} stage={c.stage} />
+                      </div>
+                      {c.notes && <p className="mt-2 text-sm text-ink/80">{c.notes}</p>}
+                      <div className="candidate-row-actions">
+                        {profileHref(c.profileUrl) && (
+                          <a
+                            href={readOnly ? undefined : profileHref(c.profileUrl)!}
+                            aria-disabled={readOnly}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="row-linkedin"
+                            aria-label="Open profile on LinkedIn"
+                            title="Open their LinkedIn profile"
+                          >
+                            <LinkedInLogo size={24} />
+                          </a>
+                        )}
+                        <Link href={`/candidates/${c.id}/outreach`} className="btn-quiet">
+                          Draft outreach
+                        </Link>
+                        {features.screening && (
+                          <Link href={`/candidates/${c.id}/screening`} className="btn-quiet" title={SCREENING_HINT}>
+                            Screening call
+                          </Link>
+                        )}
+                        {(() => {
+                          // The client asked to meet them, on the role's link or a shortlist,
+                          // and nothing is offered or booked yet.
+                          const wantsToMeet = onLink.get(c.id)?.decision === "interview" || answerElsewhere(c)?.decision === "interview";
+                          const interviewBooked = c.bookings[0]?.kind === "interview";
+                          if (!wantsToMeet || !features.clientShortlists || readOnly || role.status !== "open" || CLOSED_STAGES.includes(c.stage) || c.person?.doNotContact || !c.personId || interviewBooked || offered.has(c.id)) return null;
                           return (
-                            <div className="put-forward">
-                              <span className="chip">Times offered, waiting for {c.fullName.split(/\s+/)[0]}</span>
-                              <Link href={`/candidates/${c.id}/interview`} className="btn-quiet">See the offer</Link>
-                            </div>
+                            <Link href={`/candidates/${c.id}/interview`} className="btn-quiet btn-arrange">
+                              Arrange interview
+                            </Link>
                           );
-                        }
-                        if (!wantsToMeet) return null;
-                        return (
-                          <div className="put-forward">
-                            <Link href={`/candidates/${c.id}/interview`} className="btn-primary btn-arrange">Arrange interview</Link>
-                          </div>
-                        );
-                      })()}
-                      {c.bookings[0] ? (
+                        })()}
+                      </div>
+                      {c.bookings[0] && (
                         <div className="booking-on-card">
                           <p className="text-sm">
                             <span className="chip screening-chip-done">{c.bookings[0].kind === "interview" ? `Interview with ${clientName}` : "Call booked"}</span>{" "}
@@ -622,123 +566,101 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                             </div>
                           )}
                         </div>
-                      ) : (() => {
-                        const link = readOnly ? "" : bookingLinkFor({ ...c, role }, settings, now);
-                        return link ? (
-                          <div className="mt-2">
-                            <CopyButton text={link} label="Copy booking link" className="btn-quiet" />
+                      )}
+                      {features.clientShortlists && role.status === "open" && !CLOSED_STAGES.includes(c.stage) && !c.person?.doNotContact && (
+                        onLink.has(c.id) ? (() => {
+                          // What the client said replaces "on the client link" once they
+                          // have said it; taking them off stays on offer either way.
+                          const item = onLink.get(c.id)!;
+                          const by = item.decisionAccessId ? answeredBy.get(item.decisionAccessId) : undefined;
+                          const reason = item.decisionReason ? DECISION_REASON_LABELS[item.decisionReason as keyof typeof DECISION_REASON_LABELS] ?? item.decisionReason : null;
+                          return (
+                            <div className="candidate-row-foot">
+                              <ul className="client-status" aria-label={`${c.fullName} on the client link`}>
+                                {item.decision === "interview" ? (
+                                  <li className="is-yes">{clientName} wants to meet{by ? ` · ${by}` : ""}</li>
+                                ) : item.decision === "declined" ? (
+                                  <li className="is-no">Not for {clientName}{reason ? ` · ${reason}` : ""}{by ? ` · ${by}` : ""}</li>
+                                ) : (
+                                  <li>On the client link</li>
+                                )}
+                                {item.decision === "declined" && item.decisionNote && <li className="client-said-note">&ldquo;{item.decisionNote}&rdquo;</li>}
+                                {item.decision === "declined" && (
+                                  <li>
+                                    <form action={setCandidateStage}>
+                                      <input type="hidden" name="id" value={c.id} />
+                                      <input type="hidden" name="stage" value="rejected" />
+                                      <button type="submit" className="client-status-action">Mark rejected</button>
+                                    </form>
+                                  </li>
+                                )}
+                                {/* The client sees the confirmed details until a CV is uploaded. */}
+                                {!c.person?.cv && c.personId && (
+                                  <li className="is-cv"><Link href={`/people/${c.personId}#cv-heading`}>No CV (Upload)</Link></li>
+                                )}
+                                <li>
+                                  <ConfirmActionButton
+                                    action={takeOffClientLink}
+                                    fields={{ itemId: item.id }}
+                                    title={`Take ${c.fullName} off the client link?`}
+                                    body={`${clientName} stops seeing them at once.`}
+                                    pendingLabel="Taking off…"
+                                    className="client-status-action"
+                                    label="Take off"
+                                  >
+                                    Take off
+                                  </ConfirmActionButton>
+                                </li>
+                              </ul>
+                            </div>
+                          );
+                        })() : knownConsentAt(c.person, c.id, role.client) ? (
+                          <ActionForm action={putForward} className="candidate-row-foot">
+                            <input type="hidden" name="candidateId" value={c.id} />
+                            <NoCvGuard label={`Put forward to ${clientName}`} className="btn-put-forward" client={clientName} missing={c.person?.cv ? [] : [{ name: c.fullName, personId: c.personId, candidateId: c.id }]} />
+                          </ActionForm>
+                        ) : (
+                          <details className="mt-3">
+                            <summary className="btn-put-forward cursor-pointer list-none [&::-webkit-details-marker]:hidden">Put forward to {clientName}</summary>
+                            <ActionForm action={putForward} className="put-forward-confirm">
+                              <input type="hidden" name="candidateId" value={c.id} />
+                              <label>
+                                <input type="checkbox" name="agreed" required />
+                                <span>{c.fullName} agreed to be put forward to {clientName}.</span>
+                              </label>
+                              <span className="justify-self-start"><NoCvGuard label="Put forward" className="btn-primary" client={clientName} missing={c.person?.cv ? [] : [{ name: c.fullName, personId: c.personId, candidateId: c.id }]} /></span>
+                            </ActionForm>
+                          </details>
+                        )
+                      )}
+                      {answerElsewhere(c) && (() => {
+                        const answer = answerElsewhere(c)!;
+                        const canAdopt = features.clientShortlists && !readOnly && role.status === "open" && !CLOSED_STAGES.includes(c.stage) && !c.person?.doNotContact;
+                        return (
+                          <div className="put-forward" data-testid="answer-elsewhere">
+                            <span className={answer.decision === "interview" ? "chip client-said-yes" : "chip"}>
+                              {answer.decision === "interview" ? `${clientName} wants to meet` : `Not for ${clientName}`}
+                              {answer.decision !== "interview" && answer.decisionReason ? ` · ${DECISION_REASON_LABELS[answer.decisionReason as keyof typeof DECISION_REASON_LABELS] ?? answer.decisionReason}` : ""}
+                            </span>
+                            <span className="text-sm text-ink-soft">on the shortlist &ldquo;{answer.shortlistTitle}&rdquo;</span>
+                            {canAdopt && (
+                              <ActionForm action={adoptShortlistAnswer}>
+                                <input type="hidden" name="candidateId" value={c.id} />
+                                <input type="hidden" name="itemId" value={answer.id} />
+                                {onLink.has(c.id)
+                                  ? <button type="submit" className="btn-quiet">Use this answer for the role</button>
+                                  : <NoCvGuard label="Add to client link" client={clientName} missing={c.person?.cv ? [] : [{ name: c.fullName, personId: c.personId, candidateId: c.id }]} />}
+                              </ActionForm>
+                            )}
                           </div>
-                        ) : null;
+                        );
                       })()}
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {profileHref(c.profileUrl) && (
-                          <a
-                            href={readOnly ? undefined : profileHref(c.profileUrl)!}
-                            aria-disabled={readOnly}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-quiet"
-                          >
-                            Open profile
-                          </a>
-                        )}
-                        <Link href={`/candidates/${c.id}/outreach`} className="btn-quiet">
-                          Draft outreach
-                        </Link>
-                        {c.person?.email ? (
-                          <span className="text-sm text-ink/70" title="Email">{c.person.email}</span>
-                        ) : finder && c.person && !c.person.doNotContact && (
-                          <FindEmail {...finderTarget(c.person)} allowance={finder} compact />
-                        )}
-                        {features.screening && (
-                          <Link href={`/candidates/${c.id}/screening`} className="btn-quiet" title={SCREENING_HINT}>
-                            Screening call
-                          </Link>
-                        )}
-                        <form action={setCandidateStage} className="flex items-center gap-1">
-                          <input type="hidden" name="id" value={c.id} />
-                          <label htmlFor={`stage-${c.id}`} className="sr-only">
-                            Change stage for {c.fullName}
-                          </label>
-                          <select
-                            id={`stage-${c.id}`}
-                            name="stage"
-                            defaultValue={c.stage}
-                            className="rounded border border-line bg-white px-2 py-1 text-sm"
-                          >
-                            {STAGES.map((s) => (
-                              <option key={s} value={s}>
-                                {STAGE_LABELS[s]}
-                              </option>
-                            ))}
-                          </select>
-                          <button type="submit" className="btn-quiet">
-                            Set stage
-                          </button>
-                        </form>
-                        <form action={deleteCandidate}>
-                          <input type="hidden" name="id" value={c.id} />
-                          <ConfirmSubmitButton
-                            label="Remove"
-                            confirmText={`Remove ${c.fullName} from this role? This cannot be undone.`}
-                          />
-                        </form>
-                      </div>
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-sm text-ink/70">Edit details</summary>
-                        <ActionForm action={updateCandidate} className="mt-2 space-y-2">
-                          <input type="hidden" name="id" value={c.id} />
-                          <div>
-                            <label htmlFor={`name-${c.id}`} className="field-label">
-                              Full name
-                            </label>
-                            <input
-                              id={`name-${c.id}`}
-                              name="fullName"
-                              defaultValue={c.fullName}
-                              required
-                              className="field-input"
-                            />
-                          </div>
-                          <div>
-                            <label htmlFor={`url-${c.id}`} className="field-label">
-                              Profile link
-                            </label>
-                            <input
-                              id={`url-${c.id}`}
-                              name="profileUrl"
-                              defaultValue={c.profileUrl ?? ""}
-                              className="field-input"
-                            />
-                          </div>
-                          <div>
-                            <label htmlFor={`headline-${c.id}`} className="field-label">
-                              Headline
-                            </label>
-                            <input
-                              id={`headline-${c.id}`}
-                              name="headline"
-                              defaultValue={c.headline ?? ""}
-                              className="field-input"
-                            />
-                          </div>
-                          <div>
-                            <label htmlFor={`notes-${c.id}`} className="field-label">
-                              Notes
-                            </label>
-                            <textarea
-                              id={`notes-${c.id}`}
-                              name="notes"
-                              defaultValue={c.notes ?? ""}
-                              rows={2}
-                              className="field-input"
-                            />
-                          </div>
-                          <button type="submit" className="btn-secondary">
-                            Save changes
-                          </button>
-                        </ActionForm>
-                      </details>
+                      {features.clientShortlists && !readOnly && role.status === "open" && !CLOSED_STAGES.includes(c.stage) && !c.person?.doNotContact && offered.has(c.id) && c.bookings[0]?.kind !== "interview" && (
+                        <div className="put-forward">
+                          <span className="chip">Times offered, waiting for {c.fullName.split(/\s+/)[0]}</span>
+                          <Link href={`/candidates/${c.id}/interview`} className="btn-quiet">See the offer</Link>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

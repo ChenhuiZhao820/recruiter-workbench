@@ -363,8 +363,8 @@ test("I6 an imported person is not cleaned up when their only role is removed", 
   await db.candidate.create({ data: { roleId: role.id, fullName: "Fay Test", personId: fay.id } });
   await owner.page.goto(`/roles/${role.id}`);
   await owner.page.evaluate(() => document.querySelectorAll("details").forEach((d) => { d.open = true; }));
-  owner.page.once("dialog", (dialog) => dialog.accept());
-  await owner.page.getByRole("button", { name: "Remove" }).first().click();
+  await owner.page.getByRole("button", { name: "Remove Fay Test" }).click();
+  await owner.page.getByRole("dialog").getByRole("button", { name: "Confirm" }).click();
   await expect.poll(() => db.candidate.count({ where: { roleId: role.id } })).toBe(0);
   expect(await db.person.count({ where: { id: fay.id } })).toBe(1);
 });

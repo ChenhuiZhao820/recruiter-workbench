@@ -160,8 +160,8 @@ test("L3 the page reads live: taking someone off, do not contact and rejection a
   try {
     await client.page.goto(link);
     await expect(client.page.locator(".client-entry")).toHaveCount(2);
-    page.once("dialog", (dialog) => dialog.accept());
     await row(page, "Sam Okafor").getByRole("button", { name: "Take off" }).click();
+    await page.getByRole("dialog", { name: "Take Sam Okafor off the client link?" }).getByRole("button", { name: "Confirm" }).click();
     await expect(row(page, "Sam Okafor").getByText("On the client link")).toHaveCount(0);
     await client.page.reload();
     await expect(client.page.locator(".client-entry")).toHaveCount(1);

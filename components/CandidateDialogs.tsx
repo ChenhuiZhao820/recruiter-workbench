@@ -12,7 +12,7 @@ import { EMPTY_FORM_STATE } from "@/lib/formState";
 // The row's own dialogs: a modal over a blurred page, opened from an icon on
 // the candidate's row. They sit in a portal outside the row, so a form in one
 // never nests inside another form on the page.
-function RowDialog({ open, onClose, titleId, children }: { open: boolean; onClose: () => void; titleId: string; children: ReactNode }) {
+export function RowDialog({ open, onClose, titleId, children }: { open: boolean; onClose: () => void; titleId: string; children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);

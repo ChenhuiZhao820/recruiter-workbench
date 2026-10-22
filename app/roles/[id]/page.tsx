@@ -22,8 +22,7 @@ import { GenerateBriefingButton } from "@/components/GenerateBriefingButton";
 import { StageMenu } from "@/components/StageMenu";
 import { ConfirmActionButton, EditCandidateButton, RemoveCandidateButton } from "@/components/CandidateDialogs";
 import { LinkedInLogo } from "@/components/LinkedInLogo";
-import { industryIds, parseIndustries } from "@/lib/linkedin-industries";
-import { RunSearchButton } from "@/components/RunSearchButton";
+import { SearchRow } from "@/components/SearchRow";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { NoCvGuard } from "@/components/NoCvGuard";
 import { ActionForm } from "@/components/ActionForm";
@@ -754,55 +753,8 @@ export default async function RolePage({ params }: { params: { id: string } }) {
             memory.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {role.searches.map((s) => {
-              const industries = parseIndustries(s.industries);
-              const locations = parseStringArray(s.locations);
-              const keywords = [s.keywords, ...parseStringArray(s.titles)].filter(Boolean).join(" ");
-              return (
-                <li key={s.id} className="card">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-sm text-ink/60">
-                      {s.lastUsedAt ? `last run ${formatWhen(s.lastUsedAt)}` : "never run"}
-                    </span>
-                  </div>
-                  {s.keywords && <p className="mt-1 text-sm text-ink/80">Keywords: {s.keywords}</p>}
-                  {(industries.length > 0 || locations.length > 0 || s.filterNotes) && (
-                    <div className="mt-2 text-sm">
-                      <p className="font-mono text-xs uppercase tracking-wide text-ink/60">
-                        Filters:
-                      </p>
-                      <ul className="mt-1 flex flex-wrap gap-2">
-                        {locations.map((l, i) => (
-                          <li key={`l-${i}`} className="chip">
-                            Location: {l}
-                          </li>
-                        ))}
-                        {industries.map((ind, i) => (
-                          <li key={`i-${i}`} className="chip">
-                            Industry: {ind.label}
-                          </li>
-                        ))}
-                        {s.filterNotes && <li className="chip">{s.filterNotes}</li>}
-                      </ul>
-                    </div>
-                  )}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {readOnly ? <button type="button" className="btn-primary" disabled>Run search</button> : <RunSearchButton
-                        searchId={s.id}
-                        keywords={keywords}
-                        industryIds={industryIds(industries)}
-                        searchUrl={s.searchUrl}
-                        hasRunBefore={Boolean(s.lastUsedAt)}
-                      />}
-                    <Link href={`/searches/${s.id}/edit`} className="btn-quiet">
-                      {readOnly ? "View details" : "Edit"}
-                    </Link>
-                  </div>
-                </li>
-              );
-            })}
+          <ul className="search-list">
+            {role.searches.map((s) => <SearchRow key={s.id} search={s} readOnly={readOnly} />)}
           </ul>
         )}
       </section>

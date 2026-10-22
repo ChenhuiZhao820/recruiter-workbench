@@ -4,6 +4,7 @@ import { useState } from "react";
 import { peopleSearchUrl } from "@/lib/linkedin";
 import { attachSearchLink, markSearchUsed } from "@/app/actions/searches";
 import { ActionForm } from "@/components/ActionForm";
+import { LinkedInLogo } from "@/components/LinkedInLogo";
 
 // "Run" opens LinkedIn in a new tab. The search happens there, by the
 // recruiter, inside LinkedIn's own interface. The app only builds the URL - now
@@ -15,33 +16,37 @@ export function RunSearchButton({
   industryIds = [],
   searchUrl,
   hasRunBefore = false,
+  readOnly = false,
 }: {
   searchId: string;
   keywords: string;
   industryIds?: string[];
   searchUrl?: string | null;
   hasRunBefore?: boolean;
+  readOnly?: boolean;
 }) {
   const [offerLink, setOfferLink] = useState(false);
   const saved = searchUrl?.trim() ?? "";
   const url = saved || (keywords.trim() ? peopleSearchUrl(keywords, industryIds) : "");
-  const disabled = !url;
+  const disabled = !url || readOnly;
+  const label = saved ? "Open saved search" : "Run search";
+  const hint = !url
+    ? "Add keywords to this search first"
+    : saved
+      ? "Reopens the search you saved in LinkedIn, with its own filters"
+      : industryIds.length > 0
+        ? "Opens LinkedIn with your industries already applied"
+        : undefined;
 
+  // LinkedIn's mark, as a candidate row shows it for a profile, with the action
+  // named beside it; the tip says what the click will carry.
   return (
     <>
       <button
         type="button"
-        className="btn-primary"
+        className={hint ? "run-search hover-tip" : "run-search"}
         disabled={disabled}
-        title={
-          disabled
-            ? "Add keywords to this search first"
-            : saved
-              ? "Reopens the search you saved in LinkedIn, with its own filters"
-              : industryIds.length > 0
-                ? "Opens LinkedIn with your industries already applied"
-                : undefined
-        }
+        data-tip={hint}
         onClick={() => {
           window.open(url, "_blank", "noopener,noreferrer");
           void markSearchUsed(searchId);
@@ -49,7 +54,8 @@ export function RunSearchButton({
           if (!saved && hasRunBefore) setOfferLink(true);
         }}
       >
-        {saved ? "Open saved search" : "Run search"}
+        <LinkedInLogo size={24} />
+        <span>{label}</span>
       </button>
 
       {offerLink && (

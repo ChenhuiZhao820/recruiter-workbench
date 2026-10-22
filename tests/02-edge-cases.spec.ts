@@ -179,7 +179,9 @@ test("E6 deleting a role says what happens to its saved searches", async ({ page
   await page.goto("/searches");
   const stray = page.locator("li.card", { hasText: "Doomed Role search" });
   await expect(stray).toBeVisible();
-  await stray.getByRole("button", { name: "Delete" }).click();
+  await stray.getByRole("button", { name: "Delete Doomed Role search" }).click();
+  await page.getByRole("dialog", { name: "Delete Doomed Role search?" }).getByRole("button", { name: "Confirm" }).click();
+  await expect(stray).toHaveCount(0);
 });
 
 test("E7 a closed role stays reachable and explains itself", async ({ page }) => {

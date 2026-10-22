@@ -6,6 +6,8 @@ const paths = {
   external: "M7 17 17 7M7 7h10v10",
   down: "m6 9 6 6 6-6",
   download: "M12 4v11m-5-5 5 5 5-5M5 20h14",
+  duplicate: "M9 9h11v11H9zM15 9V4H4v11h5",
+  clipboard: "M9 3h6v3H9zM9 4.5H5V21h14V4.5h-4M9 12h6M9 16h4",
   plus: "M12 5v14M5 12h14",
   roles: "M8 7V5h8v2M4 8h16v12H4zM4 12c5 3 11 3 16 0M10 13h4",
   people: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",

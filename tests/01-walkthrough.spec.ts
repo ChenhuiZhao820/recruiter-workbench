@@ -272,11 +272,12 @@ test("06b the second run offers to keep the search LinkedIn itself saved", async
   await saved.close();
 });
 
-test("07 searches list: copy, rename, delete", async ({ page }) => {
+test("07 searches list: duplicate, rename, delete", async ({ page }) => {
   await page.goto("/searches");
   const original = page.locator("li.card", { hasText: "Operations Director search" }).first();
-  // Exact: the card also offers "Copy industries for Recruiter".
-  await original.getByRole("button", { name: "Copy", exact: true }).click();
+  // The row's icons are named for what they do; copying industries is another one.
+  await expect(original.getByRole("button", { name: "Copy industries for Recruiter" })).toBeVisible();
+  await original.getByRole("button", { name: "Duplicate Operations Director search", exact: true }).click();
   const copy = page.locator("li.card", { hasText: "Operations Director search (copy)" });
   await expect(copy).toBeVisible();
 
@@ -287,15 +288,52 @@ test("07 searches list: copy, rename, delete", async ({ page }) => {
     await expect(copy.getByText("never run")).toBeVisible();
   }
 
-  await copy.locator("summary", { hasText: "Rename" }).click();
-  await copy.getByLabel("New name").fill("Ops Director copy renamed");
-  await copy.getByRole("button", { name: "Rename" }).click();
+  // Renaming is the Edit page's Name field, reached from the pencil.
+  await copy.getByRole("link", { name: "Edit Operations Director search (copy)" }).click();
+  await page.waitForURL(/\/searches\/[^/]+\/edit$/);
+  await page.getByLabel("Name", { exact: true }).fill("Ops Director copy renamed");
+  await page.getByRole("button", { name: "Save search" }).click();
+  await page.waitForURL(/\/searches$/);
   const renamed = page.locator("li.card", { hasText: "Ops Director copy renamed" });
   await expect(renamed).toBeVisible();
 
-  await renamed.getByRole("button", { name: "Delete" }).click();
+  // The bin asks first, in a dialog, and Cancel leaves the search where it was.
+  await renamed.getByRole("button", { name: "Delete Ops Director copy renamed" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete Ops Director copy renamed?" });
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(renamed).toBeVisible();
+  await renamed.getByRole("button", { name: "Delete Ops Director copy renamed" }).click();
+  await dialog.getByRole("button", { name: "Confirm" }).click();
   await expect(page.locator("li.card", { hasText: "Ops Director copy renamed" })).toHaveCount(0);
   await expect(page.locator("li.card", { hasText: "Operations Director search" })).toHaveCount(1);
+});
+
+test("07b a search group is renamed and deleted from its heading, and only this account's searches move", async ({ page }) => {
+  const search = await db.savedSearch.findFirstOrThrow({ where: { userId: TEST_ADMIN_ID, name: "Operations Director search" } });
+  await db.savedSearch.update({ where: { id: search.id }, data: { groupLabel: "Ops clients " } });
+  const other = await db.user.create({ data: { email: "groups-other@test.capture.invalid", name: "Groups Other", role: "recruiter", settings: { create: {} } } });
+  const foreign = await db.savedSearch.create({ data: { userId: other.id, name: "Someone else's search", groupLabel: "Ops clients" } });
+
+  await page.goto("/searches");
+  await expect(page.getByRole("heading", { name: /^Ops clients/ })).toBeVisible();
+  await page.getByRole("button", { name: "Rename group Ops clients" }).click();
+  const rename = page.getByRole("dialog", { name: "Rename group" });
+  await rename.getByLabel("Group name").fill("Manufacturing clients");
+  await rename.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("heading", { name: /^Manufacturing clients/ })).toBeVisible();
+  await expect(rename).toBeHidden();
+  expect((await db.savedSearch.findUniqueOrThrow({ where: { id: search.id } })).groupLabel).toBe("Manufacturing clients");
+
+  // Deleting the group keeps the search, now ungrouped.
+  await page.getByRole("button", { name: "Delete group Manufacturing clients" }).click();
+  await page.getByRole("dialog", { name: "Delete the group Manufacturing clients?" }).getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByRole("heading", { name: /^Manufacturing clients/ })).toHaveCount(0);
+  await expect(page.locator("li.card", { hasText: "Operations Director search" })).toBeVisible();
+  expect((await db.savedSearch.findUniqueOrThrow({ where: { id: search.id } })).groupLabel).toBeNull();
+  expect((await db.savedSearch.findUniqueOrThrow({ where: { id: foreign.id } })).groupLabel).toBe("Ops clients");
+  await db.savedSearch.delete({ where: { id: foreign.id } });
+  await db.settings.deleteMany({ where: { userId: other.id } });
+  await db.user.delete({ where: { id: other.id } });
 });
 
 test("08 add candidates and open a profile", async ({ page }) => {

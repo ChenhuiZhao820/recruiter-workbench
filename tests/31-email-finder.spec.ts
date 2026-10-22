@@ -182,7 +182,7 @@ test("EF4 the outreach card finds the email in place, opens LinkedIn and the ema
   await expect(page.getByText("Message · LinkedIn and email")).toBeVisible();
 });
 
-test("EF5 Find email is on a role's candidate rows and finds in place", async () => {
+test("EF5 Find email is in a role row's edit dialog and fills the email field", async () => {
   const { page, user } = pro;
   const role = await db.role.create({ data: { userId: user.id, title: "Shift Lead" } });
   const twyla = await person(user.id, "Twyla Haverford");
@@ -191,10 +191,22 @@ test("EF5 Find email is on a role's candidate rows and finds in place", async ()
   await db.candidate.create({ data: { roleId: role.id, personId: dnc.id, fullName: "Doris Pennington", profileUrl: dnc.profileUrl } });
   await page.goto(`/roles/${role.id}`);
   const row = page.locator("li.card", { hasText: "Twyla Haverford" });
-  await row.getByRole("button", { name: "Find email" }).click();
-  await expect(row.getByText("twyla.haverford@enrow-stub.example")).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByRole("button", { name: "Find email" })).toHaveCount(0);
+  await row.getByRole("button", { name: "Edit details for Twyla Haverford" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("247 of 250 left")).toBeVisible();
+  await dialog.getByRole("button", { name: "Find email" }).click();
+  await expect(dialog.getByLabel("Email", { exact: true })).toHaveValue("twyla.haverford@enrow-stub.example", { timeout: 15_000 });
+  await expect(dialog.getByText("246 of 250 left")).toBeVisible();
+  // Found is already saved; Save with nothing else changed closes quietly.
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(row.getByText("Changes saved")).toHaveCount(0);
+  expect((await db.person.findUniqueOrThrow({ where: { id: twyla.id } })).emailSource).toBe("finder");
   // Nobody marked do not contact is offered a search, nor can one be forced.
-  await expect(page.locator("li.card", { hasText: "Doris Pennington" }).getByRole("button", { name: "Find email" })).toHaveCount(0);
+  await page.locator("li.card", { hasText: "Doris Pennington" }).getByRole("button", { name: "Edit details for Doris Pennington" }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Find email" })).toHaveCount(0);
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
   expect((await find(page, dnc.id)).status()).toBe(409);
 });
 

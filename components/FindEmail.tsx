@@ -17,6 +17,8 @@ export function FindEmail({
   companyGuess,
   allowance,
   compact = false,
+  inline = false,
+  blocked,
   onFound,
 }: {
   personId: string;
@@ -25,10 +27,15 @@ export function FindEmail({
   companyGuess: string | null;
   allowance: { remaining: number; quota: number; trial: boolean };
   compact?: boolean;
+  // Beside an email field: the button and the searches left side by side, the
+  // rest underneath. `blocked` says why a search cannot start (an email is
+  // already saved), and is shown on hover the way "none left" is.
+  inline?: boolean;
+  blocked?: string;
   onFound?: (email: string) => void;
 }) {
   const router = useRouter();
-  const [state, setState] = useState<"idle" | "company" | "searching" | "found" | "missed" | "failed">(hasLinkedIn ? "idle" : "company");
+  const [state, setState] = useState<"idle" | "company" | "searching" | "found" | "missed" | "failed">(hasLinkedIn || inline ? "idle" : "company");
   const [company, setCompany] = useState(companyGuess ?? "");
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
@@ -96,7 +103,7 @@ export function FindEmail({
     }
   }
 
-  if (state === "found") {
+  if (state === "found" && !inline) {
     return (
       <p role="status" className="email-finder-result">
         Found <a href={`mailto:${email}`} className="font-medium underline">{email}</a>
@@ -145,6 +152,46 @@ export function FindEmail({
       </div>
     </form>
   );
+
+  if (inline) {
+    const why = usedUp ? `You have no email searches left ${allowance.trial ? "in your trial" : "this month"}.` : blocked;
+    // Without a LinkedIn address the company is the only way to search. With
+    // one, a search that finds nothing says so and offers nothing else.
+    const showCompany = !hasLinkedIn && (state === "company" || state === "failed");
+    const note = state === "found"
+      ? "Found."
+      : state === "missed"
+        ? "Email cannot be found. No credit was used."
+        : state === "failed"
+          ? `${message} No credit was used.`
+          : state === "company" && !why ? `No LinkedIn address to search by: give the company ${name} works for.` : "";
+    const stop = state === "found" ? `${name} now has an email saved.` : why;
+    return (
+      <div className="email-finder-inline" aria-busy={state === "searching"}>
+        <div className="email-finder-inline-row">
+          <span className={stop ? "hover-tip" : undefined} data-tip={stop} tabIndex={stop ? 0 : undefined}>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={Boolean(stop) || state === "searching"}
+              aria-describedby={`find-email-left-${personId}`}
+              onClick={() => {
+                if (hasLinkedIn) void search(null);
+                else setState("company");
+              }}
+            >
+              {state === "searching" ? "Searching…" : state === "failed" ? "Try again" : "Find email"}
+            </button>
+          </span>
+          <span id={`find-email-left-${personId}`} className={usedUp ? "finder-count is-empty" : "finder-count"} title={left}>
+            {remaining} of {allowance.quota} left
+          </span>
+        </div>
+        {showCompany && !why && companyField}
+        <p role="status" aria-live="polite" className={state === "found" ? "finder-note is-found" : state === "missed" || state === "failed" ? "finder-note is-missed" : "finder-note"}>{note}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="email-finder" aria-busy={state === "searching"}>

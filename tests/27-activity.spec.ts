@@ -156,9 +156,10 @@ test("A3 an answer on a custom shortlist shows on the role's row and Follow-ups,
     await expect(row.getByTestId("answer-elsewhere")).toContainText("Analytics people for Brightwater");
     await row.getByRole("button", { name: "Add to client link" }).click();
     await skipNoCv(me.page);
-    await expect(row.getByText("On the client link")).toBeVisible();
+    // On the link now, and the client's answer is what the row says about it.
+    await expect(row.getByRole("list", { name: /on the client link/ })).toBeVisible();
     await expect(row.getByTestId("answer-elsewhere")).toHaveCount(0);
-    await expect(row.locator(".chip.client-said-yes")).toContainText("Brightwater Group Ltd wants to meet");
+    await expect(row.locator(".client-status .is-yes")).toContainText("Brightwater Group Ltd wants to meet");
 
     const onRole = await db.shortlistItem.findFirstOrThrow({ where: { personId: person.id, shortlist: { roleId } } });
     expect(onRole.decision).toBe("interview");

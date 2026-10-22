@@ -128,7 +128,7 @@ test("I3 the candidate books the client's time: it names the client, moves them 
 
   await page.goto(`/roles/${roleId}`);
   await expect(page.locator("li.card", { hasText: "Imogen Achterberg" }).getByText("Interview with Halden Systems")).toBeVisible();
-  await expect(page.getByLabel("Change stage for Imogen Achterberg")).toHaveValue("interview");
+  await expect(page.getByRole("button", { name: /^Change stage for Imogen Achterberg/ })).toContainText("Client interview");
 });
 
 test("I4 two people cannot take one time with the same client, across its roles", async ({ browser }) => {

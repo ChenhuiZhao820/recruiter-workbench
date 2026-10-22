@@ -130,6 +130,31 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   same shape as a new role or a new template. It stays rendered in a read-only
   view and is disabled by the page's fieldset, so what cannot be done reads as
   refused rather than missing.
+- A candidate's row: the name (underlined, to the person's page) with a pencil
+  and a bin beside it, each a bare icon with a hover tip and no fill. The
+  pencil opens Edit details and the bin "Remove <name>?", both modal dialogs
+  over a blurred page (`components/CandidateDialogs.tsx`); Confirm and Cancel
+  are the only ways on, never `window.confirm`. Edit details holds the name,
+  profile link, headline, notes and the person's email; with the finder (see
+  Email finder) Find email sits beside the email field with the searches left,
+  disabled with a tip when none are left or one is already saved, and a found
+  address fills the field. Saving something that changed says "Changes saved"
+  on the row; saving nothing closes quietly. An email typed there is the
+  recruiter's own (`emailSource` "manual"), written only when the field was
+  changed, and a candidate with no link or member id keeps their own person
+  on save rather than being given a fresh one.
+- The stage is a menu at the row's corner (`components/StageMenu.tsx`): pick a
+  stage and it is saved, with "Stage changed to ..." under it. The row then
+  moves to its new group, so the line is carried across the remount and the
+  row brought into view. Each stage has its own colour (`STAGE_COLORS`), shared
+  with `StageBadge`; colour is decoration beside the label, never instead.
+- Then the actions: the LinkedIn mark (`LinkedInLogo`, the profile, on a
+  click), Draft outreach, Screening call, and Arrange interview only when the
+  client asked to meet them (see Arranging a client interview). Below, where
+  Put forward stands until they are on the client link, one line of words:
+  what the client said in place of "On the client link" once they said it
+  ("<client> wants to meet" in the accent, "Not for <client>" in red), "No CV
+  (Upload)" in red, and Take off, which asks first like Remove.
 - `/templates` is a library, not a workbench: each saved template is a collapsed
   `details` showing only its name and kind, opened to read, edit or delete it,
   and writing a new one lives on `/templates/new` behind a New template button,
@@ -298,8 +323,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `email_search_started`, `email_found` and `email_not_found` only.
 - Find email is on the person page (the Email block, with "Add it by hand" /
   "Change or remove" through `setPersonEmail`, which marks the address
-  "manual"), on a role's candidate rows and on the outreach queue and
-  follow-up run cards.
+  "manual"), in a role row's Edit details dialog and on the outreach queue
+  and follow-up run cards. In the dialog a search that finds nothing says
+  only that, in red, and that no credit was used; it offers no other way.
 - Emailing: with an address, the outreach card offers "Also email it to
   ..." (remembered per browser). The same click that copies and opens
   LinkedIn then opens a `mailto:` draft with the subject and the edited
@@ -519,7 +545,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   ticks "agreed to be put forward" and that statement is the recorded consent.
   It moves the candidate to Submitted from any earlier stage and sets
   `submittedAt`. Rejected, placed and do-not-contact people, and closed roles,
-  are refused. "Take off" removes them from the page at once.
+  are refused. "Take off", once confirmed, removes them from the page at once.
 - `/s/<accessId>.<nonce>.<hmac>` is signed with `SHORTLIST_LINK_SECRET` (32+
   characters, server only, not the booking secret) over the access and its
   stored nonce (`lib/shortlist-core.mjs`), so the recruiter can copy it again,
@@ -638,7 +664,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   now" (a CV often comes later), or upload it right there with the same tick,
   after which it goes ahead by itself. The dialog keeps the list it opened
   with, because the upload refreshes the page under it. Until a CV arrives the
-  role row and the shortlist library show "No CV · Upload".
+  role row shows "No CV (Upload)" and the shortlist library "No CV · Upload".
 - The export lists which CVs are kept (`cvs`: names, sizes, dates), not the
   files; a CV is not carried by `scripts/import-accounts.mjs` and is uploaded
   again after a move. `20261023000000_person_cv` adds the table (additive;
@@ -747,7 +773,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   outreach queue stays pure. A link lasts 30 days, and gives way to a gap rather
   than a dead link when booking is not set up, the role is closed, the candidate
   is rejected or placed, or the person is do not contact. Changing the secret
-  stops every link already sent. The role page also offers Copy booking link.
+  stops every link already sent. The role page does not offer the link on its
+  own; it reaches the candidate through a template.
 - `/book/[token]` needs no session and `ApplicationShell` gives it a bare
   header. It shows the recruiter's name and the role title, never the client,
   free times in the candidate's own time zone (read from the browser,

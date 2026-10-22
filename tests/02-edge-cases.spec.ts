@@ -188,8 +188,9 @@ test("E7 a closed role stays reachable and explains itself", async ({ page }) =>
   await page.locator("#new-fullName").fill("Fiona Waiting");
   await page.getByRole("button", { name: "Add candidate" }).click();
   const card = page.locator("li.card", { hasText: "Fiona Waiting" });
-  await card.getByRole("combobox").selectOption("replied");
-  await card.getByRole("button", { name: "Set stage" }).click();
+  await card.getByRole("button", { name: /^Change stage for / }).click();
+  await card.getByRole("option", { name: "Replied", exact: true }).click();
+  await expect(card.getByText("Stage changed to Replied")).toBeVisible();
 
   await page.goto("/followups");
   await expect(page.getByText("Fiona Waiting")).toBeVisible();

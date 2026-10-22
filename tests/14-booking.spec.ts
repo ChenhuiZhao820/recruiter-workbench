@@ -70,8 +70,6 @@ test("B1 the recruiter sets up the booking page, and a template's {{booking_link
   await page.goto(`/candidates/${candidate.id}/outreach`);
   await expect(page.getByText(new RegExp(`grab a time here: http://localhost:3100/book/${candidate.id}\\.\\d+\\.[A-Za-z0-9_-]{43}`))).toBeVisible();
   await expect(page.getByText("I keep a short record of the people I talk to about roles. To see it or have it deleted, email admin@test.capture.invalid.")).toBeVisible();
-  await page.goto(`/roles/${roleId}`);
-  await expect(page.locator("li.card", { hasText: "Imogen Achterberg" }).getByRole("button", { name: "Copy booking link" })).toBeVisible();
 });
 
 test("B2 a candidate with no account books a time; the call is recorded, they move to Booked, and both sides get a calendar file", async ({ browser, page }) => {

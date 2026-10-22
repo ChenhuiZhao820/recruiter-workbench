@@ -1165,3 +1165,99 @@ label > .im-editor-note { margin-top: 6px; }
 .outreach-email { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-sunken); }
 .outreach-email > label { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; overflow-wrap: anywhere; }
 .outreach-email > label input { margin-top: 3px; }
+
+/* A candidate's row on a role page: name with its edit and remove icons, the
+   stage menu at the corner, then the actions, LinkedIn first. */
+.candidate-row-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.candidate-row-head > .min-w-0 { flex: 1 1 auto; }
+.candidate-row { padding-bottom: 16px; }
+.candidate-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; }
+.candidate-row-title > .person-row-name { margin-right: 6px; }
+.candidate-row-name { text-decoration: underline; text-decoration-color: rgb(24 24 27 / .35); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.candidate-row-name:hover { text-decoration-color: currentColor; }
+/* Every part has its separator in front; the list is pulled left by one
+   separator and clipped there, so no line, wrapped or not, starts with one. */
+.candidate-row-meta { display: flex; flex-wrap: wrap; gap: 2px 0; margin: 3px 0 0 -18px; clip-path: inset(0 0 0 18px); font-size: 13px; color: var(--color-ink-soft); }
+.candidate-row-meta > span { display: flex; min-width: 0; }
+.candidate-row-meta > span::before { content: "·"; flex: none; width: 18px; text-align: center; color: rgb(24 24 27 / .3); }
+.candidate-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 22px; }
+/* As tall as Put forward, so whatever stands in its place sits on its line. */
+.candidate-row-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: 36px; margin-top: 12px; }
+.row-icon-button { display: inline-flex; width: 22px; height: 24px; align-items: center; justify-content: center; color: var(--color-accent); transition: color .15s; }
+.row-icon-button:hover:not(:disabled) { color: var(--color-accent-hard); }
+.row-icon-button.is-danger { color: rgb(220 38 38); }
+.row-icon-button.is-danger:hover:not(:disabled) { color: rgb(153 27 27); }
+/* The client's side of a row: coloured words in a line, where Put forward
+   was. A wish to meet is the accent; what needs fixing (a "not for us", a
+   missing CV) is red at cobalt's own lightness and strength (OKLCH). Every
+   item has its bullet in front; the line is pulled left by one bullet and
+   clipped there, so no line, wrapped or not, starts with one. */
+.client-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin-left: -22px; clip-path: inset(-40px -40px -40px 22px); font-size: 13px; color: var(--color-ink-soft); }
+.client-status > li { display: inline-flex; align-items: center; }
+.client-status > li::before { content: "•"; display: inline-block; width: 22px; text-align: center; color: rgb(24 24 27 / .25); }
+.client-status > li.is-yes { font-weight: 550; color: var(--color-accent); }
+.client-status > li.is-no { font-weight: 550; color: #d70218; }
+.client-status > li.is-cv a { font-weight: 550; color: #d70218; text-decoration: none; }
+.client-status > li.is-cv a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.client-status-action { font-size: 13px; color: var(--color-ink-soft); text-decoration: underline; text-decoration-color: rgb(24 24 27 / .25); text-underline-offset: 3px; }
+.client-status-action:hover:not(:disabled) { color: var(--color-ink); text-decoration-color: currentColor; }
+.client-status-action:disabled { cursor: not-allowed; opacity: .6; }
+.row-icon-button:disabled { color: var(--color-ink-soft); opacity: .45; cursor: not-allowed; }
+.row-saved { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; font-size: 12px; font-weight: 500; color: rgb(21 128 61); animation: row-note-in .2s ease-out; order: 10; }
+.row-linkedin { display: inline-flex; border-radius: 4px; transition: opacity .15s, transform .15s; }
+.row-linkedin:hover { opacity: .85; }
+.row-linkedin[aria-disabled="true"] { opacity: .4; cursor: not-allowed; }
+.btn-put-forward { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 7px 14px; border: 1px solid rgb(49 92 255 / .28); border-radius: 6px; background: var(--color-surface); font-size: 13px; font-weight: 550; color: var(--color-accent); box-shadow: 0 1px 2px rgb(49 92 255 / .06); transition: background-color .15s, border-color .15s; }
+.btn-put-forward:hover:not(:disabled) { border-color: rgb(49 92 255 / .55); background: var(--color-accent-soft); }
+.btn-put-forward:disabled { border-color: var(--color-line); color: var(--color-ink-soft); cursor: not-allowed; }
+
+/* The stage menu: a button that opens the stages; picking one saves it. */
+.stage-menu { position: relative; flex: none; }
+.stage-menu-button { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 5px 10px 5px 12px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-surface); font-size: 13px; font-weight: 500; color: var(--color-ink); transition: border-color .15s; }
+.stage-menu-button:hover:not(:disabled) { border-color: rgb(24 24 27 / .3); }
+.stage-menu-button[aria-expanded="true"] { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgb(49 92 255 / .12); }
+.stage-menu-button:disabled { cursor: not-allowed; color: var(--color-ink-soft); background: var(--color-sunken); }
+.stage-menu-button svg { color: var(--color-ink-soft); transition: transform .15s; }
+.stage-menu-dot { display: inline-block; width: 7px; height: 7px; flex: none; border-radius: 50%; }
+.stage-menu-list { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 190px; padding: 4px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); box-shadow: 0 12px 32px rgb(0 0 0 / .12); }
+.stage-menu-option { display: flex; width: 100%; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 5px; font-size: 13px; text-align: left; color: var(--color-ink); }
+.stage-menu-option:hover, .stage-menu-option:focus-visible { background: var(--color-sunken); outline: none; }
+.stage-menu-option[aria-selected="true"] { font-weight: 550; }
+.stage-menu-note { position: absolute; right: 0; top: calc(100% + 4px); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 12px; font-weight: 500; color: rgb(21 128 61); }
+.stage-menu-note:empty { display: none; }
+.stage-menu-note.is-error { color: rgb(185 28 28); }
+@keyframes row-note-in { from { opacity: 0; transform: translateY(-2px); } }
+.stage-menu-note:not(:empty) { animation: row-note-in .2s ease-out; }
+
+/* The row's dialogs: one card in the middle of a blurred page. */
+.row-dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-surface); color: var(--color-ink); box-shadow: 0 24px 60px rgb(0 0 0 / .2); }
+.row-dialog::backdrop { background: rgb(9 9 11 / .28); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.row-dialog-body { display: grid; gap: 14px; padding: 22px; }
+.row-dialog-title { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+.row-dialog-fields { display: grid; gap: 14px; }
+.row-dialog-confirm { display: grid; gap: 10px; }
+.row-dialog-email { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.row-dialog-email > .field-input { flex: 1 1 14rem; }
+.row-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.btn-danger { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 10px 16px; border-radius: 4px; background: rgb(220 38 38); font-size: 14px; font-weight: 500; color: white; transition: background-color .15s; }
+.btn-danger:hover:not(:disabled) { background: rgb(185 28 28); }
+.btn-danger:disabled { background: var(--color-sunken); color: var(--color-ink-soft); cursor: not-allowed; }
+.email-finder-inline { display: grid; flex: 1 1 100%; gap: 6px; min-width: 0; }
+/* Beside the email field the finder's button sits on the field's line and
+   anything it asks or says next wraps underneath, full width. */
+.row-dialog-email > .email-finder-inline { display: contents; }
+.row-dialog-email .email-finder-company, .row-dialog-email .email-finder-inline > p { flex: 1 1 100%; }
+.email-finder-inline-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.email-finder-inline-row .btn-secondary { min-height: 42px; }
+.finder-count { font-family: var(--font-mono); font-size: 11px; color: var(--color-ink-soft); white-space: nowrap; }
+.finder-count.is-empty { color: rgb(185 28 28); }
+.finder-note { font-size: 12px; color: var(--color-ink-soft); }
+.finder-note:empty { display: none; }
+.finder-note.is-found { font-weight: 500; color: #00873c; }
+.finder-note.is-missed { font-weight: 500; color: #d70218; }
+/* A short tip over an icon or a disabled control, shown on hover and focus. */
+.hover-tip { position: relative; outline-offset: 2px; }
+span.hover-tip { display: inline-flex; }
+.hover-tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; z-index: 40; width: max-content; max-width: 240px; padding: 5px 8px; border-radius: 5px; background: var(--color-ink); font-size: 12px; font-weight: 450; line-height: 1.4; color: white; white-space: normal; text-align: left; opacity: 0; pointer-events: none; transform: translate(-50%, 2px); transition: opacity .12s, transform .12s; }
+.hover-tip:hover::after, .hover-tip:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+.hover-tip > button:disabled { pointer-events: none; }

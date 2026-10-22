@@ -5,7 +5,8 @@ import { requireWritableWorkspace } from "@/lib/workspace";
 import type { FormState } from "@/lib/formState";
 import { isStage } from "@/lib/stages";
 import { normalizeProfileUrl } from "@/lib/urls";
-import { findOrCreatePerson, isSuppressed } from "@/lib/people";
+import { findOrCreatePerson, isSuppressed, personSearchText } from "@/lib/people";
+import { canonicalProfileUrl, cleanEmail, cleanMemberId } from "@/lib/person-keys.mjs";
 import { revalidatePath } from "next/cache";
 
 function revalidateCandidate(roleId: string) {
@@ -94,6 +95,15 @@ export async function updateCandidate(_prev: FormState, formData: FormData): Pro
   if (!id) return { error: "That candidate could not be found." };
   if (!fullName) return { error: "A candidate needs a name. Nothing was saved." };
 
+  // The row's edit dialog also carries the person's email. Typed or cleared
+  // there it is the recruiter's own, as on the person page; left as it was,
+  // it is not written, so a link now pointing at someone else does not hand
+  // them the last person's address, and a found email keeps its source.
+  const typedEmail = String(formData.get("email") ?? "").trim();
+  const emailEdited = formData.has("email") && typedEmail !== String(formData.get("emailWas") ?? "").trim();
+  const email = typedEmail ? cleanEmail(typedEmail) : null;
+  if (emailEdited && typedEmail && !email) return { error: "That does not look like an email address. Nothing was saved." };
+
   const profileUrl = normalizeProfileUrl(String(formData.get("profileUrl") ?? ""));
   const current = await db.candidate.findUnique({
     where: { id, role: { userId: user.id } },
@@ -116,7 +126,20 @@ export async function updateCandidate(_prev: FormState, formData: FormData): Pro
   const headline = String(formData.get("headline") ?? "").trim() || null;
   const candidate = await db.$transaction(async (tx) => {
     // The link may now point at a different person; the candidacy follows it.
-    const person = await findOrCreatePerson(tx, user.id, { fullName, profileUrl, memberId: current.memberId, headline });
+    // With no link or member id there is nothing to recognise anyone by, and a
+    // new person on every save would leave what was kept on the last one (an
+    // email, notes) behind, so the candidate keeps the person they have.
+    const identified = canonicalProfileUrl(profileUrl) || cleanMemberId(current.memberId);
+    const own = !identified && current.personId ? await tx.person.findFirst({ where: { id: current.personId, userId: user.id } }) : null;
+    const person = own
+      ? await tx.person.update({ where: { id: own.id }, data: { fullName, headline, searchText: personSearchText({ ...own, fullName, headline }) } })
+      : await findOrCreatePerson(tx, user.id, { fullName, profileUrl, memberId: current.memberId, headline });
+    if (emailEdited && person.email !== email) {
+      await tx.person.update({
+        where: { id: person.id, userId: user.id },
+        data: { email, emailSource: email ? "manual" : null, emailConsentAt: null },
+      });
+    }
     return tx.candidate.update({
       where: { id, role: { userId: user.id } },
       data: {
@@ -130,6 +153,7 @@ export async function updateCandidate(_prev: FormState, formData: FormData): Pro
   });
   if (current.personId !== candidate.personId) await dropIfOrphan(current.personId);
   revalidateCandidate(candidate.roleId);
+  if (candidate.personId) revalidatePath(`/people/${candidate.personId}`);
   return { notice: "Changes saved." };
 }
 

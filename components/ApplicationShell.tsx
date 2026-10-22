@@ -102,8 +102,7 @@ export function ApplicationShell({ user, viewing, plan = null, setupPending = fa
           {user.role === "admin" && <><p className="nav-label admin-nav-label">Administration</p><Link href="/admin" className={pathname.startsWith("/admin") ? "nav-item is-active" : "nav-item"} aria-current={pathname.startsWith("/admin") ? "page" : undefined}><Icon name="shield" size={19} /><span>Accounts</span></Link></>}
         </nav>
         <div className="sidebar-bottom">
-          <div className="sidebar-note"><span className="status-dot" /><p>Your judgement.<br /><strong>Your next move.</strong></p><Link href="/welcome" aria-label="About Retrivr"><Icon name="external" size={16} /></Link></div>
-          <Link href="/account" className="account-link"><span className="avatar">{initials}</span><span><strong>{user.name}</strong><small>{user.email}</small></span></Link>
+          <Link href="/account" className={pathname.startsWith("/account") ? "account-link is-active" : "account-link"} aria-current={pathname.startsWith("/account") ? "page" : undefined} title={`Your account: ${user.email}`}><span className="avatar">{initials}</span><span><strong>{user.name}</strong><small>{user.email}</small></span></Link>
           <form action={logout}><button type="submit" className="sidebar-signout"><Icon name="logout" size={16} />Sign out</button></form>
         </div>
       </div>

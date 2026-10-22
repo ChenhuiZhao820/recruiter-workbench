@@ -142,17 +142,17 @@ select.field-input { padding-right: 28px; }
 .nav-item.is-active { background: #edf1ff; color: #315cff; font-weight: 550; }
 .nav-active-dot { width: 4px; height: 4px; margin-left: auto; border-radius: 50%; background: var(--color-accent); }
 .admin-nav-label { margin-top: 26px; }
-.sidebar-bottom { margin-top: auto; padding-top: 30px; }
-.sidebar-note { position: relative; display: flex; gap: 10px; padding: 16px 13px; margin-bottom: 17px; border: 1px solid var(--color-line); border-radius: 6px; background: linear-gradient(145deg, #fafafa, #f3f3f6); }
-.sidebar-note > .status-dot { margin-top: 5px; }
-.sidebar-note p { font-size: 10px; color: #6c6c76; line-height: 1.7; }
-.sidebar-note p strong { color: var(--color-ink); font-weight: 500; }
-.sidebar-note > a { margin-left: auto; color: #6c6c76; }
-.account-link { display: flex; align-items: center; gap: 9px; padding: 13px 7px 10px; border-top: 1px solid var(--color-line); }
-.account-link > span:last-child { min-width: 0; }
-.account-link strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 550; }
-.account-link small { display: block; max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink-soft); font-size: 10px; }
-.sidebar-signout { display: flex; width: 100%; align-items: center; gap: 8px; padding: 9px 11px; border-radius: 5px; font-size: 10px; color: #696973; text-align: left; }
+.sidebar-bottom { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--color-line); }
+/* The way to your account: no frame at rest, a blue glow under the pointer or
+   keyboard focus, so it reads as something to press rather than a caption. */
+.account-link { display: flex; align-items: center; gap: 11px; padding: 10px; border: 1px solid transparent; border-radius: 8px; transition: border-color .18s ease-out, box-shadow .18s ease-out, background-color .18s ease-out; }
+.account-link:hover, .account-link:focus-visible { border-color: rgb(var(--rgb-accent) / .55); background: var(--color-surface); box-shadow: 0 0 0 3px rgb(var(--rgb-accent) / .12), 0 4px 16px rgb(var(--rgb-accent) / .18); outline: none; }
+.account-link.is-active { background: var(--color-accent-soft); }
+.account-link .avatar { width: 38px; height: 38px; font-size: 13px; }
+.account-link > span:last-child { min-width: 0; flex: 1; }
+.account-link strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--color-ink); }
+.account-link small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink-soft); font-size: 12px; line-height: 1.4; }
+.sidebar-signout { display: flex; width: 100%; align-items: center; gap: 8px; padding: 9px 11px; margin-top: 4px; border-radius: 5px; font-size: 13px; color: #696973; text-align: left; }
 .sidebar-signout:hover { background: #f6f6f8; color: var(--color-ink); }
 .workspace-body { margin-left: 228px; min-height: 100vh; min-width: 0; display: flex; flex-direction: column; }
 .workspace-topbar { display: flex; align-items: center; justify-content: space-between; height: 66px; gap: 20px; padding: 0 34px; background: rgb(255 255 255 / .75); border-bottom: 1px solid var(--color-line); }
@@ -576,9 +576,8 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
   .workspace-navigation { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; }
   .workspace-navigation .nav-label { grid-column: 1 / -1; margin-top: 10px; margin-bottom: 4px; }
   .nav-item { padding: 11px 12px; margin-bottom: 0; font-size: 12px; }
-  .sidebar-note { display: none; }
   .sidebar-bottom { padding-top: 15px; }
-  .account-link small { max-width: 240px; }
+
   .workspace-body { margin-left: 0; }
   .workspace-topbar { height: 46px; padding: 0 20px; }
   .breadcrumb { gap: 9px; font-size: 10px; }

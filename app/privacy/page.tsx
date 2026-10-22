@@ -71,7 +71,7 @@ export default function PrivacyPage() {
     </Section>
 
     <Section id="security" title="8. Security">
-      <p>Each account&rsquo;s data is kept separate from every other. Passwords, sessions and capture keys are stored only as hashes, connection tokens for Google, Microsoft and Notion are encrypted, and everything travels over HTTPS. Administrators can see an account only through a read-only view that is recorded.</p>
+      <p>Each account&rsquo;s data is kept separate from every other. Passwords, sessions and extension keys are stored only as hashes, connection tokens for Google, Microsoft and Notion are encrypted, and everything travels over HTTPS. Administrators can see an account only through a read-only view that is recorded.</p>
     </Section>
 
     <Section id="rights" title="9. Your rights">

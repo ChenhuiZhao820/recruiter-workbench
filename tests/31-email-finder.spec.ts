@@ -320,7 +320,7 @@ test("EF10 the person page's email block fits a phone", async () => {
   await page.setViewportSize({ width: 1280, height: 800 });
 });
 
-test("EF11 the extension finds an email with its capture key: a kept person gets it on their record, anyone else gets it back for the save, and not found is free", async ({ browser }) => {
+test("EF11 the extension finds an email with its extension key: a kept person gets it on their record, anyone else gets it back for the save, and not found is free", async ({ browser }) => {
   const own = await account(browser, { accountTier: "pro" });
   const other = await account(browser, { accountTier: "pro" });
   const basic = await account(browser, { accountTier: "basic" });

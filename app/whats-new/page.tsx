@@ -47,13 +47,13 @@ export default async function WhatsNewPage() {
             Someone you already keep an email for shows it there. Saving never replaces an address you already keep.
           </p>
           <p className="text-ink/80">
-            Warnings in the extension are now plain red words, and the panel no longer repeats that it works apart from your website
-            sign-in.
+            The extension is now called Retrivr in Chrome, with Retrivr&rsquo;s logo at the top of the panel. Warnings in it are plain
+            red words, and the panel no longer repeats that it works apart from your website sign-in.
           </p>
           {currentRelease.extension && <>
             <p className="rounded border border-line bg-sunken p-3 text-sm">
               <strong>One thing to do.</strong> Download the new copy. In <code className="font-mono">chrome://extensions</code>, remove
-              the old copy and load the new folder, then generate a new capture key in{" "}
+              the old copy and load the new folder, then generate a new extension key in{" "}
               <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension. Loading the new
               folder over the old one instead keeps your key.
             </p>

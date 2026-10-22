@@ -144,10 +144,10 @@ test("O3: the guide tracks each step as it is completed", async ({ setup }) => {
   await page.goto(GUIDE);
   await expect(progress(page)).toContainText("4 of 5 done");
 
-  // Capture key: generated in Settings, which completes the guide.
+  // Extension key: generated in Settings, which completes the guide.
   await page.goto("/settings");
-  await page.getByRole("button", { name: "Generate a capture key", exact: true }).click();
-  await expect(page.getByLabel("New capture key", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Generate an extension key", exact: true }).click();
+  await expect(page.getByLabel("New extension key", { exact: true })).toBeVisible();
   await page.goto(GUIDE);
   await expect(progress(page)).toContainText("5 of 5 done");
   await expect(progress(page)).toContainText("Nothing left to configure");
@@ -162,7 +162,7 @@ test("O3b: without a plan nothing extension-related is offered, and the guide po
   await expect(page.getByRole("link", DOWNLOAD_LINK)).toHaveCount(0);
   await expect(step(page, "A plan with the extension").getByRole("link", { name: "Choose a plan" })).toHaveAttribute("href", "/billing");
   await expect(step(page, "Install the extension in Chrome")).toContainText("Choose a plan first");
-  await expect(step(page, "Generate your capture key and connect")).toContainText("Choose a plan first");
+  await expect(step(page, "Generate your extension key and connect")).toContainText("Choose a plan first");
   expect((await page.request.get("/api/extension/download")).status()).toBe(403);
 });
 

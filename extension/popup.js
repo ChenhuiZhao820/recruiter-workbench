@@ -14,7 +14,7 @@ const el = (id) => document.getElementById(id);
 const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "", filled: { name: "", headline: "" }, waiting: false, leftName: "", settleUrl: "", settleTries: 0, finder: null, found: "", kept: false, finding: false, findRun: 0 };
 const fields = ["role", "name", "headline", "profile", "email", "notes"];
 const controls = ["settings", "open-role", "reread", "find-email"];
-// Where Capture actually lives. A package built by scripts/package-extension.mjs
+// Where Retrivr actually lives. A package built by scripts/package-extension.mjs
 // or by the site's own download endpoint declares its origin in workbench.js and
 // that declaration wins, including the empty one a loopback build ships. Loading
 // this folder straight from the repository declares nothing, so it falls back to
@@ -137,7 +137,7 @@ function showUpdate(available) {
   const behind = isOlder(installed, available);
   el("update").hidden = !behind;
   if (behind) {
-    el("update-text").textContent = `Capture ${available} is ready to download. You have ${installed}. Chrome does not update an extension you loaded yourself, so this one waits for you.`;
+    el("update-text").textContent = `Retrivr ${available} is ready to download. You have ${installed}. Chrome does not update an extension you loaded yourself, so this one waits for you.`;
   }
 }
 
@@ -173,19 +173,14 @@ async function followingEnabled() {
   return stored.autoRead !== false;
 }
 
+// One switch, in the panel only. It is on whenever the panel follows: Chrome
+// has allowed LinkedIn and it has not been turned off. Following is the
+// default once allowed; allowing still takes the recruiter's own click, on
+// this switch, because the permission is optional and never granted at
+// install.
 async function showFollowState() {
-  const allowed = await mayFollow();
-  const on = await followingEnabled();
-  const inPanel = state.surface === "panel";
-  el("follow").hidden = !inPanel;
-  el("follow-allow").hidden = allowed;
-  el("follow-toggle").hidden = !allowed;
-  el("follow-toggle").textContent = on ? "Pause" : "Resume";
-  el("follow-text").textContent = !allowed
-    ? "Chrome only lets Capture read a page just after you click its icon, so every profile needs that click. Allow it to follow you on LinkedIn and this panel fills itself in as you go."
-    : on
-      ? "Following along on LinkedIn. Each profile you open fills this in; nothing is sent anywhere until you save."
-      : "Paused. The panel stays open, but it is not reading pages.";
+  el("follow").hidden = state.surface !== "panel";
+  el("follow-toggle").checked = await followingEnabled();
 }
 
 // --- popup or side panel ----------------------------------------------------
@@ -446,7 +441,7 @@ async function refreshOnce() {
       // panel was given. Neither is a problem to report.
       markIdle("Nothing to read on this page. Open a LinkedIn profile.");
     } else {
-      markStale("This is a different page now, and Chrome only lets Capture read a page just after you click its toolbar icon. Click the icon, then Read this profile.", { clear: true });
+      markStale("This is a different page now, and Chrome only lets Retrivr read a page just after you click its toolbar icon. Click the icon, then Read this profile.", { clear: true });
     }
     return;
   }
@@ -760,6 +755,8 @@ function clearAccount() {
   el("connection").hidden = true;
   el("account-name").textContent = "";
   el("account-email").textContent = "";
+  el("account-plan").textContent = "";
+  el("account-plan").hidden = true;
   el("account-origin").textContent = "";
 }
 
@@ -770,7 +767,7 @@ function roleStorageKey() {
 async function rejectKey(message) {
   state.token = "";
   clearAccount();
-  showSetup(`${message || "That key was refused."} Paste the capture key from Settings again.`);
+  showSetup(`${message || "That key was refused."} Paste the extension key from Settings again.`);
   await chrome.storage.local.remove("token");
   el("token").focus();
 }
@@ -840,7 +837,7 @@ async function loadRolesAndShow() {
   if (!account || typeof account.id !== "string" || !account.id.trim() ||
       typeof account.email !== "string" || !account.email.trim() ||
       !(account.name === null || typeof account.name === "string")) {
-    showSetup("The workbench returned an invalid account. Check the address and reconnect with your personal capture key.");
+    showSetup("The workbench returned an invalid account. Check the address and reconnect with your personal extension key.");
     return;
   }
   state.account = account;
@@ -850,6 +847,10 @@ async function loadRolesAndShow() {
   showUpdate(body.extension && typeof body.extension.version === "string" ? body.extension.version : "");
   el("account-name").textContent = account.name?.trim() || account.email;
   el("account-email").textContent = account.email;
+  // The plan as the workbench names it; an older workbench sends none.
+  const plan = typeof account.plan === "string" ? account.plan.trim().slice(0, 40) : "";
+  el("account-plan").textContent = plan;
+  el("account-plan").hidden = !plan;
   el("account-origin").textContent = workbenchOrigin(state.url);
   el("connection").hidden = false;
   if (state.roles.length === 0) {
@@ -902,7 +903,7 @@ el("panel-open").addEventListener("click", async () => {
     await remember({ panelPinned: true });
     // Chrome closes this popup by itself as the panel takes focus.
   } catch {
-    say(statusNode(), "Could not open the side panel. This popup still works, and Chrome's own side panel menu can open Capture too.", "bad");
+    say(statusNode(), "Could not open the side panel. This popup still works, and Chrome's own side panel menu can open Retrivr too.", "bad");
   }
 });
 
@@ -920,28 +921,31 @@ el("panel-close").addEventListener("click", async () => {
 // Asking is a click of its own, because Chrome only shows the permission
 // prompt in answer to a gesture. Refusing it costs nothing: the panel goes on
 // working exactly as it did, one toolbar click per profile.
-el("follow-allow").addEventListener("click", async () => {
-  let granted = false;
-  try {
-    granted = await chrome.permissions.request({ origins: [LINKEDIN_ORIGIN] });
-  } catch {
-    granted = false;
+// Turning it on the first time is when Chrome is asked for LinkedIn, inside
+// this click. Refusing is a fine answer: the switch goes back off and the
+// panel works as it always did, one toolbar click per profile.
+el("follow-toggle").addEventListener("change", async () => {
+  if (!el("follow-toggle").checked) {
+    await remember({ autoRead: false });
+    await showFollowState();
+    return;
+  }
+  let granted = await mayFollow();
+  if (!granted) {
+    try {
+      granted = await chrome.permissions.request({ origins: [LINKEDIN_ORIGIN] });
+    } catch {
+      granted = false;
+    }
   }
   if (!granted) {
     await showFollowState();
-    say(el("message"), "Not allowed, which is a fine answer. Click Capture's icon on each profile and press Read this profile.", "");
+    say(el("message"), "Not allowed, which is a fine answer. Click Retrivr's icon on each profile and press Read this profile.", "");
     return;
   }
   await remember({ autoRead: true });
   await showFollowState();
   await refreshProfile();
-});
-
-el("follow-toggle").addEventListener("click", async () => {
-  const on = await followingEnabled();
-  await remember({ autoRead: !on });
-  await showFollowState();
-  if (!on) await refreshProfile();
 });
 
 el("update-open").addEventListener("click", () => openWorkbench("/account"));
@@ -955,7 +959,7 @@ el("reread").addEventListener("click", async () => {
   say(el("message"), "Reading this page...", "");
   const profile = await readActiveTab();
   if (!profile) {
-    markStale("Chrome only lets Capture read a page just after you click its toolbar icon. Click the icon, then press Read this profile again.");
+    markStale("Chrome only lets Retrivr read a page just after you click its toolbar icon. Click the icon, then press Read this profile again.");
     return;
   }
   // Asked for by name, so the page is taken as it is, finished drawing or not.
@@ -989,7 +993,7 @@ el("disconnect").addEventListener("click", async () => {
   clearAccount();
   try {
     await chrome.storage.local.remove(["token", "url"]);
-    showSetup("Disconnected. Check the address and paste a capture key to connect again.");
+    showSetup("Disconnected. Check the address and paste an extension key to connect again.");
   } catch {
     showSetup("Could not access extension storage. Reopen the extension and connect again.");
   }

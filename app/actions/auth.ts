@@ -50,7 +50,7 @@ const RESET_MINUTES = 60;
 // (/activate, the token in the fragment), sent to the account's own address
 // and good for an hour. The answer never says whether the address has an
 // account. Setting the password through it signs out every session and
-// revokes the capture key, as activation always has.
+// revokes the extension key, as activation always has.
 export async function requestPasswordReset(_state: FormState, form: FormData): Promise<FormState> {
   assertSameOrigin();
   if (!mailConfigured()) return { error: "Password reset by email is not set up yet. Ask your administrator for a link." };
@@ -79,7 +79,7 @@ export async function requestPasswordReset(_state: FormState, form: FormData): P
 
 ${appOrigin()}/activate#token=${token}
 
-The link works once, for an hour. Setting a password signs you out everywhere and stops your extension's capture key; generate a new one in Settings afterwards.
+The link works once, for an hour. Setting a password signs you out everywhere and stops your extension key; generate a new one in Settings afterwards.
 
 If you did not ask for this, ignore this email. Your password has not changed.`,
     });

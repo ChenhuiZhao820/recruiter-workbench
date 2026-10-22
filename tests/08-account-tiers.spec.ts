@@ -538,7 +538,7 @@ for (const state of ["basic", "pro", "trial", "expired"] as const) {
     await actor.page.goto("/settings");
     await expect(actor.page.getByRole("button", { name: "Save settings", exact: true })).toBeEnabled();
     // Every plan includes the extension; no activation code is involved.
-    await expect(actor.page.getByRole("button", { name: /Generate a (capture|new) key/ })).toBeVisible();
+    await expect(actor.page.getByRole("button", { name: /Generate (an extension|a new) key/ })).toBeVisible();
     expect(await db.extensionAccess.findUnique({ where: { userId: actor.id } })).toBeNull();
   });
 }

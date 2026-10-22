@@ -10,6 +10,7 @@ import { canonicalProfileUrl, cleanEmail } from "@/lib/person-keys.mjs";
 import { canUseFeature } from "@/lib/features";
 import { emailAllowance } from "@/lib/email-finder";
 import { enrowKey } from "@/lib/enrow-core.mjs";
+import { accountTierLabels, getAccountTier } from "@/lib/account-tiers";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -96,7 +97,8 @@ export async function GET(request: Request) {
 
   return NextResponse.json(
     {
-      account: { id: account.id, email: account.email, name: account.name },
+      // The plan as the workbench names it, shown beside the name in the panel.
+      account: { id: account.id, email: account.email, name: account.name, plan: accountTierLabels[getAccountTier(account)] },
       roles,
       // What this deployment would hand out if the extension were downloaded
       // now. Chrome never updates an extension loaded by hand, so the only way

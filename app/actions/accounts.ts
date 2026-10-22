@@ -102,7 +102,7 @@ export async function setAccountActive(_state: FormState, form: FormData): Promi
   });
   revalidatePath("/admin");
   if (changed) revalidatePath(`/admin/${encodeURIComponent(userId)}`);
-  return changed ? { notice: active ? "Account enabled. Issue a new activation link if needed." : "Account disabled. Sessions, activation links and capture keys have been revoked." } : { error: "This account cannot be changed here." };
+  return changed ? { notice: active ? "Account enabled. Issue a new activation link if needed." : "Account disabled. Sessions, activation links and extension keys have been revoked." } : { error: "This account cannot be changed here." };
 }
 
 // Permanent. Most business tables point at the user with onDelete Restrict, so

@@ -100,8 +100,8 @@ async function postForm(page: Page, form: FormSnapshot, changes: Record<string, 
 
 async function captureKey(actor: Actor) {
   await actor.page.goto("/settings");
-  await actor.page.getByRole("button", { name: /Generate a (capture|new) key/ }).click();
-  const input = actor.page.getByLabel("New capture key", { exact: true });
+  await actor.page.getByRole("button", { name: /Generate (an extension|a new) key/ }).click();
+  const input = actor.page.getByLabel("New extension key", { exact: true });
   await expect(input).toBeVisible();
   const token = await input.inputValue();
   expect(token).toMatch(/^[A-Za-z0-9_-]{24,128}$/);
@@ -122,7 +122,7 @@ async function expectCaptureDenied(page: Page, token: string, roleId: string) {
   expect((await page.request.post("/api/capture", { headers, data: { roleId, fullName: "Must not be captured" } })).status()).toBe(401);
 }
 
-test("A1 unauthenticated workspaces redirect and a website cookie is not a capture key", async ({ accounts }) => {
+test("A1 unauthenticated workspaces redirect and a website cookie is not an extension key", async ({ accounts }) => {
   const page = await accounts.guest();
   for (const route of ["/roles/new", "/searches", "/templates", "/followups", "/settings", "/account", "/admin", "/admin/new", "/admin/nonexistent", "/roles/nonexistent", "/candidates/nonexistent/outreach"]) {
     await page.goto(route);
@@ -338,7 +338,6 @@ test("A6 forged form IDs cannot edit foreign records or attach a foreign role", 
     { url: `/roles/${a.role.id}/edit`, selector: 'form:has(input[name="title"])', own: a.role.id, foreign: b.role.id, change: { title: "Own role updated" }, verify: () => db.role.findUniqueOrThrow({ where: { id: a.role.id } }), field: "title", value: "Own role updated" },
     { url: `/searches/${a.search.id}/edit`, selector: 'form:has(input[name="name"])', own: a.search.id, foreign: b.search.id, change: { name: "Own search updated" }, verify: () => db.savedSearch.findUniqueOrThrow({ where: { id: a.search.id } }), field: "name", value: "Own search updated" },
     { url: "/templates", selector: `form:has(input[value="${a.template.id}"]):has(input[name="name"])`, own: a.template.id, foreign: b.template.id, change: { name: "Own template updated" }, verify: () => db.messageTemplate.findUniqueOrThrow({ where: { id: a.template.id } }), field: "name", value: "Own template updated" },
-    { url: `/roles/${a.role.id}`, selector: `form:has(input[value="${a.candidate.id}"]):has(input[name="fullName"])`, own: a.candidate.id, foreign: b.candidate.id, change: { fullName: "Own candidate updated" }, verify: () => db.candidate.findUniqueOrThrow({ where: { id: a.candidate.id } }), field: "fullName", value: "Own candidate updated" },
   ];
   for (const entry of cases) {
     const form = await snapshotForm(alice.page, entry.url, entry.selector);
@@ -349,6 +348,23 @@ test("A6 forged form IDs cannot edit foreign records or attach a foreign role", 
     const bad = await postForm(alice.page, form, { ...changes, id: entry.foreign });
     expect(await bad.text()).toContain("could not be found");
   }
+  // A candidate's details are edited in a dialog the browser draws, so there is
+  // no form in the page's HTML to copy: the real save is captured instead and
+  // replayed with the other account's candidate in it.
+  await alice.page.goto(`/roles/${a.role.id}`);
+  await alice.page.getByRole("button", { name: `Edit details for ${a.candidate.fullName}` }).click();
+  await alice.page.getByRole("dialog").getByLabel("Full name").fill("Own candidate updated");
+  const saveRequest = alice.page.waitForRequest((request) => request.method() === "POST" && Boolean(request.headers()["next-action"]));
+  await alice.page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  const save = await saveRequest;
+  await expect.poll(async () => (await db.candidate.findUniqueOrThrow({ where: { id: a.candidate.id } })).fullName).toBe("Own candidate updated");
+  const saved = save.postDataBuffer()!.toString("latin1");
+  expect(saved.split(a.candidate.id).length - 1).toBe(1);
+  const forged = await alice.page.request.post(`/roles/${a.role.id}`, {
+    headers: { Origin: BASE, "Next-Action": save.headers()["next-action"], "Content-Type": save.headers()["content-type"] },
+    data: Buffer.from(saved.replace(a.candidate.id, b.candidate.id), "latin1"),
+  });
+  expect(await forged.text()).toContain("could not be found");
   expect(await db.role.findUnique({ where: { id: b.role.id } })).toEqual(b.role);
   expect(await db.savedSearch.findUnique({ where: { id: b.search.id } })).toEqual(b.search);
   expect(await db.messageTemplate.findUnique({ where: { id: b.template.id } })).toEqual(b.template);
@@ -412,11 +428,14 @@ test("A8 independent settings and one-time hashed keys scope capture GET and POS
     const list = await guest.request.get("/api/capture", { headers });
     expect(list.status()).toBe(200);
     // The packaged version travels with the role list so an extension loaded
-    // by hand can tell that it is out of date; nothing else is added here.
+    // by hand can tell that it is out of date, with the plan's name for the
+    // panel and the email finder's searches left (none on Basic); nothing
+    // else is added here.
     expect(await list.json()).toEqual({
-      account: { id: actor.id, email: actor.email, name: actor.name },
+      account: { id: actor.id, email: actor.email, name: actor.name, plan: "Basic" },
       roles: [{ id: own.role.id, title: own.role.title, client: null }],
       extension: { version: expect.any(String) },
+      emailFinder: null,
     });
     const denied = await guest.request.post("/api/capture", { headers, data: { roleId: other.role.id, fullName: "Foreign capture injection" } });
     expect(denied.status()).toBe(404);
@@ -425,7 +444,7 @@ test("A8 independent settings and one-time hashed keys scope capture GET and POS
     expect(await accepted.json()).toMatchObject({ ok: true, fullName: `Captured for ${actor.id}`, warning: null });
     expect(await db.candidate.count({ where: { roleId: other.role.id, fullName: "Foreign capture injection" } })).toBe(0);
     await actor.page.reload();
-    await expect(actor.page.getByLabel("New capture key", { exact: true })).toHaveCount(0);
+    await expect(actor.page.getByLabel("New extension key", { exact: true })).toHaveCount(0);
     expect(await actor.page.content()).not.toContain(token);
     expect(await actor.page.content()).not.toContain(hashToken(token));
   }
@@ -502,7 +521,7 @@ test("A9 admin view is not impersonation and blocks disabled UI and crafted work
   }
   await admin.page.goto("/settings");
   await expect(admin.page.getByText("These keys are private.", { exact: false })).toBeVisible();
-  await expect(admin.page.getByRole("button", { name: /Generate a (capture|new) key/ })).toHaveCount(0);
+  await expect(admin.page.getByRole("button", { name: /Generate (an extension|a new) key/ })).toHaveCount(0);
   expect(await admin.page.content()).not.toContain(recruiterKey);
   expect(await admin.page.content()).not.toContain(hashToken(recruiterKey));
   const regenerate = await admin.page.request.post("/settings", {
@@ -529,7 +548,7 @@ test("A9 admin view is not impersonation and blocks disabled UI and crafted work
   await expectAudit(admin.id, recruiter.id, "workspace_view_ended");
 });
 
-test("A10 disabling an account revokes every session, activation link and capture key", async ({ accounts }) => {
+test("A10 disabling an account revokes every session, activation link and extension key", async ({ accounts }) => {
   const admin = await accounts.create("admin");
   const actor = await accounts.create();
   const data = await workspace(actor);

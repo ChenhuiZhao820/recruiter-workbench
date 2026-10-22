@@ -1,7 +1,7 @@
 import { db } from "./db";
 
 // Everything a recruiter has recorded, in a form they can take elsewhere. No
-// secrets or hashes are included: capture keys, session data, suppression
+// secrets or hashes are included: extension keys, session data, suppression
 // hashes, calendar tokens and shortlist link nonces and recipients stay behind.
 
 export const EXPORT_TABLES = ["people", "notes", "candidates", "roles", "screenings", "bookings", "outreach", "templates", "searches", "shortlists", "shortlistPeople", "cvs"] as const;

@@ -67,15 +67,15 @@ export default async function GettingStartedPage() {
         : <p className="onboarding-blocked"><Icon name="lock" size={15} />Choose a plan first.</p>,
     },
     captureKey: {
-      title: "Generate your capture key and connect",
-      summary: "The capture key identifies your account to the extension, separately from your website sign-in.",
+      title: "Generate your extension key and connect",
+      summary: "The extension key identifies your account to the extension, separately from your website sign-in.",
       detail: <>
         <p>Generate the key in Settings and paste it into the extension; the workbench address is already filled in. Then click Connect and check that the extension shows your name and email.</p>
         <p><strong>Copy the key before you leave that page: it is shown once and cannot be displayed again.</strong> If you lose it, generate another one. That replaces the old key rather than recovering it.</p>
       </>,
-      doneNote: "A capture key exists for this account. Generate a new one in Settings if you need to reconnect; the old key stops working.",
+      doneNote: "An extension key exists for this account. Generate a new one in Settings if you need to reconnect; the old key stops working.",
       action: status.extensionEnabled
-        ? <Link href="/settings" className="btn-primary">Generate a capture key<Icon name="arrow" size={17} /></Link>
+        ? <Link href="/settings" className="btn-primary">Generate an extension key<Icon name="arrow" size={17} /></Link>
         : <p className="onboarding-blocked"><Icon name="lock" size={15} />Choose a plan first.</p>,
     },
   };
@@ -127,9 +127,9 @@ export default async function GettingStartedPage() {
       <section className="onboarding-help" aria-label="If something goes wrong">
         <h2>If something does not line up</h2>
         <ul>
-          <li>The download or the capture key is refused: your trial or plan has ended. Choose a plan in Billing; a copy someone forwarded to you saves nothing without a plan of your own.</li>
+          <li>The download or the extension key is refused: your trial or plan has ended. Choose a plan in Billing; a copy someone forwarded to you saves nothing without a plan of your own.</li>
           <li>Chrome refuses Developer mode: your organisation may block unpacked extensions. Ask your IT administrator.</li>
-          <li>The extension cannot connect: check that you pasted the most recent capture key. Changing your password revokes the key, so generate a new one afterwards.</li>
+          <li>The extension cannot connect: check that you pasted the most recent extension key. Changing your password revokes the key, so generate a new one afterwards.</li>
           <li>Nothing to save a profile to: create an open role first. The extension only offers your open roles.</li>
         </ul>
         <Link href="/welcome" className="text-link">What Retrivr does<Icon name="arrow" size={16} /></Link>

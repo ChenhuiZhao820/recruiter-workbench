@@ -64,7 +64,7 @@ const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booki
 // Accepted in a source but never copied. Calendar and integration tokens are
 // encrypted with the source deployment's key and must be reconnected; monthly
 // AI counters start again; booked-slot and interview-slot locks are rebuilt
-// from the bookings; shortlist links are issued again, like capture keys; a
+// from the bookings; shortlist links are issued again, like extension keys; a
 // People import can be undone only where it ran, so its batch (and the
 // importBatchId that points at it) stays behind.
 const notImportedColumns = {
@@ -455,7 +455,7 @@ async function main() {
       return;
     }
     await inspectAccountsTarget(db);
-    console.log(JSON.stringify({ counts: validated.counts, sourceSha256: initialHash, credentials: "Password hashes and activated extension grants preserved; pending extension code hashes and expiries cleared; sessions, activation links, capture keys and throttles are not imported." }));
+    console.log(JSON.stringify({ counts: validated.counts, sourceSha256: initialHash, credentials: "Password hashes and activated extension grants preserved; pending extension code hashes and expiries cleared; sessions, activation links, extension keys and throttles are not imported." }));
     if (!args["--apply"]) return;
     if (!process.stdin.isTTY || !process.stderr.isTTY) throw new SafeError("--apply requires an interactive terminal; no target data has been written.");
     const prompt = createInterface({ input: process.stdin, output: process.stderr });
@@ -466,7 +466,7 @@ async function main() {
     if (await fileHash(sourcePath) !== initialHash) throw new SafeError("Snapshot changed after preflight. Import cancelled.");
     assertSameSnapshot(validated, validateAccounts(await readAccounts(sourcePath), args["--admin-email"]));
     console.log(JSON.stringify(await importAccounts(db, source, args["--admin-email"], { confirmed: true })));
-    console.log("Account import committed and verified. Use existing passwords to sign in; generate new capture keys on the hosted workbench.");
+    console.log("Account import committed and verified. Use existing passwords to sign in; generate new extension keys on the hosted workbench.");
   } finally { await db.$disconnect(); }
 }
 

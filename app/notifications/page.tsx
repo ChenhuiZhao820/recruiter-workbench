@@ -63,10 +63,10 @@ export default async function NotificationsPage() {
         <p className="activity-text">{unread && <span className="sr-only">New: </span>}{release.title}</p>
         {current && release.extension && <p className="release-note">
           {canDownload
-            ? <>This version needs a new copy of the browser extension. After you load it in <code className="font-mono">chrome://extensions</code>, generate a new capture key in <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension.</>
+            ? <>This version needs a new copy of the browser extension. After you load it in <code className="font-mono">chrome://extensions</code>, generate a new extension key in <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension.</>
             : readOnly
               ? <>This version needs a new copy of the browser extension; it is downloaded from the account&rsquo;s own workspace.</>
-              : <>This version needs a new copy of the browser extension. <Link href="/billing" className="text-accent underline">Choose a plan</Link> to download it, then generate a new capture key in Settings.</>}
+              : <>This version needs a new copy of the browser extension. <Link href="/billing" className="text-accent underline">Choose a plan</Link> to download it, then generate a new extension key in Settings.</>}
         </p>}
         {current && <div className="release-actions">
           {release.extension && canDownload && <a href="/api/extension/download" download className="btn-primary">Download the new extension<Icon name="down" size={15} /></a>}

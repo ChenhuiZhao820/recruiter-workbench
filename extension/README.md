@@ -1,4 +1,4 @@
-# Capture
+# Retrivr for Chrome
 
 Saves the LinkedIn profile you already have open to your workbench, so you stop
 retyping a name, a headline and a URL you are both looking at.
@@ -13,11 +13,12 @@ read.
 Out of the box the extension asks for `activeTab`, which Chrome grants only
 after you click the toolbar button and takes back as soon as the tab moves on.
 That is why the panel used to need a click on every profile. LinkedIn is also
-declared as an **optional** origin: it is not granted when you install, and the
-panel offers a button that asks Chrome for it so it can fill itself in as you
-move between profiles. You can say no and keep clicking; you can grant it and
-later remove it in `chrome://extensions`; and **Pause** stops the reading
-without closing the panel. Even granted, nothing is registered to run on
+declared as an **optional** origin: it is not granted when you install. The
+panel's **Follow profiles** switch asks Chrome for it the first time you turn
+it on, and from then on the panel fills itself in as you move between profiles
+until you turn the switch off. You can say no and keep clicking; you can grant
+it and later remove it in `chrome://extensions`; and turning the switch off
+stops the reading without closing the panel. Even granted, nothing is registered to run on
 LinkedIn - the reader is injected only while the panel is open, and nothing
 leaves your browser until you press Save.
 
@@ -32,7 +33,7 @@ install it from the site you actually use, not from this source folder.
 
 For the hosted deployment that is <https://retrivr.app>.
 
-1. Sign in to Capture and open **Your account**. Ask your administrator for your
+1. Sign in to Retrivr and open **Your account**. Ask your administrator for your
    account's extension activation code and redeem it there within 7 days.
    Codes work once for the assigned account only. A replacement invalidates the
    previous code. Active administrators do not need an extension activation code.
@@ -40,14 +41,14 @@ For the hosted deployment that is <https://retrivr.app>.
 3. In desktop Chrome, go to `chrome://extensions`, enable **Developer mode**,
    choose **Load unpacked**, and select the extracted `capture-extension` folder
    containing `manifest.json`. Keep that folder on your computer.
-4. Pin Capture from Chrome's extensions menu. In Capture **Settings**, generate
-   your personal **capture key**. Paste it into the extension and connect; the
+4. Pin Retrivr from Chrome's extensions menu. In Retrivr **Settings**, generate
+   your personal **extension key**. Paste it into the extension and connect; the
    workbench address is already filled in. Verify the displayed name and email.
 5. Create an open role in your own workspace if you do not have one yet.
 
-The activation code unlocks account access; it is not the capture key. Neither is
+The activation code unlocks account access; it is not the extension key. Neither is
 included in the ZIP. Website login and the extension's connected account remain
-independent. Changing your password revokes capture keys but retains extension
+independent. Changing your password revokes extension keys but retains extension
 access, so generate a new key and reconnect afterwards.
 
 You can download again without another activation code. Unpacked extensions do

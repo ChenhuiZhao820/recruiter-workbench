@@ -192,7 +192,7 @@ async function main() {
     finally { prompt.close(); }
     if (answer !== "IMPORT") throw new SafeError("Import cancelled; no target data was changed.");
     await applyLegacy(db, source, { id: adminId }, { provider, confirmed: true });
-    console.log("Import committed. Legacy capture keys were invalidated.");
+    console.log("Import committed. Legacy extension keys were invalidated.");
   } finally { await db.$disconnect(); }
 }
 

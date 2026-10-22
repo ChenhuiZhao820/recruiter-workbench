@@ -2,7 +2,7 @@
 
 A private workspace for a recruiter's pipeline. The main application never contacts
 LinkedIn: it only builds a profile or search URL and opens it on a user click.
-The optional Capture extension uses a toolbar click for one active-tab
+The optional Retrivr extension (formerly Capture) uses a toolbar click for one active-tab
 profile read via `activeTab` and `scripting`. It may also live in Chrome's side
 panel (`sidePanel`), which changes where the same page sits, not what it may
 read. LinkedIn is declared as an OPTIONAL origin only: it is not granted at
@@ -53,8 +53,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   workspace already carry the Retrivr name and logo (`public/brand/`), the tab
   title included, and so do the candidate's booking page and the client's
   shortlist page (their bare header, the default privacy notice and the
-  `.ics` PRODID). The extension (still named Capture in Chrome, so workspace
-  copy calls it "the extension" where it says where to find it), its API's
+  `.ics` PRODID). From 1.3.0 the extension is Retrivr in Chrome too: its
+  name, toolbar title and description, the update line and every message in
+  the panel, and Retrivr's logo in the panel header, carried inside
+  `popup.html` as a data URI because the package holds no image files (no
+  toolbar icon yet, so Chrome shows the letter R). Its key is still the
+  "extension key", the workbench's own word for it in Settings. The API's
   messages and these docs are renamed separately. Code identifiers, cookie
   and header names, environment variables and routes keep "capture".
 - Test environment variables use CAPTURE_TEST_; packaged extension configuration
@@ -330,7 +334,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `GET /api/capture` reports `emailFinder` (the plan has it and the server
   has `ENROW_API_KEY`), a green Find email beside it with the searches left
   above. It calls `POST /api/capture/email` and polls
-  `GET /api/capture/email/[id]` with the capture key, never cookies; the
+  `GET /api/capture/email/[id]` with the extension key, never cookies; the
   rules are the workbench's (`claimLookup`/`launchLookup` in
   `lib/email-finder.ts`, shared with `/api/email-finder`). The panel sends
   only the profile address it read, to the workbench; the workbench asks
@@ -398,7 +402,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   counts one on the bell, in the layout and in `GET /api/notifications/unread`
   alike, never for a read-only view. Its line links to `/whats-new`; when it
   needs a new extension it also offers the download (only to an account that
-  may download, never a read-only view) and says to generate a new capture key
+  may download, never a read-only view) and says to generate a new extension key
   in Settings after loading it. Once Notifications is on screen it is read
   (through `markActivitySeen`, so a read-only view or a prefetch reads
   nothing), the same as client news, and Got it on What's new still reads it
@@ -1095,7 +1099,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   Viewing is stored on the session, not a user impersonation or role change.
 - Capture uses a per-user hashed key, independent of website cookies. Its API
   returns the connected account and only its open roles. Password changes and
-  account disabling revoke sessions and capture keys; no raw stored capture keys.
+  account disabling revoke sessions and extension keys; no raw stored extension keys.
 - Admin can permanently delete a recruiter account from `/admin/[id]` (`deleteAccount`): never an administrator or oneself, never from a read-only view, and only after the account's email is typed. Business tables use `onDelete: Restrict` on the user, so the action removes bookings, searches, roles, people, templates and settings explicitly in one transaction before the user (the rest cascades). Audit events are kept and a nameless `account_deleted` event is written. `tests/21-delete-account.spec.ts`.
 - Administrators still create accounts with one-time activation links (teams,
   Pro Max, anyone set up by hand). Activation links use URL fragments and expire
@@ -1249,15 +1253,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 - The extension comes with every plan and the trial; the activation code is
   retired. `canUseExtension` (`lib/extension-access.ts`) is an active account
-  with a plan, or an administrator. Downloading, generating a capture key and
+  with a plan, or an administrator. Downloading, generating an extension key and
   both capture API methods all ask it, so a key stops working the moment its
   plan does and works again with a new one. A forwarded ZIP holds no key and no
   account: it saves nothing for whoever installs it until they have a plan of
   their own, and a key works only for its own workspace. Read-only views cannot
-  download; account disabling still revokes sessions and capture keys.
+  download; account disabling still revokes sessions and extension keys.
 - `ExtensionAccess` stays in the schema (dropping it would be its own approved
   migration) and nothing reads or writes it. The ZIP may be downloaded again;
-  capture keys remain separate and are generated in Settings. No personal
+  extension keys remain separate and are generated in Settings. No personal
   secrets are packaged.
 - `/api/extension/download` is authenticated, private/no-store and serves only five
   allowlisted extension files. Shared packaging in `lib/extension-package.mjs`
@@ -1279,8 +1283,13 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   need a toolbar click; the optional LinkedIn origin removes that click. The
   panel still tries the page first either way, because `activeTab` survives a
   same-origin move. Without the permission the old behaviour is unchanged:
-  the fields clear and it asks for a click. A Pause control stops the reading
-  without closing the panel, stored as `autoRead`; refusing the permission is a
+  the fields clear and it asks for a click. Following is one "Follow profiles"
+  switch in the panel, with no explanation beside it: on whenever the
+  permission is held and `autoRead` is not false, so following is the default
+  once allowed. Turning it on the first time is the click that asks Chrome for
+  the optional origin - it is never granted at install, so the switch starts
+  off until then. Turning it off stops the reading without closing the panel
+  (`autoRead` false); refusing the permission puts it back off, is a
   supported answer and must stay one.
 - A page that is not a profile - a search result list, an inbox - is a quiet
   wait in the panel, not an error. While following, most pages are not profiles.
@@ -1342,7 +1351,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   --admin-email <ADMIN_EMAIL>`. Default is dry-run/counts only.
 - Actual import adds `--apply` and requires typing `IMPORT` in an interactive
   terminal. It refuses nonempty targets, preserves IDs/relations, assigns all old
-  data to Admin, and invalidates old capture keys. It never clears a target.
+  data to Admin, and invalidates old extension keys. It never clears a target.
 - Verified local backup: `node scripts/backup-legacy.mjs --source <OLD_DB>
   --target <NEW_DB> --directory <PRIVATE_DIRECTORY>`. It checks target absence,
   creates a read-only-source VACUUM snapshot, compares content and records checksums.
@@ -1395,7 +1404,7 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   are enclosed in one transaction; errors roll back the transaction.
 - Independently verify before opening the app with `--verify` instead of --apply.
   Existing passwords work on the hosted app; users must sign in again and create
-  new capture keys. Pending accounts need fresh activation links from Admin.
+  new extension keys. Pending accounts need fresh activation links from Admin.
 - Columns added after the first multi-account databases existed are listed in
   `lateColumns` in `scripts/import-accounts.mjs` (account tiers, and a saved
   search's `searchUrl`). A source from before a group has none of that group's
@@ -1625,4 +1634,4 @@ which needs no new extension permission. Verify extension permissions remain
 host access limited to loopback plus the packaged workbench host, and
 `optional_host_permissions` exactly `["https://*.linkedin.com/*"]` - optional, never
 granted by the package. Run unit and account-isolation
-regressions, including foreign IDs, read-only admin views and revoked capture keys.
+regressions, including foreign IDs, read-only admin views and revoked extension keys.

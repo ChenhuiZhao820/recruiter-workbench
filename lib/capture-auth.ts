@@ -4,7 +4,7 @@ import { corsHeaders } from "@/lib/capture";
 import { hashToken } from "@/lib/auth-crypto";
 import { canUseExtension } from "@/lib/extension-access";
 
-// The extension's account: whoever owns the capture key it sends, while that
+// The extension's account: whoever owns the extension key it sends, while that
 // account may use the extension at all. Website cookies play no part.
 export async function authorizeCapture(request: Request) {
   const token = request.headers.get("x-capture-token");
@@ -18,7 +18,7 @@ export async function authorizeCapture(request: Request) {
 
 export function captureDenied(request: Request) {
   return NextResponse.json(
-    { error: "Capture key missing or revoked, account disabled, or no plan. Sign in, check your plan in Billing, and generate a new key in Settings." },
+    { error: "Extension key missing or revoked, account disabled, or no plan. Sign in, check your plan in Billing, and generate a new key in Settings." },
     { status: 401, headers: corsHeaders(request.headers.get("origin")) }
   );
 }

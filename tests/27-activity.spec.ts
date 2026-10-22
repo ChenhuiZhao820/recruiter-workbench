@@ -267,7 +267,7 @@ test("A6 a new version is a notification: counted on the bell until seen, with W
     // Only the current release links to What's new and offers the download.
     await expect(page.getByRole("link", { name: "See what’s new" })).toHaveCount(1);
     await expect(page.getByRole("link", { name: /Download the new extension/ })).toHaveCount(currentRelease.extension ? 1 : 0);
-    await expect(current.getByText("generate a new capture key")).toHaveCount(currentRelease.extension ? 1 : 0);
+    await expect(current.getByText("generate a new extension key")).toHaveCount(currentRelease.extension ? 1 : 0);
     if (currentRelease.extension) await expect(current.getByRole("link", { name: /Download the new extension/ })).toHaveAttribute("href", "/api/extension/download");
     await page.locator("section[aria-label='New']").screenshot({ path: testInfo.outputPath("release-new.png") });
 

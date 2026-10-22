@@ -9,7 +9,7 @@ import ts from "typescript";
 
 // The extension comes with a plan: there is no activation code any more. What
 // these tests hold is that only an account with a plan (or an administrator)
-// can generate a capture key or use one, so a copy of the extension passed to
+// can generate an extension key or use one, so a copy of the extension passed to
 // someone else saves nothing for them.
 
 const require = createRequire(import.meta.url);
@@ -114,7 +114,7 @@ function harness() {
   return { users, settings, controls, get writes() { return writes; }, settingsActions: load("app/actions/settings.ts", mocks) };
 }
 
-test("a capture key is generated only for an active account with a plan, or an administrator", async () => {
+test("an extension key is generated only for an active account with a plan, or an administrator", async () => {
   for (const actor of ["admin", "recruiter"]) {
     for (const active of [true, false]) {
       for (const plan of Object.keys(PLANS)) {
@@ -144,7 +144,7 @@ test("a capture key is generated only for an active account with a plan, or an a
   }
 });
 
-test("capture key generation rechecks the account at the write and blocks read-only views", async () => {
+test("extension key generation rechecks the account at the write and blocks read-only views", async () => {
   const h = harness();
   h.settings.set("admin", { captureTokenHash: "preexisting-key-hash" });
   h.controls.beforeUpdate = () => { h.users.get("admin").active = false; };
@@ -187,13 +187,15 @@ test("capture GET and POST deny an existing key once the plan has ended, and kee
           "@/lib/features": { canUseFeature: () => false },
           "@/lib/email-finder": { emailAllowance: async () => { throw new Error("no allowance expected"); } },
           "@/lib/enrow-core.mjs": { enrowKey: () => null },
+          "@/lib/account-tiers": tiers,
         });
         const request = new Request("http://localhost:3000/api/capture", { headers: { "x-capture-token": crypto.newSecret() } });
         const get = await route.GET(request);
         const post = await route.POST(request);
         if (access.canUseExtension(account)) {
           assert.equal(get.status, 200);
-          assert.deepEqual(Object.keys(get.body.account).sort(), ["email", "id", "name"]);
+          assert.deepEqual(Object.keys(get.body.account).sort(), ["email", "id", "name", "plan"]);
+          assert.equal(get.body.account.plan, tiers.accountTierLabels[tiers.getAccountTier(account)]);
           assert.equal(post.status, 400);
         } else {
           for (const result of [get, post]) {

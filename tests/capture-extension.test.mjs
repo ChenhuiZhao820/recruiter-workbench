@@ -167,6 +167,7 @@ async function popup(options = {}) {
     get queries() { return queries; },
     click: (id) => elements[id].dispatch("click"),
     edit: async (id, value) => { elements[id].value = value; await elements[id].dispatch("input"); await elements[id].dispatch("change"); },
+    toggle: async (id, checked) => { elements[id].checked = checked; await elements[id].dispatch("change"); },
   };
 }
 
@@ -192,11 +193,11 @@ function extract(func, options = {}) {
 const saved = { status: 201, body: { ok: true, candidateId: "candidate-a", fullName: "Priya Kaur", warning: null } };
 
 test("manifest grants only click-triggered reading and loopback workbench access", () => {
-  assert.equal(manifest.name, "Capture");
-  assert.equal(manifest.action.default_title, "Save this profile to Capture");
-  assert.match(manifest.description, /\bCapture\b/);
+  assert.equal(manifest.name, "Retrivr");
+  assert.equal(manifest.action.default_title, "Save this profile to Retrivr");
+  assert.match(manifest.description, /\bRetrivr\b/);
   for (const text of [manifest.name, manifest.action.default_title, manifest.description]) {
-    assert.doesNotMatch(text, /basanite|recruiter workbench|capture capture/i);
+    assert.doesNotMatch(text, /basanite|recruiter workbench|capture/i);
   }
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "sidePanel", "storage"]);
@@ -452,7 +453,7 @@ test("a refused re-read keeps whatever was typed by hand", async () => {
 test("an extension older than the workbench's says so, and says why it waits", async () => {
   const p = await popup({ packagedVersion: "9.9.9" });
   assert.equal(p.elements.update.hidden, false);
-  assert.match(p.elements["update-text"].textContent, /Capture 9\.9\.9 is ready to download/);
+  assert.match(p.elements["update-text"].textContent, /Retrivr 9\.9\.9 is ready to download/);
   assert.match(p.elements["update-text"].textContent, new RegExp(`You have ${manifest.version.replace(/\./g, "\.")}`));
   // Chrome will not do it for them, which is the part worth explaining.
   assert.match(p.elements["update-text"].textContent, /does not update an extension you loaded yourself/);
@@ -473,40 +474,50 @@ test("an extension level with the workbench, or ahead of it, says nothing", asyn
   assert.equal(nonsense.elements.update.hidden, true);
 });
 
-test("the panel offers to follow along, and asks Chrome for LinkedIn when told to", async () => {
+test("the panel's follow switch asks Chrome for LinkedIn when it is turned on, and says nothing else", async () => {
   const p = await popup({ sidePanel: true, hash: "#panel" });
-  // Not granted at install, so the panel says what the click buys.
+  // Not granted at install, so the switch starts off, with no explanation beside it.
   assert.equal(p.elements.follow.hidden, false);
-  assert.equal(p.elements["follow-allow"].hidden, false);
-  assert.equal(p.elements["follow-toggle"].hidden, true);
-  assert.match(p.elements["follow-text"].textContent, /fills itself in/);
+  assert.equal(p.elements["follow-toggle"].checked, false);
+  assert.equal(p.elements["follow-text"], undefined);
+  assert.equal(p.elements["follow-allow"], undefined);
+  assert.equal(p.permissionAsks.filter((ask) => ask.kind === "request").length, 0);
 
-  await p.click("follow-allow");
+  await p.toggle("follow-toggle", true);
   const asked = p.permissionAsks.filter((ask) => ask.kind === "request");
   assert.equal(asked.length, 1);
   assert.deepEqual(asked[0].origins, ["https://*.linkedin.com/*"]);
   assert.equal(p.stored.autoRead, true);
-  assert.equal(p.elements["follow-allow"].hidden, true);
-  assert.equal(p.elements["follow-toggle"].hidden, false);
-  assert.equal(p.elements["follow-toggle"].textContent, "Pause");
-  assert.match(p.elements["follow-text"].textContent, /Following along/);
+  assert.equal(p.elements["follow-toggle"].checked, true);
 });
 
-test("refusing the permission changes nothing and says so", async () => {
-  const p = await popup({ sidePanel: true, hash: "#panel", grantRefused: true });
-  await p.click("follow-allow");
+test("once LinkedIn is allowed, following is on by default", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel", linkedInGranted: true });
   assert.equal(p.stored.autoRead, undefined);
-  assert.equal(p.elements["follow-allow"].hidden, false);
+  assert.equal(p.elements["follow-toggle"].checked, true);
+});
+
+test("the popup has no follow switch: following is the panel's", async () => {
+  const p = await popup({ linkedInGranted: true });
+  assert.equal(p.elements.follow.hidden, true);
+});
+
+test("refusing the permission puts the switch back off and changes nothing else", async () => {
+  const p = await popup({ sidePanel: true, hash: "#panel", grantRefused: true });
+  await p.toggle("follow-toggle", true);
+  assert.equal(p.stored.autoRead, undefined);
+  assert.equal(p.elements["follow-toggle"].checked, false);
   assert.match(p.elements.message.textContent, /fine answer/);
 });
 
-test("pausing keeps the panel open and stops it reading", async () => {
+test("turning the switch off keeps the panel open and stops it reading", async () => {
   const p = await popup({ sidePanel: true, hash: "#panel", linkedInGranted: true });
-  assert.equal(p.elements["follow-toggle"].textContent, "Pause");
-  await p.click("follow-toggle");
+  assert.equal(p.elements["follow-toggle"].checked, true);
+  await p.toggle("follow-toggle", false);
   assert.equal(p.stored.autoRead, false);
-  assert.equal(p.elements["follow-toggle"].textContent, "Resume");
-  assert.match(p.elements["follow-text"].textContent, /Paused/);
+  assert.equal(p.elements["follow-toggle"].checked, false);
+  // Turned off, it is not asked again: the permission is still Chrome's.
+  assert.equal(p.permissionAsks.filter((ask) => ask.kind === "request").length, 0);
   // The panel is still the panel: nothing about it closed.
   assert.equal(p.panel.closed, 0);
   assert.equal(p.elements["panel-close"].hidden, false);
@@ -930,7 +941,7 @@ test("legacy global role preference is ignored rather than assigned to an unknow
   assert.equal(p.stored.lastRoleId, "role-b");
 });
 
-test("switching capture keys isolates account role preferences, keeps the draft and reads only once", async () => {
+test("switching extension keys isolates account role preferences, keeps the draft and reads only once", async () => {
   const p = await popup();
   await p.edit("notes", "My private manual draft");
   await p.edit("name", "Edited name");
@@ -987,7 +998,7 @@ test("failed account switch clears the old identity, preserves notes and permits
   await p.edit("notes", "Keep my draft");
   await p.click("settings");
   await p.edit("token", "refused-key");
-  p.responses.push({ status: 401, body: { error: "Capture key revoked." } });
+  p.responses.push({ status: 401, body: { error: "Extension key revoked." } });
   await p.click("connect");
   assert.equal(p.elements.connection.hidden, true);
   assert.equal(p.elements["account-email"].textContent, "");
@@ -1166,7 +1177,7 @@ test("packager makes a standalone exact-host build and leaves source loopback-on
   const packagedHtml = await readFile(join(output, "popup.html"), "utf8");
   const packagedSource = await readFile(join(output, "popup.js"), "utf8");
   const configSource = await readFile(join(output, "workbench.js"), "utf8");
-  assert.equal(packaged.name, "Capture");
+  assert.equal(packaged.name, "Retrivr");
   assert.equal(packaged.action.default_title, manifest.action.default_title);
   assert.equal(packaged.description, manifest.description);
   assert.equal(configSource, `"use strict";\nglobalThis.CAPTURE_WORKBENCH_ORIGINS = ${JSON.stringify([hostedOrigin])};\n`);

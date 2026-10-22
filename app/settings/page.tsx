@@ -196,7 +196,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { n
           {!readOnly && <Link href="/account" className="text-sm text-accent underline">Download extension and installation instructions</Link>}
         </> : <div className="card space-y-3">
           <h2 className="text-lg">Choose a plan first</h2>
-          <p className="text-sm text-ink-soft">The extension and its capture key come with every plan and with the trial.</p>
+          <p className="text-sm text-ink-soft">The extension and its extension key come with every plan and with the trial.</p>
           <Link href="/billing" className="btn-secondary">Go to Billing</Link>
           <Link href="/getting-started" className="block text-sm text-accent underline">Open the step-by-step setup guide</Link>
         </div>}

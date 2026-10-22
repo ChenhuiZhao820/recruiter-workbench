@@ -326,6 +326,23 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   "manual"), in a role row's Edit details dialog and on the outreach queue
   and follow-up run cards. In the dialog a search that finds nothing says
   only that, in red, and that no credit was used; it offers no other way.
+- The extension panel has an Email field below the profile link, and, when
+  `GET /api/capture` reports `emailFinder` (the plan has it and the server
+  has `ENROW_API_KEY`), a green Find email beside it with the searches left
+  above. It calls `POST /api/capture/email` and polls
+  `GET /api/capture/email/[id]` with the capture key, never cookies; the
+  rules are the workbench's (`claimLookup`/`launchLookup` in
+  `lib/email-finder.ts`, shared with `/api/email-finder`). The panel sends
+  only the profile address it read, to the workbench; the workbench asks
+  Enrow; nobody asks LinkedIn. A person this account already keeps is
+  searched as that person (do not contact refused, a kept email returned
+  without a search); anyone else is searched with no person, and the email
+  comes back to the panel. The save (`POST /api/capture`, `email` and
+  `emailFound`) fills an empty address on the person - "finder" while it is
+  still what was found, "manual" otherwise - and never replaces one. It says
+  "Found." in green or "Email cannot be found. No credit was used." in red,
+  like the dialog, and a new profile empties the field. Warnings in the panel
+  are plain red words (`.message.bad`), with no box.
 - Emailing: with an address, the outreach card offers "Also email it to
   ..." (remembered per browser). The same click that copies and opens
   LinkedIn then opens a `mailto:` draft with the subject and the edited
@@ -1602,7 +1619,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 Review LinkedIn references: allow clicked profile/search URLs, placeholders,
 documentation, fixtures, and the extension's single-profile extraction. Never
 fetch LinkedIn from the app or extension. The email finder sends a profile address to Enrow,
-not to LinkedIn, and only on a click. Verify extension permissions remain
+not to LinkedIn, and only on a click; from the extension it goes through the workbench,
+which needs no new extension permission. Verify extension permissions remain
 `activeTab`, `scripting`, `sidePanel`, `storage`, no content scripts/background, granted
 host access limited to loopback plus the packaged workbench host, and
 `optional_host_permissions` exactly `["https://*.linkedin.com/*"]` - optional, never

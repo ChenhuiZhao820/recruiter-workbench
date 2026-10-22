@@ -219,6 +219,8 @@ test("E2 a plan alone opens the extension: downloads are reusable, keys are sepa
     account: { id: actor.id, name: actor.name, email: actor.email },
     roles: [{ id: role.id, title: role.title, client: null }],
     extension: { version: expect.any(String) },
+    // A trial has the finder; this server's searches are the stub's.
+    emailFinder: { remaining: 50, quota: 50, trial: true },
   });
   expect((await guest.request.post("/api/capture", { headers, data: { roleId: otherRole.id, fullName: "Foreign injection", userId: foreign.id } })).status()).toBe(404);
   expect((await guest.request.post("/api/capture", { headers, data: { roleId: role.id, fullName: "Authorized capture", userId: foreign.id } })).status()).toBe(201);

@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { getAccountTier, type TierAccount } from "./account-tiers";
 import { monthlyQuota } from "./features";
+import { recordUsage } from "./usage";
 import type { OutreachEmail } from "@/components/OutreachStep";
 import {
   GIVE_UP_MS, PENDING_COUNTS_MS, REQUEST_TIMEOUT_MS, allowanceStart, countsAgainstAllowance, emailSourceLabel, enrowBase, enrowKey, finderTarget, readResult, readStart,
@@ -54,6 +55,52 @@ export async function startEnrowSearch(body: object) {
   } catch {
     return { state: "failed" as const };
   }
+}
+
+// The allowance is spent up front and refunded by the result, so a second
+// click while a search runs, or two at once, cannot overspend it.
+export class AllowanceUsed extends Error {
+  constructor(readonly trial: boolean) { super("allowance used"); }
+}
+
+export const allowanceUsedText = (trial: boolean) => trial
+  ? "Your trial's email searches are used up. Choose a plan in Billing for more, or add this one by hand."
+  : "This month's email searches are used up. Add this one by hand.";
+
+// Holds a place in the allowance with a pending EmailLookup, in one
+// serializable transaction. A search already running for the same person is
+// returned instead; a profile with nobody saved behind it has no person to
+// match on, and relies on the allowance alone. Throws AllowanceUsed.
+export async function claimLookup(user: TierAccount & { id: string }, personId: string | null, method: string, now = new Date()) {
+  return db.$transaction(async (tx) => {
+    if (personId) {
+      const running = await tx.emailLookup.findFirst({
+        where: { userId: user.id, personId, status: "pending", createdAt: { gte: new Date(now.getTime() - PENDING_COUNTS_MS) } },
+        select: { id: true },
+      });
+      if (running) return { id: running.id, created: false };
+    }
+    const allowance = await emailAllowance(user, tx, now);
+    if (allowance.remaining <= 0) throw new AllowanceUsed(allowance.trial);
+    const row = await tx.emailLookup.create({ data: { userId: user.id, personId, method }, select: { id: true } });
+    return { id: row.id, created: true };
+  }, { isolationLevel: "Serializable" });
+}
+
+// Asks Enrow to start the search a claimed lookup stands for. When it will
+// not start, the lookup is ended as failed - free - and the reason returned
+// as the status and words to answer with.
+export async function launchLookup(lookupId: string, userId: string, search: { method: string; body: object }) {
+  const started = await startEnrowSearch(search.body);
+  if (started.state !== "started") {
+    await db.emailLookup.update({ where: { id: lookupId }, data: { status: "failed", finishedAt: new Date() } });
+    if (started.state === "linkedin_refused") return { ok: false as const, status: 422, error: "Enrow could not search that LinkedIn address. Search by name and company instead.", needCompany: true };
+    if (started.state === "no_credits") return { ok: false as const, status: 503, error: "Email search is unavailable right now. Try again later or add the email by hand." };
+    return { ok: false as const, status: 502, error: "The email search service could not be reached. Try again in a moment." };
+  }
+  await db.emailLookup.update({ where: { id: lookupId }, data: { enrowId: started.id } });
+  await recordUsage(db, userId, "email_search_started", search.method === "linkedin" ? 1 : 0);
+  return { ok: true as const };
 }
 
 // Reads a pending search once and records how it ended. A found email is

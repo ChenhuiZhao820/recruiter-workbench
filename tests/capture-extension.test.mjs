@@ -34,6 +34,7 @@ class Element {
     this.className = "";
     this.children = [];
     this.handlers = new Map();
+    this.dataset = {};
   }
   set innerHTML(value) {
     assert.equal(value, "");
@@ -642,6 +643,7 @@ for (const [label, options] of [
     assert.deepEqual(JSON.parse(p.requests.at(-1).body), {
       roleId: "role-b", fullName: "Manual Name", headline: "Edited headline",
       profileUrl: "www.linkedin.com/in/manual/", notes: "My own judgement", memberId: "",
+      email: "", emailFound: false,
     });
   });
 }
@@ -894,7 +896,7 @@ test("connected account identity is prominent and independent of website login",
   assert.equal(p.elements["account-name"].textContent, account.name);
   assert.equal(p.elements["account-email"].textContent, account.email);
   assert.equal(p.elements["account-origin"].textContent, config.url);
-  assert.match(html, /Website login is independent/);
+  assert.match(html, /independently of your website login/);
   assert.match(html, /paste that account's key/);
   const nameless = await popup({ responses: [{ status: 200, body: { account: { ...account, name: null }, roles } }] });
   assert.equal(nameless.elements["account-name"].textContent, account.email);
@@ -1233,3 +1235,82 @@ for (const status of [200, 201]) {
     assert.equal(p.elements.save.disabled, false);
   });
 }
+
+// --- Find email ---------------------------------------------------------------
+
+const finder = { remaining: 249, quota: 250, trial: false };
+const withFinder = (extra = {}) => ({ status: 200, body: { account, roles, emailFinder: finder, ...extra } });
+
+test("Find email asks the workbench, fills the field, counts down and says Found; the save keeps it as found", async () => {
+  const p = await popup({ timeout: 0, responses: [withFinder(), withFinder({ existing: null, person: null })] });
+  assert.equal(p.elements["find-email"].hidden, false);
+  assert.equal(p.elements["email-left"].textContent, "249 of 250 left");
+  p.responses.push({ status: 200, body: { id: "lookup-1", status: "pending", remaining: 249 } }, { status: 200, body: { status: "found", email: "priya@example.test", remaining: 248 } });
+  await p.click("find-email");
+  const started = p.requests.at(-2);
+  assert.equal(started.url, "http://localhost:3000/api/capture/email");
+  assert.equal(started.method, "POST");
+  assert.deepEqual(JSON.parse(started.body), { profileUrl: "https://www.linkedin.com/in/priya-kaur/" });
+  assert.equal(p.requests.at(-1).url, "http://localhost:3000/api/capture/email/lookup-1");
+  // Never LinkedIn, never Enrow: only the workbench is asked.
+  assert.ok(p.requests.every((request) => request.url.startsWith("http://localhost:3000/api/capture")));
+  assert.equal(p.elements.email.value, "priya@example.test");
+  assert.equal(p.elements["email-note"].textContent, "Found.");
+  assert.equal(p.elements["email-note"].className, "note good");
+  assert.equal(p.elements["email-left"].textContent, "248 of 250 left");
+  assert.equal(p.elements["find-email"].disabled, true);
+  p.responses.push(saved);
+  await p.click("save");
+  const body = JSON.parse(p.requests.at(-1).body);
+  assert.equal(body.email, "priya@example.test");
+  assert.equal(body.emailFound, true);
+});
+
+test("Find email that finds nothing says so in red, that no credit was used, and offers nothing else", async () => {
+  const p = await popup({ timeout: 0, responses: [withFinder(), withFinder({ existing: null, person: null })] });
+  p.responses.push({ status: 200, body: { id: "lookup-2", status: "pending", remaining: 249 } }, { status: 200, body: { status: "not_found", remaining: 249 } });
+  await p.click("find-email");
+  assert.equal(p.elements.email.value, "");
+  assert.equal(p.elements["email-note"].textContent, "Email cannot be found. No credit was used.");
+  assert.equal(p.elements["email-note"].className, "note bad");
+  assert.equal(p.elements["email-left"].textContent, "249 of 250 left");
+  assert.equal(p.elements["find-email"].disabled, false);
+});
+
+test("Find email is greyed out with the reason on hover when no searches are left", async () => {
+  const used = { ...finder, remaining: 0 };
+  const p = await popup({ responses: [{ status: 200, body: { account, roles, emailFinder: used } }, { status: 200, body: { account, roles, emailFinder: used, existing: null, person: null } }] });
+  assert.equal(p.elements["find-email"].disabled, true);
+  assert.equal(p.elements["find-email-wrap"].dataset.tip, "You have no email searches left this month.");
+  assert.equal(p.elements["email-left"].className, "finder-count empty");
+  const before = p.requests.length;
+  await p.click("find-email");
+  assert.equal(p.requests.length, before);
+});
+
+test("an address this account already keeps is shown and not searched for", async () => {
+  const p = await popup({ responses: [withFinder(), withFinder({ existing: null, person: { id: "person-a", email: "kept@example.test", doNotContact: false, roles: [] } })] });
+  assert.equal(p.elements.email.value, "kept@example.test");
+  assert.equal(p.elements["find-email"].disabled, true);
+  assert.equal(p.elements["find-email-wrap"].dataset.tip, "This person already has an email saved.");
+});
+
+test("without the finder on this plan or server there is no Find email, and the field is a plain email field", async () => {
+  const p = await popup();
+  assert.equal(p.elements["find-email"].hidden, true);
+  assert.equal(p.elements["email-left"].hidden, true);
+  assert.equal(p.elements.email.hidden, false);
+  await p.edit("email", "typed@example.test");
+  p.responses.push(saved);
+  await p.click("save");
+  const body = JSON.parse(p.requests.at(-1).body);
+  assert.equal(body.email, "typed@example.test");
+  assert.equal(body.emailFound, false);
+});
+
+test("a red warning is words alone, not a box", () => {
+  const css = readFileSync(new URL("../extension/popup.css", import.meta.url), "utf8");
+  assert.match(css, /\.message\.bad \{ padding: 0; border-color: transparent; background: none; color: var\(--color-bad\); \}/);
+  assert.match(css, /--color-bad: #d70218;/);
+  assert.match(css, /\.note\.bad \{ color: var\(--color-bad\); \}/);
+});

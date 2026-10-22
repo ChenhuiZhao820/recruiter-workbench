@@ -22,6 +22,9 @@
   --color-bad-line: #fda4af;
   --color-bad-tint: #fff1f2;
   --color-bad-ink: #881337;
+  /* Red and green at cobalt's own lightness and strength, as in the workbench. */
+  --color-bad: #d70218;
+  --color-good: #00873c;
   --radius: 8px;
   --font-body: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Consolas, monospace;
@@ -242,6 +245,55 @@ textarea.field-input { resize: vertical; min-height: 68px; line-height: 1.55; }
 
 #open-role { width: 100%; margin-top: 10px; padding: 8px 10px; }
 
+/* The email field, with Find email beside it and the searches left above. */
+.field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 12px 0 6px; }
+.field-head .field-label { margin: 0; }
+.finder-count { font-family: var(--font-mono); font-size: 10px; color: var(--color-ink-soft); white-space: nowrap; }
+.finder-count.empty { color: var(--color-bad); }
+.email-row { display: flex; gap: 6px; }
+.email-row .field-input { flex: 1 1 auto; }
+.find-wrap { position: relative; display: inline-flex; flex: none; }
+/* Why the button is greyed out, on hover or focus. */
+.find-wrap:not([data-tip=""]):hover::after,
+.find-wrap:not([data-tip=""]):focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 10;
+  width: max-content;
+  max-width: 210px;
+  padding: 5px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #fff;
+  background: var(--color-ink);
+  border-radius: 5px;
+  pointer-events: none;
+}
+.find-wrap > .btn-find:disabled { pointer-events: none; }
+.btn-find {
+  padding: 0 12px;
+  font: 600 12px/1.2 var(--font-body);
+  /* Outlined in a bright green, halfway between WhatsApp's and the darker
+     green of the notes, so the one button that goes and finds something
+     stands apart from the cobalt Save. The words are a shade deeper of the
+     same green, so they still read on white. */
+  color: #0d9345;
+  background: transparent;
+  border: 1px solid #12ad51;
+  border-radius: var(--radius);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-find:hover:not(:disabled) { background: rgb(18 173 81 / .08); }
+.btn-find:disabled { color: rgb(24 24 27 / .35); border-color: var(--color-line); cursor: not-allowed; }
+.note { margin: 6px 0 0; font-size: 11px; font-weight: 500; line-height: 1.5; }
+.note:empty { display: none; }
+.note.good { color: var(--color-good); }
+.note.bad { color: var(--color-bad); }
+
 /* --- notes and messages ------------------------------------------------ */
 
 .hint { margin: 10px 0 0; color: var(--color-ink-soft); font-size: 11px; line-height: 1.55; }
@@ -255,7 +307,8 @@ textarea.field-input { resize: vertical; min-height: 68px; line-height: 1.55; }
   line-height: 1.5;
 }
 .message:empty { display: none; }
-.message.bad { border-color: var(--color-bad-line); background: var(--color-bad-tint); color: var(--color-bad-ink); }
+/* A warning is the words alone, in red: no box around them. */
+.message.bad { padding: 0; border-color: transparent; background: none; color: var(--color-bad); }
 .message.good { border-color: rgb(49 92 255 / .3); background: var(--color-accent-soft); color: var(--color-ink); }
 
 @media (prefers-reduced-motion: reduce) {

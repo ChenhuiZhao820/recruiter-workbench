@@ -319,3 +319,75 @@ test("EF10 the person page's email block fits a phone", async () => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+test("EF11 the extension finds an email with its capture key: a kept person gets it on their record, anyone else gets it back for the save, and not found is free", async ({ browser }) => {
+  const own = await account(browser, { accountTier: "pro" });
+  const other = await account(browser, { accountTier: "pro" });
+  const basic = await account(browser, { accountTier: "basic" });
+  const key = async (userId: string) => {
+    const value = randomBytes(24).toString("base64url");
+    await db.settings.update({ where: { userId }, data: { captureTokenHash: hashToken(value) } });
+    return value;
+  };
+  const headers = (value: string) => ({ "x-capture-token": value, origin: "chrome-extension://fixture", "content-type": "application/json" });
+  try {
+    const captureKey = await key(own.user.id);
+    const request = own.page.request;
+    const settle = async (id: string) => {
+      for (let tries = 0; tries < 10; tries += 1) {
+        const polled = await request.get(`/api/capture/email/${id}`, { headers: headers(captureKey) });
+        expect(polled.headers()["access-control-allow-origin"]).toBe("chrome-extension://fixture");
+        const body = await polled.json();
+        if (body.status !== "pending") return body;
+        await new Promise((done) => setTimeout(done, 300));
+      }
+      throw new Error("never settled");
+    };
+
+    // The panel learns the searches left from the same call that lists roles.
+    const listed = await (await request.get("/api/capture", { headers: headers(captureKey) })).json();
+    expect(listed.emailFinder).toMatchObject({ quota: 250, remaining: 250 });
+
+    // Somebody not yet saved: searched by address alone, nothing written, one search counted.
+    const started = await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: "https://www.linkedin.com/in/ione-castellano/" } });
+    expect(started.status()).toBe(200);
+    const fresh = await settle((await started.json()).id);
+    expect(fresh).toMatchObject({ status: "found", email: "ione.castellano@enrow-stub.example", remaining: 249 });
+    expect(await db.person.count({ where: { userId: own.user.id } })).toBe(0);
+    expect((await stub()).requests.at(-1)).toMatchObject({ linkedin_url: "https://www.linkedin.com/in/ione-castellano" });
+
+    // Saving with it keeps it on the new person, as found.
+    const role = await db.role.create({ data: { userId: own.user.id, title: "Extension Finder Role" } });
+    const saved = await request.post("/api/capture", { headers: headers(captureKey), data: { roleId: role.id, fullName: "Ione Castellano", profileUrl: "https://www.linkedin.com/in/ione-castellano/", email: fresh.email, emailFound: true } });
+    expect(saved.status()).toBe(201);
+    expect(await db.person.findFirstOrThrow({ where: { userId: own.user.id } })).toMatchObject({ email: "ione.castellano@enrow-stub.example", emailSource: "finder" });
+    // Now kept: shown, not searched again.
+    const again = await (await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: "https://www.linkedin.com/in/ione-castellano/" } })).json();
+    expect(again).toMatchObject({ status: "found", email: "ione.castellano@enrow-stub.example", remaining: 249 });
+
+    // A kept person without an email: found onto their record.
+    const kept = await person(own.user.id, "Bartholomew Ashdown");
+    const keptStart = await (await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: kept.profileUrl } })).json();
+    expect((await settle(keptStart.id)).status).toBe("found");
+    expect(await db.person.findUniqueOrThrow({ where: { id: kept.id } })).toMatchObject({ email: "bartholomew.ashdown@enrow-stub.example", emailSource: "finder" });
+
+    // Nobody there: not found, and free.
+    const nobody = await (await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: "https://www.linkedin.com/in/nobody-here/" } })).json();
+    expect(await settle(nobody.id)).toMatchObject({ status: "not_found", remaining: 248 });
+
+    // Do not contact, a page that is not a profile, another account's search, no key, Basic: refused.
+    const dnc = await person(own.user.id, "Delphine Marr", { doNotContact: true });
+    expect((await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: dnc.profileUrl } })).status()).toBe(409);
+    expect((await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: "https://www.linkedin.com/search/results/people/" } })).status()).toBe(400);
+    const otherKey = await key(other.user.id);
+    expect((await request.get(`/api/capture/email/${keptStart.id}`, { headers: headers(otherKey) })).status()).toBe(404);
+    expect((await request.post("/api/capture/email", { headers: { origin: "chrome-extension://fixture" }, data: { profileUrl: kept.profileUrl } })).status()).toBe(401);
+    const basicKey = await key(basic.user.id);
+    expect((await request.post("/api/capture/email", { headers: headers(basicKey), data: { profileUrl: "https://www.linkedin.com/in/ione-castellano/" } })).status()).toBe(404);
+    expect((await (await request.get("/api/capture", { headers: headers(basicKey) })).json()).emailFinder).toBeNull();
+  } finally {
+    await own.close();
+    await other.close();
+    await basic.close();
+  }
+});

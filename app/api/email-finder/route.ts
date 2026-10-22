@@ -2,19 +2,14 @@ import { db } from "@/lib/db";
 import { appOrigin, getSession } from "@/lib/auth";
 import { getWorkspace } from "@/lib/workspace";
 import { canUseFeature } from "@/lib/features";
-import { recordUsage } from "@/lib/usage";
-import { emailAllowance, startEnrowSearch } from "@/lib/email-finder";
-import { PENDING_COUNTS_MS, enrowKey, lookupRequest } from "@/lib/enrow-core.mjs";
+import { AllowanceUsed, allowanceUsedText, claimLookup, emailAllowance, launchLookup } from "@/lib/email-finder";
+import { enrowKey, lookupRequest } from "@/lib/enrow-core.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 const fail = (status: number, error: string, extra: Record<string, unknown> = {}) => Response.json({ error, ...extra }, { status, headers });
-
-class AllowanceUsed extends Error {
-  constructor(readonly trial: boolean) { super("allowance used"); }
-}
 
 // Starts one email search for one of the signed-in account's own people, on a
 // click on Find email. Only from this app's own pages, never from a read-only
@@ -41,38 +36,16 @@ export async function POST(request: Request) {
   const search = lookupRequest(person, company);
   if (!search) return fail(400, "Add the company they work for to search by name.", { needCompany: true });
 
-  const now = new Date();
   let lookup: { id: string; created: boolean };
   try {
-    lookup = await db.$transaction(async (tx) => {
-      const running = await tx.emailLookup.findFirst({
-        where: { userId: user.id, personId: person.id, status: "pending", createdAt: { gte: new Date(now.getTime() - PENDING_COUNTS_MS) } },
-        select: { id: true },
-      });
-      if (running) return { id: running.id, created: false };
-      const allowance = await emailAllowance(user, tx, now);
-      if (allowance.remaining <= 0) throw new AllowanceUsed(allowance.trial);
-      const row = await tx.emailLookup.create({ data: { userId: user.id, personId: person.id, method: search.method }, select: { id: true } });
-      return { id: row.id, created: true };
-    }, { isolationLevel: "Serializable" });
+    lookup = await claimLookup(user, person.id, search.method);
   } catch (error) {
-    if (error instanceof AllowanceUsed) {
-      return fail(429, error.trial
-        ? "Your trial's email searches are used up. Choose a plan in Billing for more, or add this one by hand."
-        : "This month's email searches are used up. Add this one by hand.");
-    }
+    if (error instanceof AllowanceUsed) return fail(429, allowanceUsedText(error.trial));
     throw error;
   }
   if (!lookup.created) return Response.json({ id: lookup.id, status: "pending", remaining: (await emailAllowance(user)).remaining }, { headers });
 
-  const started = await startEnrowSearch(search.body);
-  if (started.state !== "started") {
-    await db.emailLookup.update({ where: { id: lookup.id }, data: { status: "failed", finishedAt: new Date() } });
-    if (started.state === "linkedin_refused") return fail(422, "Enrow could not search that LinkedIn address. Search by name and company instead.", { needCompany: true });
-    if (started.state === "no_credits") return fail(503, "Email search is unavailable right now. Try again later or add the email by hand.");
-    return fail(502, "The email search service could not be reached. Try again in a moment.");
-  }
-  await db.emailLookup.update({ where: { id: lookup.id }, data: { enrowId: started.id } });
-  await recordUsage(db, user.id, "email_search_started", search.method === "linkedin" ? 1 : 0);
+  const launched = await launchLookup(lookup.id, user.id, search);
+  if (!launched.ok) return fail(launched.status, launched.error, launched.needCompany ? { needCompany: true } : {});
   return Response.json({ id: lookup.id, status: "pending", remaining: (await emailAllowance(user)).remaining }, { headers });
 }

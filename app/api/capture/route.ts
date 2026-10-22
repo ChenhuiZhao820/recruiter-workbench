@@ -3,11 +3,13 @@ import { db } from "@/lib/db";
 import { normalizeProfileUrl } from "@/lib/urls";
 import { memberIdOrNull } from "@/lib/linkedin";
 import { corsHeaders } from "@/lib/capture";
-import { hashToken } from "@/lib/auth-crypto";
-import { canUseExtension } from "@/lib/extension-access";
+import { authorizeCapture as authorize, captureDenied as denied } from "@/lib/capture-auth";
 import { revalidatePath } from "next/cache";
 import { findOrCreatePerson, isSuppressed } from "@/lib/people";
-import { canonicalProfileUrl } from "@/lib/person-keys.mjs";
+import { canonicalProfileUrl, cleanEmail } from "@/lib/person-keys.mjs";
+import { canUseFeature } from "@/lib/features";
+import { emailAllowance } from "@/lib/email-finder";
+import { enrowKey } from "@/lib/enrow-core.mjs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -26,27 +28,12 @@ type CaptureBody = {
   fullName?: unknown;
   headline?: unknown;
   notes?: unknown;
+  email?: unknown;
+  emailFound?: unknown;
 };
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-async function authorize(request: Request) {
-  const token = request.headers.get("x-capture-token");
-  if (!token || !/^[A-Za-z0-9_-]{24,128}$/.test(token)) return null;
-  const settings = await db.settings.findUnique({
-    where: { captureTokenHash: hashToken(token) },
-    select: { user: { select: { id: true, email: true, name: true, role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true } } },
-  });
-  return settings && canUseExtension(settings.user) ? settings.user : null;
-}
-
-function denied(request: Request) {
-  return NextResponse.json(
-    { error: "Capture key missing or revoked, account disabled, or no plan. Sign in, check your plan in Billing, and generate a new key in Settings." },
-    { status: 401, headers: corsHeaders(request.headers.get("origin")) }
-  );
 }
 
 export async function OPTIONS(request: Request) {
@@ -98,6 +85,7 @@ export async function GET(request: Request) {
         where: { userId_profileUrl: { userId: account.id, profileUrl: canonical } },
         select: {
           id: true,
+          email: true,
           doNotContact: true,
           factsConfirmedAt: true,
           candidates: { select: { role: { select: { id: true, title: true } } } },
@@ -114,12 +102,16 @@ export async function GET(request: Request) {
       // now. Chrome never updates an extension loaded by hand, so the only way
       // an old copy learns it is old is by asking.
       extension: { version: await packagedVersion() },
+      // The email finder's searches left, when this account's plan has it
+      // and this server can search; null leaves Find email out of the panel.
+      emailFinder: canUseFeature(account, "emailFinder") && enrowKey() ? finderCount(await emailAllowance(account)) : null,
       ...(asked
         ? {
             existing,
             person: person
               ? {
                   id: person.id,
+                  email: person.email,
                   doNotContact: person.doNotContact,
                   factsConfirmedAt: person.factsConfirmedAt,
                   roles: person.candidates.map((candidate) => candidate.role),
@@ -131,6 +123,11 @@ export async function GET(request: Request) {
     },
     { headers: cors }
   );
+}
+
+// The searches left and the plan's number of them, nothing more.
+function finderCount({ remaining, quota, trial }: { remaining: number; quota: number; trial: boolean }) {
+  return { remaining, quota, trial };
 }
 
 // Read from the same folder the download endpoint packages, so the number the
@@ -195,6 +192,15 @@ export async function POST(request: Request) {
     }
   }
 
+  // An email from the panel, found by Find email (saved as found while
+  // unchanged) or typed. It fills an empty address on the person and never
+  // replaces one this account already keeps.
+  const typedEmail = text(body.email);
+  const email = typedEmail ? cleanEmail(typedEmail) : null;
+  if (typedEmail && !email) {
+    return NextResponse.json({ error: "That does not look like an email address. Nothing was saved." }, { status: 400, headers: cors });
+  }
+
   const headline = text(body.headline) || null;
   // LinkedIn's own member id, read from the profile the extension was
   // looking at. Only stored when it looks like one; it opens LinkedIn's
@@ -204,6 +210,12 @@ export async function POST(request: Request) {
   const suppressed = await isSuppressed(db, account.id, { profileUrl, memberId });
   const { candidate, person } = await db.$transaction(async (tx) => {
     const person = await findOrCreatePerson(tx, account.id, { fullName, profileUrl, memberId, headline });
+    if (email && !person.email) {
+      await tx.person.update({
+        where: { id: person.id, userId: account.id },
+        data: { email, emailSource: body.emailFound === true ? "finder" : "manual", emailConsentAt: null },
+      });
+    }
     const candidate = await tx.candidate.create({
       data: {
         role: { connect: { id: roleId, userId: account.id, status: "open" } },

@@ -162,14 +162,9 @@ test("capture GET and POST deny an existing key once the plan has ended, and kee
     for (const role of ["admin", "recruiter"]) {
       for (const plan of Object.keys(PLANS)) {
         const account = { id: "recruiter", email: "recruiter@fixture.invalid", name: "Recruiter", role, active, ...PLANS[plan] };
-        const route = load("app/api/capture/route.ts", {
+        const shared = {
           "next/server": { NextResponse: { json: (body, options = {}) => ({ body, status: options.status ?? 200, headers: options.headers }) } },
-          "next/cache": { revalidatePath: () => {} },
           "@/lib/auth-crypto": crypto, "@/lib/extension-access": access,
-          "@/lib/urls": { normalizeProfileUrl: (url) => url },
-          "@/lib/linkedin": { memberIdOrNull: (value) => value || null },
-          "@/lib/people": { findOrCreatePerson: async () => { throw new Error("no write expected"); }, isSuppressed: async () => false },
-          "@/lib/person-keys.mjs": { canonicalProfileUrl: (url) => url },
           "@/lib/capture": { corsHeaders: () => ({ "Access-Control-Allow-Origin": "chrome-extension://fixture" }) },
           "@/lib/db": { db: {
             settings: { findUnique: async ({ select }) => {
@@ -178,6 +173,20 @@ test("capture GET and POST deny an existing key once the plan has ended, and kee
             } },
             role: { findMany: async ({ where }) => { assert.equal(where.userId, account.id); return []; } },
           } },
+        };
+        // The key check every capture route shares, loaded for real.
+        const captureAuth = load("lib/capture-auth.ts", shared);
+        const route = load("app/api/capture/route.ts", {
+          ...shared,
+          "@/lib/capture-auth": captureAuth,
+          "next/cache": { revalidatePath: () => {} },
+          "@/lib/urls": { normalizeProfileUrl: (url) => url },
+          "@/lib/linkedin": { memberIdOrNull: (value) => value || null },
+          "@/lib/people": { findOrCreatePerson: async () => { throw new Error("no write expected"); }, isSuppressed: async () => false },
+          "@/lib/person-keys.mjs": { canonicalProfileUrl: (url) => url, cleanEmail: (value) => value },
+          "@/lib/features": { canUseFeature: () => false },
+          "@/lib/email-finder": { emailAllowance: async () => { throw new Error("no allowance expected"); } },
+          "@/lib/enrow-core.mjs": { enrowKey: () => null },
         });
         const request = new Request("http://localhost:3000/api/capture", { headers: { "x-capture-token": crypto.newSecret() } });
         const get = await route.GET(request);

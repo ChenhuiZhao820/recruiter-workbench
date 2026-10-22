@@ -11,9 +11,9 @@
 
 const el = (id) => document.getElementById(id);
 
-const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "", filled: { name: "", headline: "" }, waiting: false, leftName: "", settleUrl: "", settleTries: 0 };
-const fields = ["role", "name", "headline", "profile", "notes"];
-const controls = ["settings", "open-role", "reread"];
+const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "", filled: { name: "", headline: "" }, waiting: false, leftName: "", settleUrl: "", settleTries: 0, finder: null, found: "", kept: false, finding: false, findRun: 0 };
+const fields = ["role", "name", "headline", "profile", "email", "notes"];
+const controls = ["settings", "open-role", "reread", "find-email"];
 // Where Capture actually lives. A package built by scripts/package-extension.mjs
 // or by the site's own download endpoint declares its origin in workbench.js and
 // that declaration wins, including the empty one a loopback build ships. Loading
@@ -319,6 +319,7 @@ function applyProfile(profile, { quiet = false } = {}) {
   el("headline").value = profile.headline || "";
   el("profile").value = profile.profileUrl || "";
   state.filled = { name: el("name").value, headline: el("headline").value };
+  resetEmail();
   el("save").disabled = false;
   if (!profile.isProfile) {
     // While the panel follows along, most pages are not profiles: a search
@@ -352,6 +353,7 @@ function markStale(message, { clear = false } = {}) {
     state.waiting = false;
     pageSettled();
     for (const id of ["name", "headline", "profile"]) el(id).value = "";
+    resetEmail();
   }
   say(el("message"), message, "bad");
 }
@@ -495,6 +497,7 @@ function markIdle(message) {
   el("reread").hidden = true;
   el("save").disabled = false;
   for (const id of ["name", "headline", "profile"]) el(id).value = "";
+  resetEmail();
   clearExisting();
   say(el("message"), message, "");
 }
@@ -519,7 +522,14 @@ async function checkExisting() {
   const { ok, body } = await api(`/api/capture?profileUrl=${encodeURIComponent(link)}`);
   // A lookup that fails is not worth a word: the save itself still refuses a
   // duplicate on the same role.
-  if (!ok || !body.existing || state.profileUrl !== link) return;
+  if (!ok || state.profileUrl !== link) return;
+  readFinder(body.emailFinder);
+  // An address this account already keeps for them is shown, not searched for.
+  const kept = body.person && typeof body.person.email === "string" ? body.person.email : "";
+  if (kept && !el("email").value.trim()) el("email").value = kept;
+  state.kept = Boolean(kept);
+  showFinder();
+  if (!body.existing) return;
   const found = body.existing;
   const role = found.role || {};
   const where = role.client ? `${role.title} (${role.client})` : role.title;
@@ -529,6 +539,111 @@ async function checkExisting() {
   if (role.id) {
     state.existingRoleId = role.id;
     el("open-existing").hidden = false;
+  }
+}
+
+// --- the email ---------------------------------------------------------------
+//
+// Find email asks the workbench, which asks Enrow; neither this panel nor the
+// workbench asks LinkedIn. One search per click, never on its own, with the
+// searches left beside the field. Only a found email spends one.
+
+const FIND_POLL_MS = 2000;
+const FIND_GIVE_UP_MS = 62000;
+
+function readFinder(value) {
+  state.finder = value && Number.isInteger(value.remaining) && Number.isInteger(value.quota) && value.quota > 0
+    ? { remaining: Math.max(0, value.remaining), quota: value.quota, trial: value.trial === true }
+    : null;
+}
+
+function noteEmail(text, tone) {
+  el("email-note").textContent = text;
+  el("email-note").className = `note${tone ? ` ${tone}` : ""}`;
+}
+
+function showFinder() {
+  const finder = state.finder;
+  el("find-email").hidden = !finder;
+  el("email-left").hidden = !finder;
+  if (!finder) return;
+  const span = finder.trial ? "in your trial" : "this month";
+  el("email-left").textContent = `${finder.remaining} of ${finder.quota} left`;
+  el("email-left").title = `${finder.remaining} of ${finder.quota} email searches left ${span}`;
+  el("email-left").className = finder.remaining > 0 ? "finder-count" : "finder-count empty";
+  // Said on hover, because a button that is merely grey explains nothing.
+  const why = finder.remaining <= 0 ? `You have no email searches left ${span}.`
+    : !state.profileUrl ? "Open a LinkedIn profile to search for its email."
+    : state.kept ? "This person already has an email saved."
+    : "";
+  el("find-email").disabled = Boolean(why) || state.finding || state.saving;
+  el("find-email-wrap").dataset.tip = why;
+  el("find-email-wrap").tabIndex = why ? 0 : -1;
+}
+
+// A new page is a new person: what was found for the last one goes with them,
+// and a search still running for them is no longer listened to.
+function resetEmail() {
+  state.findRun += 1;
+  state.finding = false;
+  state.found = "";
+  state.kept = false;
+  el("email").value = "";
+  el("find-email").textContent = "Find email";
+  noteEmail("", "");
+  showFinder();
+}
+
+async function findEmail() {
+  if (state.finding || state.saving || !state.finder || !state.profileUrl) return;
+  const link = state.profileUrl;
+  const run = ++state.findRun;
+  const current = () => run === state.findRun && state.profileUrl === link;
+  const count = (body) => {
+    if (state.finder && Number.isInteger(body.remaining)) state.finder.remaining = Math.max(0, body.remaining);
+  };
+  state.finding = true;
+  el("find-email").textContent = "Searching...";
+  noteEmail("", "");
+  showFinder();
+  try {
+    let { ok, status, body } = await api("/api/capture/email", { method: "POST", body: JSON.stringify({ profileUrl: link }) });
+    if (!current()) return;
+    count(body);
+    if (status === 401) {
+      await rejectKey(body.error);
+      return;
+    }
+    const id = typeof body.id === "string" ? body.id : "";
+    const until = Date.now() + FIND_GIVE_UP_MS;
+    while (ok && body.status === "pending" && id && Date.now() < until) {
+      await new Promise((done) => setTimeout(done, FIND_POLL_MS));
+      if (!current()) return;
+      ({ ok, status, body } = await api(`/api/capture/email/${encodeURIComponent(id)}`));
+      if (!current()) return;
+      count(body);
+    }
+    if (!ok) {
+      noteEmail(`${body.error || `Could not search (${status || "no response"}).`} No credit was used.`, "bad");
+    } else if (body.status === "found" && typeof body.email === "string" && body.email) {
+      // Filled only over nothing, or over what an earlier search filled.
+      if (!el("email").value.trim() || el("email").value === state.found) el("email").value = body.email;
+      state.found = body.email;
+      state.kept = true;
+      noteEmail("Found.", "good");
+    } else if (body.status === "not_found") {
+      noteEmail("Email cannot be found. No credit was used.", "bad");
+    } else if (body.status === "pending") {
+      noteEmail("The search is taking too long. Try again in a moment.", "bad");
+    } else {
+      noteEmail("The search did not finish. No credit was used.", "bad");
+    }
+  } finally {
+    if (run === state.findRun) {
+      state.finding = false;
+      el("find-email").textContent = "Find email";
+      showFinder();
+    }
   }
 }
 
@@ -730,6 +845,8 @@ async function loadRolesAndShow() {
   }
   state.account = account;
   state.roles = body.roles;
+  readFinder(body.emailFinder);
+  showFinder();
   showUpdate(body.extension && typeof body.extension.version === "string" ? body.extension.version : "");
   el("account-name").textContent = account.name?.trim() || account.email;
   el("account-email").textContent = account.email;
@@ -847,6 +964,8 @@ el("reread").addEventListener("click", async () => {
   await checkExisting();
 });
 
+el("find-email").addEventListener("click", findEmail);
+
 el("settings").addEventListener("click", () => showSetup(""));
 
 el("setup-back").addEventListener("click", async () => {
@@ -907,6 +1026,9 @@ el("save").addEventListener("click", async () => {
         // Not shown as a field: it is LinkedIn's id, not something to type.
         memberId: state.memberId || "",
         notes: el("notes").value,
+        email: el("email").value,
+        // Kept as found while it is still what Find email found.
+        emailFound: Boolean(state.found) && el("email").value.trim().toLowerCase() === state.found.toLowerCase(),
       }),
     });
 
@@ -920,6 +1042,8 @@ el("save").addEventListener("click", async () => {
         warning = `${warning} Could not remember this role. Select it again next time.`.trim();
       }
       state.savedRoleId = roleId;
+      // Saved onto their record if they had none, so there is nothing to find.
+      if (el("email").value.trim()) state.kept = true;
       clearExisting();
       el("open-role").hidden = false;
       say(el("message"), `Saved ${body.fullName}.${warning ? ` ${warning}` : ""}`, warning ? "bad" : "good");
@@ -936,6 +1060,7 @@ el("save").addEventListener("click", async () => {
   } finally {
     state.saving = false;
     for (const id of [...fields, ...controls]) el(id).disabled = false;
+    showFinder();
     button.disabled = state.saved;
   }
 });

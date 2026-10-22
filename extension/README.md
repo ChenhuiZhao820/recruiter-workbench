@@ -92,6 +92,19 @@ words, pick the role, and save. The note is the part worth typing: it is the
 one thing no page can tell you. After a save, **Open this role in the
 workbench** takes you straight to where the person landed.
 
+## Their email
+
+Below the profile link is an **Email** field. Type an address there, or, when
+your plan has the email finder, press the green **Find email** beside it: the
+panel asks your workbench, which asks Enrow by the profile's LinkedIn address.
+Nothing is asked of LinkedIn. The searches left show above the field, and only
+a search that finds an email uses one. It says **Found.** and fills the field,
+or **Email cannot be found. No credit was used.** It searches once per click,
+never on its own. Someone you already keep an email for shows it instead, and
+the button is greyed out with the reason on hover, as it is when no searches
+are left. Saving puts the address on the person when they have none; it never
+replaces one you already keep.
+
 ## Keeping it open while you work a list
 
 The popup closes the moment it loses focus, so working through a list of

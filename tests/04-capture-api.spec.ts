@@ -124,9 +124,10 @@ test("C5 the role list is scoped to open roles", async ({ request }) => {
   const body = await response.json();
   expect(body.account).toEqual({ id: TEST_ADMIN_ID, email: TEST_ADMIN_EMAIL, name: "Test Admin" });
   // The packaged version rides along so an extension loaded by hand can tell
-  // it is out of date. Nothing else is added, and `existing` only appears when
-  // the extension asks about a profile.
-  expect(Object.keys(body).sort()).toEqual(["account", "extension", "roles"]);
+  // it is out of date, and the email finder's searches left (null when the plan
+  // or the server has none). Nothing else is added, and `existing` only appears
+  // when the extension asks about a profile.
+  expect(Object.keys(body).sort()).toEqual(["account", "emailFinder", "extension", "roles"]);
   expect(body.extension.version).toMatch(/^[0-9.]+$/);
   const titles = body.roles.map((r: { title: string }) => r.title);
   expect(titles).toContain("Capture Target Role");

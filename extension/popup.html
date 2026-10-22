@@ -24,7 +24,6 @@
           </span>
         </div>
         <p class="account-origin"><span class="status-dot"></span><span id="account-origin"></span></p>
-        <p class="hint">Saves belong to this account. Website login is independent; switching accounts on the website does not switch this extension.</p>
       </section>
 
       <div id="setup" class="screen card" hidden>
@@ -87,6 +86,16 @@
 
         <label class="field-label" for="profile">Profile link</label>
         <input id="profile" class="field-input" type="url" spellcheck="false" />
+
+        <div class="field-head">
+          <label class="field-label" for="email">Email</label>
+          <span id="email-left" class="finder-count" hidden></span>
+        </div>
+        <div class="email-row">
+          <input id="email" class="field-input" type="email" spellcheck="false" autocomplete="off" placeholder="name@company.com" />
+          <span id="find-email-wrap" class="find-wrap" data-tip=""><button id="find-email" class="btn-find" type="button" hidden>Find email</button></span>
+        </div>
+        <p id="email-note" class="note" role="status"></p>
 
         <label class="field-label" for="notes">Your note</label>
         <textarea id="notes" class="field-input" rows="3" placeholder="What you actually think. Nobody else can write this."></textarea>

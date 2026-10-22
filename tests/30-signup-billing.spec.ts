@@ -183,7 +183,7 @@ test("SU4 an ended trial is a read-only workspace; paying through Stripe opens i
   await expect(page.getByRole("status").filter({ hasText: "Your trial has ended" })).toBeVisible();
   await expect(page.getByText("Kept while read-only")).toBeVisible();
   await page.goto("/settings");
-  await expect(page.getByRole("button", { name: "Save settings", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
   expect((await page.request.get("/api/export")).status()).toBe(200);
   expect((await page.request.get("/api/extension/download")).status()).toBe(403);
 

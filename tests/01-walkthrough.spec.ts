@@ -68,9 +68,9 @@ test("01 settings: name and calendar link save and persist", async ({ page }) =>
   await page.goto("/settings");
   await page.getByLabel("Your name").fill("Alex Recruiter");
   await page.getByLabel("Calendar link").fill(CALENDAR);
-  await expect(page.getByLabel("Chase a booking after (days)")).toHaveValue("2");
-  await expect(page.getByLabel("Nudge quiet candidates after (days)")).toHaveValue("5");
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect(page.getByLabel("Chase a booking after")).toHaveValue("2");
+  await expect(page.getByLabel("Nudge quiet candidates after")).toHaveValue("5");
+  await page.getByRole("button", { name: "Save changes" }).click();
   await page.waitForLoadState("networkidle");
   await page.reload();
   await expect(page.getByLabel("Your name")).toHaveValue("Alex Recruiter");
@@ -386,7 +386,7 @@ test("11 draft outreach: placeholders fill, copy works, mark as sent logs it", a
 test("12 missing calendar link shows a gap and blocks marking it sent", async ({ page }) => {
   await page.goto("/settings");
   await page.getByLabel("Calendar link").fill("");
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("[data-form-message='notice']")).toContainText("Settings saved");
 
   const bob = await db.candidate.findFirst({ where: { fullName: "Bob Sample" } });
@@ -405,7 +405,7 @@ test("12 missing calendar link shows a gap and blocks marking it sent", async ({
 
   await page.goto("/settings");
   await page.getByLabel("Calendar link").fill(CALENDAR);
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("[data-form-message='notice']")).toContainText("Settings saved");
 
   // With the link restored the button comes back.
@@ -575,31 +575,31 @@ test("16 an unsupported placeholder is flagged, not passed through", async ({ pa
 
 test("17 clearing a threshold is refused instead of silently defaulted", async ({ page }) => {
   await page.goto("/settings");
-  await page.getByLabel("Chase a booking after (days)").fill("3");
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.getByLabel("Chase a booking after").fill("3");
+  await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("[data-form-message='notice']")).toContainText("Settings saved");
   await page.reload();
-  await expect(page.getByLabel("Chase a booking after (days)")).toHaveValue("3");
+  await expect(page.getByLabel("Chase a booking after")).toHaveValue("3");
 
   // Blanking the field must not quietly write the built-in default over it.
-  await page.getByLabel("Chase a booking after (days)").fill("");
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.getByLabel("Chase a booking after").fill("");
+  await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("[data-form-message='error']")).toContainText("Chase a booking after");
   expect((await db.settings.findUnique({ where: { userId: TEST_ADMIN_ID } }))!.bookingChaseDays).toBe(3);
   await page.reload();
-  await expect(page.getByLabel("Chase a booking after (days)")).toHaveValue("3");
+  await expect(page.getByLabel("Chase a booking after")).toHaveValue("3");
 
   // A nonsense value never even reaches the server: min=1 stops it in the
   // browser, and the stored value is untouched either way.
-  const quiet = page.getByLabel("Nudge quiet candidates after (days)");
+  const quiet = page.getByLabel("Nudge quiet candidates after");
   await quiet.fill("0");
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.getByRole("button", { name: "Save changes" }).click();
   expect(await quiet.evaluate((el) => (el as HTMLInputElement).checkValidity())).toBe(false);
   expect((await db.settings.findUnique({ where: { userId: TEST_ADMIN_ID } }))!.quietNudgeDays).toBe(5);
 
   await page.reload();
-  await page.getByLabel("Chase a booking after (days)").fill("2");
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.getByLabel("Chase a booking after").fill("2");
+  await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("[data-form-message='notice']")).toContainText("Settings saved");
 });
 

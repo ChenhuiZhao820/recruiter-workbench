@@ -37,6 +37,10 @@
   --rgb-accent: 49 92 255;
   --rgb-accent-hard: 36 71 212;
   --rgb-accent-soft: 237 241 255;
+
+  /* Only for what removes or switches something off, and for errors */
+  --color-danger: #9f1239;
+  --rgb-danger: 159 18 57;
   --radius: 8px;
   --gap: 20px;
 }
@@ -372,7 +376,109 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .btn-destructive:hover { background: rgb(255 241 242); border-color: rgb(159 18 57 / .6); }
 .btn-destructive:active { transform: translateY(1px); }
 .btn-destructive:disabled { cursor: not-allowed; color: rgb(24 24 27 / .35); border-color: var(--color-line); background: var(--color-surface); }
-.data-export-links { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Settings: one column of sections read top to bottom. Each is its title and
+   purpose on the left and its controls on the right, with hairlines between
+   sections rather than a card around each. */
+.settings-page { max-width: 1040px; }
+.settings-section { display: grid; grid-template-columns: minmax(0, 16rem) minmax(0, 1fr); gap: 16px 56px; padding: 36px 0; border-top: 1px solid var(--color-line); }
+.settings-form > .settings-section:first-child { padding-top: 8px; border-top: 0; }
+.settings-section-title { font-size: 17px; font-weight: 600; line-height: 1.3; letter-spacing: -.025em; color: var(--color-ink); }
+.settings-section-text { margin-top: 8px; max-width: 34ch; font-size: 14px; line-height: 1.6; color: var(--color-ink-soft); }
+.settings-section-body { display: grid; align-content: start; gap: 28px; min-width: 0; }
+.settings-field { display: grid; gap: 8px; max-width: 520px; }
+.settings-label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 14px; font-weight: 550; line-height: 1.4; color: var(--color-ink); }
+.settings-hint { font-size: 13px; line-height: 1.6; color: var(--color-ink-soft); }
+.settings-hint.is-strong { color: var(--color-ink); }
+.settings-hint.is-error { color: var(--color-danger); }
+.settings-token { padding: 1px 5px; border: 1px solid var(--color-line); border-radius: 4px; background: var(--color-sunken); font-family: var(--font-mono); font-size: 12px; color: var(--color-ink); }
+.settings-field .field-input::placeholder { color: rgb(var(--rgb-ink-soft) / .8); }
+.settings-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 14px; color: var(--color-ink); }
+.settings-inline > span { color: var(--color-ink-soft); }
+.settings-field .settings-number { width: 76px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* A thing with a state and one way to change it: booking page, the export. */
+.settings-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding: 16px 18px; border: 1px solid var(--color-line); border-radius: var(--radius); background: var(--color-surface); }
+.settings-row > .min-w-0 { flex: 1 1 260px; }
+.settings-row .settings-hint { margin-top: 3px; }
+.settings-status { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 8px; border: 1px solid var(--color-line); border-radius: 999px; background: var(--color-sunken); font-size: 12px; font-weight: 500; line-height: 1.5; white-space: nowrap; color: var(--color-ink-soft); }
+.settings-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--rgb-ink-soft) / .55); }
+.settings-status.is-on { border-color: rgb(var(--rgb-accent) / .25); background: var(--color-accent-soft); color: var(--color-accent-hard); }
+.settings-status.is-on::before { background: var(--color-accent); }
+
+.settings-save { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 4px 0 36px calc(16rem + 56px); }
+.settings-save .settings-hint { flex: 1 1 260px; max-width: 46ch; }
+.settings-form > [data-form-message] { margin: -20px 0 36px calc(16rem + 56px); max-width: 520px; }
+.settings-form > [data-form-message="notice"] { border-color: var(--color-line); background: var(--color-surface); }
+
+/* Your data: two choices, and the tables only once they are asked for. */
+.export-panel { display: grid; gap: 12px; }
+.export-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.export-choice { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 76px; padding: 16px 18px; border: 1px solid var(--color-line); border-radius: var(--radius); background: var(--color-surface); text-align: left; color: var(--color-ink); text-decoration: none; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.export-choice > svg { flex-shrink: 0; color: var(--color-ink-soft); transition: color .15s, transform .2s cubic-bezier(.16, 1, .3, 1); }
+.export-choice:hover { border-color: rgb(var(--rgb-ink) / .3); box-shadow: 0 2px 8px rgb(var(--rgb-ink) / .05); }
+.export-choice:hover > svg { color: var(--color-ink); }
+.export-choice[aria-expanded="true"] { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgb(var(--rgb-accent) / .08); }
+.export-choice[aria-expanded="true"] > svg { color: var(--color-accent); transform: rotate(180deg); }
+.export-choice-title { display: block; font-size: 15px; font-weight: 550; letter-spacing: -.01em; }
+.export-choice-text { display: block; margin-top: 3px; font-size: 13px; line-height: 1.5; color: var(--color-ink-soft); }
+.export-tables { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--color-line); border-radius: var(--radius); background: var(--color-surface); animation: suggest-in .2s cubic-bezier(.16, 1, .3, 1); }
+.export-tables-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* A plain checklist: no box per option, only a hover tint the width of the row. */
+.export-table-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 0 24px; margin: 0 -8px; }
+.export-table { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 8px; border-radius: 6px; font-size: 14px; color: var(--color-ink); cursor: pointer; transition: background-color .15s; }
+.export-table:hover { background: var(--color-sunken); }
+.export-table:has(input:checked) { font-weight: 500; }
+.export-table input { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--color-accent); cursor: pointer; }
+.export-tables-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-top: 14px; border-top: 1px solid var(--color-line); }
+
+/* Connections: one list, one row per connection, hairlines between. */
+.settings-integrations { border: 1px solid var(--color-line); border-radius: var(--radius); background: var(--color-surface); }
+.settings-integrations > * + * { border-top: 1px solid var(--color-line); }
+.settings-integration { display: grid; gap: 18px; padding: 20px; }
+.settings-integration-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 16px; }
+.settings-integration-head > .flex-1 { flex: 1 1 260px; }
+.settings-integration-head .settings-hint { margin-top: 3px; max-width: 60ch; }
+.settings-integration-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.settings-integration-note { padding-left: 56px; }
+.settings-integration-foot { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--color-line); }
+.settings-app-icon { display: grid; flex-shrink: 0; place-items: center; width: 40px; height: 40px; border: 1px solid var(--color-line); border-radius: var(--radius); background: var(--color-surface); }
+.settings-app-icon img { width: 24px; height: auto; }
+
+.settings-steps { display: grid; gap: 22px; padding-left: 56px; counter-reset: settings-step; }
+.settings-steps > li { position: relative; display: grid; gap: 10px; counter-increment: settings-step; }
+.settings-steps > li::before { content: counter(settings-step); position: absolute; top: -1px; left: -38px; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--color-line); border-radius: 50%; background: var(--color-sunken); font-family: var(--font-mono); font-size: 11px; color: var(--color-ink-soft); }
+.settings-step-title { font-size: 14px; font-weight: 550; color: var(--color-ink); }
+.settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.settings-key { display: grid; gap: 8px; max-width: 560px; }
+.settings-key-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.settings-key-row .field-input { flex: 1 1 260px; width: auto; }
+.settings-link { font-size: 14px; font-weight: 500; color: var(--color-accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.settings-link:hover { color: var(--color-accent-hard); }
+.settings-link-button { justify-self: start; min-height: 32px; padding: 0; border: 0; background: none; font-size: 14px; font-weight: 500; color: var(--color-ink-soft); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; cursor: pointer; }
+.settings-link-button:hover:not(:disabled) { color: var(--color-ink); }
+.settings-link-button.is-danger { color: var(--color-danger); }
+.settings-link-button.is-danger:hover:not(:disabled) { color: rgb(136 19 55); }
+.settings-link-button:disabled { cursor: not-allowed; opacity: .55; }
+
+@media (max-width: 860px) {
+  .settings-section { grid-template-columns: minmax(0, 1fr); padding: 28px 0; }
+  .settings-section-text { max-width: 60ch; }
+  .settings-save { padding-left: 0; padding-bottom: 28px; }
+  .settings-form > [data-form-message] { margin-left: 0; margin-top: -12px; }
+}
+@media (max-width: 560px) {
+  .settings-integration { padding: 16px; }
+  .settings-steps { padding-left: 34px; }
+  .settings-steps > li::before { left: -34px; }
+  .settings-integration-note { padding-left: 0; }
+  .settings-integration-head > .btn-secondary, .settings-integration-actions { margin-left: 56px; }
+  .settings-row { padding: 14px 16px; }
+  .settings-row > .btn-secondary, .settings-save .btn-primary, .export-tables-foot .btn-primary { width: 100%; }
+  .export-choices { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .export-table-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+  .export-tables { padding: 14px; }
+}
 
 /* Screening: four facts to check, each next to the line it came from. */
 .screening-form { display: grid; gap: 20px; }

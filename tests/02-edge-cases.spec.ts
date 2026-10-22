@@ -298,7 +298,7 @@ test("E11 outreach history shows a count and reveals the older messages", async 
 test("E12 your name from Settings fills a sign-off placeholder", async ({ page }) => {
   await page.goto("/settings");
   await page.getByLabel(/Your name/).fill("Alex Recruiter");
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("[data-form-message='notice']")).toContainText("Settings saved");
 
   await page.goto("/templates/new");
@@ -327,7 +327,7 @@ test("E12 your name from Settings fills a sign-off placeholder", async ({ page }
   // An empty name behaves like any other unfilled gap.
   await page.goto("/settings");
   await page.getByLabel(/Your name/).fill("");
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("[data-form-message='notice']")).toContainText("Settings saved");
   await page.goto(`/candidates/${cara!.id}/outreach?template=${(await db.messageTemplate.findFirst({ where: { name: "Sign-off" } }))!.id}`);
   await expect(page.getByText("[MISSING: recruiter_name]")).toBeVisible();

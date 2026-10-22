@@ -48,14 +48,43 @@ test("X2 CSV export is per table and cannot smuggle a formula into a spreadsheet
   expect(text).toContain("Saoirse Pemberton-Ade");
   expect(text).toContain("\"'=HYPERLINK(\"\"x\"\") Lead\"");
   expect((await request.get(`${BASE}/api/export?format=csv&table=sessions`)).status()).toBe(400);
+  expect((await request.get(`${BASE}/api/export?format=csv&table=people&table=sessions`)).status()).toBe(400);
+  expect((await request.get(`${BASE}/api/export?format=csv`)).status()).toBe(400);
   expect((await request.get(`${BASE}/api/export?format=xml`)).status()).toBe(400);
+});
+
+test("X2b several tables ticked together come as one ZIP of CSVs, a repeated table once", async ({ request }) => {
+  const response = await request.get(`${BASE}/api/export?format=csv&table=people&table=roles&table=people`);
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toBe("application/zip");
+  expect(response.headers()["content-disposition"]).toMatch(/attachment; filename="capture-tables-\d{4}-\d{2}-\d{2}\.zip"/);
+  const zip = await response.body();
+  expect(zip.subarray(0, 4).toString("hex")).toBe("504b0304");
+  const text = zip.toString("utf8");
+  expect(text.match(/capture-people-\d{4}-\d{2}-\d{2}\.csv/g)).toHaveLength(2); // local header and directory
+  expect(text).toMatch(/capture-roles-\d{4}-\d{2}-\d{2}\.csv/);
+  expect(text).toContain("Saoirse Pemberton-Ade");
+  expect(text).toContain("Export Test Role");
+  expect(text).not.toContain("Not Yours Whitcombe");
 });
 
 test("X3 the export is offered in Settings and refused to a signed-out browser", async ({ page, browser }) => {
   await page.goto("/settings");
   const section = page.getByRole("region", { name: "Your data" });
-  await expect(section.getByRole("link", { name: "Download everything (JSON)" })).toHaveAttribute("href", "/api/export?format=json");
-  await expect(section.getByRole("link", { name: "People" })).toHaveAttribute("href", "/api/export?format=csv&table=people");
+  await expect(section.getByRole("link", { name: /Export everything/ })).toHaveAttribute("href", "/api/export?format=json");
+  // Tables are chosen only after asking for them, and the download waits for one.
+  await expect(section.getByRole("checkbox")).toHaveCount(0);
+  await section.getByRole("button", { name: /Export tables/ }).click();
+  const download = section.getByRole("button", { name: /^Download/ });
+  await expect(download).toBeDisabled();
+  await section.getByRole("checkbox", { name: "People" }).check();
+  await expect(download).toHaveText(/Download 1 table/);
+  const [file] = await Promise.all([page.waitForEvent("download"), download.click()]);
+  expect(file.suggestedFilename()).toMatch(/^capture-people-.*\.csv$/);
+  await section.getByRole("button", { name: "Select all" }).click();
+  await expect(download).toHaveText(/Download 12 tables/);
+  const [bundle] = await Promise.all([page.waitForEvent("download"), download.click()]);
+  expect(bundle.suggestedFilename()).toMatch(/^capture-tables-.*\.zip$/);
   const anonymous = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   const response = await anonymous.request.get(`${BASE}/api/export?format=json`);
   expect(response.status()).toBe(401);
@@ -72,7 +101,7 @@ test("X4 a read-only Admin view of another workspace cannot export it", async ({
     expect(await response.text()).not.toContain("Not Yours Whitcombe");
     await page.goto("/settings");
     await expect(page.getByText("Exports are only available from your own workspace.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Download everything (JSON)" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Export everything/ })).toHaveCount(0);
     // People pages and erasure follow the same rule.
     const foreign = await db.person.findFirstOrThrow({ where: { userId: other.id } });
     await page.goto(`/people/${foreign.id}`);

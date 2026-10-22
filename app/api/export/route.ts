@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { canUseFeature } from "@/lib/features";
 import { buildExport, isExportTable, toCsv } from "@/lib/export";
+import { zipTextFiles } from "@/lib/zip.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,14 +37,25 @@ export async function GET(request: Request) {
     });
   }
   if (format === "csv") {
-    const table = url.searchParams.get("table") ?? "";
-    if (!isExportTable(table)) return NextResponse.json({ error: "Choose a table to export." }, { status: 400, headers });
+    // One table is one CSV; several, ticked together in Settings, are one ZIP.
+    const tables = Array.from(new Set(url.searchParams.getAll("table")));
+    if (tables.length === 0 || !tables.every(isExportTable)) return NextResponse.json({ error: "Choose a table to export." }, { status: 400, headers });
     // The byte order mark makes Excel read the file as UTF-8.
-    return new Response(`﻿${toCsv(data[table])}`, {
+    const files = tables.map((table) => ({ name: `capture-${table}-${date}.csv`, text: `﻿${toCsv(data[table])}` }));
+    if (files.length === 1) {
+      return new Response(files[0].text, {
+        headers: {
+          ...headers,
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${files[0].name}"`,
+        },
+      });
+    }
+    return new Response(zipTextFiles(files), {
       headers: {
         ...headers,
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="capture-${table}-${date}.csv"`,
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="capture-tables-${date}.zip"`,
       },
     });
   }

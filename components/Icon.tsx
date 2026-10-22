@@ -5,6 +5,7 @@ const paths = {
   back: "M19 12H5m6-6-6 6 6 6",
   external: "M7 17 17 7M7 7h10v10",
   down: "m6 9 6 6 6-6",
+  download: "M12 4v11m-5-5 5 5 5-5M5 20h14",
   plus: "M12 5v14M5 12h14",
   roles: "M8 7V5h8v2M4 8h16v12H4zM4 12c5 3 11 3 16 0M10 13h4",
   people: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",

@@ -4,20 +4,24 @@ import { useFormState } from "react-dom";
 import { EMPTY_FORM_STATE, type FormState } from "@/lib/formState";
 
 // A form whose server action can talk back. Any action that validates its
-// input returns a FormState, and whatever it says is shown above the fields.
+// input returns a FormState, and whatever it says is shown above the fields,
+// or below them when the button that sent it sits at the end of a long form.
 export function ActionForm({
   action,
   children,
   className,
+  messagesAtEnd = false,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   children: React.ReactNode;
   className?: string;
+  messagesAtEnd?: boolean;
 }) {
   const [state, formAction] = useFormState(action, EMPTY_FORM_STATE);
 
   return (
     <form action={formAction} className={className}>
+      {messagesAtEnd && children}
       {state.error && (
         <p
           role="alert"
@@ -36,7 +40,7 @@ export function ActionForm({
           {state.notice}
         </p>
       )}
-      {children}
+      {!messagesAtEnd && children}
     </form>
   );
 }

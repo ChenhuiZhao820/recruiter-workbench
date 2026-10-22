@@ -16,11 +16,25 @@ function Submit({ children }: { children: React.ReactNode }) {
   return <button type="submit" className="btn-primary" disabled={pending}>{pending ? "Please wait…" : children}</button>;
 }
 
-function Status({ state }: { state: FormState }) {
+// `quiet` keeps a notice neutral where the page's blue already means "press this".
+function Status({ state, quiet = false }: { state: FormState; quiet?: boolean }) {
   return <>
     {state.error && <p role="alert" className="rounded border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900">{state.error}</p>}
-    {state.notice && <p role="status" className="rounded border border-accent/30 bg-accent-soft p-3 text-sm">{state.notice}</p>}
+    {state.notice && <p role="status" className={quiet ? "rounded border border-line bg-surface p-3 text-sm" : "rounded border border-accent/30 bg-accent-soft p-3 text-sm"}>{state.notice}</p>}
   </>;
+}
+
+// A password field with its own eye, as on the sign-in page.
+function PasswordInput({ id, name, label, autoComplete, hint, newPassword = false }: { id: string; name: string; label: string; autoComplete: string; hint?: string; newPassword?: boolean }) {
+  const [shown, setShown] = useState(false);
+  return <div className="settings-field">
+    <label htmlFor={id} className="settings-label">{label}</label>
+    <div className="password-field">
+      <input id={id} name={name} type={shown ? "text" : "password"} autoComplete={autoComplete} minLength={newPassword ? 12 : undefined} maxLength={128} required className="field-input" aria-describedby={hint ? `${id}-hint` : undefined} />
+      <button type="button" aria-label={shown ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} aria-pressed={shown} aria-controls={id} onClick={() => setShown(!shown)}><Icon name="eye" size={18} /></button>
+    </div>
+    {hint && <p id={`${id}-hint`} className="settings-hint">{hint}</p>}
+  </div>;
 }
 
 function NewPasswordFields() {
@@ -72,12 +86,15 @@ function ActivationPasswordForm({ token }: { token: string }) {
 
 export function PasswordForm() {
   const [state, action] = useFormState(changePassword, {});
-  return <form action={action} className="card space-y-4">
-    <Status state={state} />
-    <div><label htmlFor="currentPassword" className="field-label">Current password</label><input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" maxLength={128} required className="field-input" /></div>
-    <NewPasswordFields />
-    <p className="text-sm text-ink-soft">Changing your password signs out all sessions and revokes your extension key.</p>
-    <Submit>Change password</Submit>
+  return <form action={action} className="settings-section-body account-password">
+    <PasswordInput id="currentPassword" name="currentPassword" label="Current password" autoComplete="current-password" />
+    <PasswordInput id="password" name="password" label="New password" autoComplete="new-password" hint="Use 12–128 characters. A long, unique passphrase is a good choice." newPassword />
+    <PasswordInput id="confirmation" name="confirmation" label="Confirm new password" autoComplete="new-password" newPassword />
+    <div className="settings-save account-save">
+      <Submit>Change password</Submit>
+      <p className="settings-hint">This signs you out everywhere and switches off your extension key; you generate a new one in Settings.</p>
+    </div>
+    <Status state={state} quiet />
   </form>;
 }
 
@@ -122,21 +139,25 @@ export function AccountManagementForm({ action, children, submitLabel }: {
   </form>;
 }
 
-export function DeleteAccountForm({ userId, email, action }: { userId: string; email: string; action: (state: FormState, form: FormData) => Promise<FormState> }) {
+// Folded away on an administrator's account page; laid open in a recruiter's
+// own danger section, where the typed email is the guard.
+export function DeleteAccountForm({ userId, email, action, open = false }: { userId: string; email: string; action: (state: FormState, form: FormData) => Promise<FormState>; open?: boolean }) {
   const [state, formAction] = useFormState(action, {});
+  const form = <form action={formAction} className={open ? "settings-section-body" : "mt-3 max-w-xl space-y-3"}>
+    <Status state={state} quiet={open} />
+    <p className={open ? "settings-hint" : "text-sm text-ink-soft"}>This permanently deletes the account and all of its roles, candidates, people, notes, searches, templates, bookings and settings. It cannot be undone. A paid subscription is cancelled with it. The audit history is kept.</p>
+    <input type="hidden" name="userId" value={userId} />
+    <div className={open ? "settings-field" : undefined}><label htmlFor={`confirm-delete-${userId}`} className={open ? "settings-label" : "field-label"}>Type {email} to confirm</label><input id={`confirm-delete-${userId}`} name="confirmEmail" autoComplete="off" required className="field-input" /></div>
+    <div><DeleteSubmit open={open} /></div>
+  </form>;
+  if (open) return form;
   return <details className="border-t border-line pt-4">
     <summary className="cursor-pointer text-sm text-rose-900">Delete account</summary>
-    <form action={formAction} className="mt-3 max-w-xl space-y-3">
-      <Status state={state} />
-      <p className="text-sm text-ink-soft">This permanently deletes the account and all of its roles, candidates, people, notes, searches, templates, bookings and settings. It cannot be undone. A paid subscription is cancelled with it. The audit history is kept.</p>
-      <input type="hidden" name="userId" value={userId} />
-      <div><label htmlFor={`confirm-delete-${userId}`} className="field-label">Type {email} to confirm</label><input id={`confirm-delete-${userId}`} name="confirmEmail" autoComplete="off" required className="field-input" /></div>
-      <DeleteSubmit />
-    </form>
+    {form}
   </details>;
 }
 
-function DeleteSubmit() {
+function DeleteSubmit({ open }: { open: boolean }) {
   const { pending } = useFormStatus();
-  return <button type="submit" className="btn-secondary border-rose-300 text-rose-900" disabled={pending}>{pending ? "Deleting…" : "Delete account permanently"}</button>;
+  return <button type="submit" className={open ? "btn-destructive" : "btn-secondary border-rose-300 text-rose-900"} disabled={pending}>{pending ? "Deleting…" : "Delete account permanently"}</button>;
 }

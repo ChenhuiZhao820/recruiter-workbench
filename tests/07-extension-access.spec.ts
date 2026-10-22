@@ -200,7 +200,10 @@ test("E2 a plan alone opens the extension: downloads are reusable, keys are sepa
   const foreign = await extensions.create();
   const role = await db.role.create({ data: { userId: actor.id, title: "Authorized private role" } });
   const otherRole = await db.role.create({ data: { userId: foreign.id, title: "Foreign private role" } });
+  // Your account points to Settings, where the download, the key and switching off live together.
   await actor.page.goto("/account");
+  await expect(actor.page.getByRole("region", { name: "Browser extension", exact: true }).getByRole("link", { name: "Open Settings", exact: true })).toHaveAttribute("href", "/settings#connections-heading");
+  await actor.page.goto("/settings");
   const section = actor.page.getByRole("region", { name: "Browser extension", exact: true });
   const link = section.getByRole("link", { name: "Download extension ZIP", exact: true });
   await expect(link).toHaveAttribute("href", DOWNLOAD);

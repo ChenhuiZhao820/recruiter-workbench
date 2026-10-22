@@ -413,8 +413,8 @@ test("A8 independent settings and one-time hashed keys scope capture GET and POS
   await alice.page.goto("/settings");
   await alice.page.getByLabel(/Your name/).fill("Alice only");
   await alice.page.getByLabel(/Calendar link/).fill("https://calendar.example.invalid/alice");
-  await alice.page.getByLabel("Chase a booking after (days)").fill("3");
-  await alice.page.getByRole("button", { name: "Save settings" }).click();
+  await alice.page.getByLabel("Chase a booking after").fill("3");
+  await alice.page.getByRole("button", { name: "Save changes" }).click();
   await expect(alice.page.locator('[data-form-message="notice"]')).toContainText("Settings saved");
   expect(await db.settings.findUnique({ where: { userId: bob.id } })).toEqual(bobSettings);
   await bob.page.goto("/settings");
@@ -454,8 +454,9 @@ test("A8 independent settings and one-time hashed keys scope capture GET and POS
   expect(rotated).not.toBe(aliceKey);
   await expectCaptureDenied(guest, aliceKey, a.role.id);
   expect((await guest.request.get("/api/capture", { headers: { "X-Capture-Token": bobKey } })).status()).toBe(200);
-  await alice.page.getByRole("button", { name: "Switch capture off" }).click();
-  await expect(alice.page.locator('[data-form-message="notice"]')).toContainText("Saving from the extension is switched off");
+  await alice.page.getByRole("button", { name: "Switch off extension" }).click();
+  await alice.page.getByRole("button", { name: "Yes, switch it off" }).click();
+  await expect(alice.page.locator('[data-form-message="notice"]')).toContainText("Extension switched off.");
   await expectCaptureDenied(guest, rotated, a.role.id);
 });
 
@@ -504,7 +505,7 @@ test("A9 admin view is not impersonation and blocks disabled UI and crafted work
     { url: `/searches/${target.search.id}/edit`, button: "Save search", selector: 'form:has(input[name="name"])', changes: { name: "Read-only injection" } },
     { url: "/templates/new", button: "Create template", selector: 'form:has(input[id="new-tname"])', changes: { name: "Read-only injection", body: "Must not save", kind: "message" } },
     { url: `/candidates/${target.candidate.id}/outreach`, button: "Mark as sent", selector: 'form:has(input[name="candidateId"])', changes: { renderedBody: "Read-only injection" } },
-    { url: "/settings", button: "Save settings", selector: 'form:has(input[name="recruiterName"])', changes: { recruiterName: "Read-only injection" } },
+    { url: "/settings", button: "Save changes", selector: 'form:has(input[name="recruiterName"])', changes: { recruiterName: "Read-only injection" } },
     { url: "/roles/new", button: "Create role", selector: 'form:has(input[name="title"])', changes: { title: "Read-only injection" } },
   ];
   for (const entry of cases) {
@@ -665,7 +666,7 @@ test("A14 expired and auth-version-stale session cookies cannot restore a worksp
   for (const failure of ["expired", "version"] as const) {
     const actor = await accounts.create();
     await actor.page.goto("/settings");
-    await expect(actor.page.getByRole("button", { name: "Save settings" })).toBeEnabled();
+    await expect(actor.page.getByRole("button", { name: "Save changes" })).toBeEnabled();
     if (failure === "expired") await db.session.update({ where: { tokenHash: hashToken(actor.token) }, data: { expiresAt: new Date(Date.now() - 1000) } });
     else await db.user.update({ where: { id: actor.id }, data: { authVersion: { increment: 1 } } });
     await actor.page.goto("/settings");

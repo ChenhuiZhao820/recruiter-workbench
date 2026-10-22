@@ -130,7 +130,7 @@ test("O3: the guide tracks each step as it is completed", async ({ setup }) => {
   // Outreach details.
   await page.goto("/settings");
   await page.getByLabel(/Your name/).fill("Robin Fielder");
-  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("status").first()).toContainText("Settings saved");
   await page.goto(GUIDE);
   await expect(progress(page)).toContainText("3 of 5 done");

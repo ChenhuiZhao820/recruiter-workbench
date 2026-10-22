@@ -205,17 +205,17 @@ test("N5 forged replies, read-only views, Lite accounts and odd ids get nothing;
     await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
     expect((await page.request.get(`${BASE}/api/notion/pages?q=`)).status()).toBe(403);
     await page.goto("/settings");
-    await expect(page.getByRole("heading", { name: /Connected apps/ })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Notion", exact: true })).toHaveCount(0);
   } finally {
     await db.session.update({ where: { tokenHash: hashToken(session) }, data: { viewUserId: null } });
   }
 
   await page.goto("/settings");
-  const apps = page.getByRole("region", { name: /Connected apps/ });
+  const apps = page.getByRole("region", { name: "Notion", exact: true });
   await expect(apps.getByText("Connected to Morven's Notion on")).toBeVisible();
   await expect(apps.locator(".notion-logo svg").first()).toBeVisible();
   await apps.getByRole("button", { name: "Disconnect" }).click();
-  await expect(apps.getByText("Not connected.")).toBeVisible();
+  await expect(apps.getByText("Not connected", { exact: true })).toBeVisible();
   expect(await db.integrationConnection.count({ where: { userId: TEST_ADMIN_ID } })).toBe(0);
   expect(await db.auditEvent.count({ where: { actorId: TEST_ADMIN_ID, action: "notion.disconnected" } })).toBe(1);
 });

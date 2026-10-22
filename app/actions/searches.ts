@@ -111,17 +111,40 @@ export async function duplicateSearch(formData: FormData) {
   revalidateSearches(original.roleId);
 }
 
-export async function renameSearch(_prev: FormState, formData: FormData): Promise<FormState> {
+// A group is only the label its searches share, so it is renamed or deleted by
+// relabelling this account's searches that carry it. Labels are compared as
+// the page groups them, trimmed.
+async function searchesInGroup(userId: string, label: string) {
+  const candidates = await db.savedSearch.findMany({
+    where: { ...ownedSearch(userId), groupLabel: { not: null } },
+    select: { id: true, groupLabel: true },
+  });
+  return candidates.filter((s) => s.groupLabel?.trim() === label);
+}
+
+export async function renameSearchGroup(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await requireWritableWorkspace();
-  const id = String(formData.get("id") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
-  if (!id) return { error: "That search could not be found." };
-  if (!name) return { error: "Enter a new name. The search was not renamed." };
-  const original = await db.savedSearch.findUnique({ where: { id, ...ownedSearch(user.id) } });
-  if (!original) return { error: "That search could not be found." };
-  const search = await db.savedSearch.update({ where: { id, ...ownedSearch(user.id) }, data: { name } });
-  revalidateSearches(search.roleId);
-  return { notice: `Renamed to "${name}".` };
+  const from = String(formData.get("group") ?? "").trim();
+  const to = String(formData.get("name") ?? "").trim();
+  if (!from) return { error: "That group could not be found." };
+  if (!to) return { error: "Give the group a name. Nothing was renamed." };
+  if (to === from) return { notice: "Nothing to change." };
+  const searches = await searchesInGroup(user.id, from);
+  if (searches.length === 0) return { error: "That group could not be found." };
+  await db.savedSearch.updateMany({ where: { id: { in: searches.map((s) => s.id) }, userId: user.id }, data: { groupLabel: to } });
+  revalidatePath("/searches");
+  return { notice: `Renamed to "${to}".` };
+}
+
+// Deleting a group keeps its searches: they move to Ungrouped.
+export async function deleteSearchGroup(formData: FormData) {
+  const user = await requireWritableWorkspace();
+  const label = String(formData.get("group") ?? "").trim();
+  if (!label) return;
+  const searches = await searchesInGroup(user.id, label);
+  if (searches.length === 0) return;
+  await db.savedSearch.updateMany({ where: { id: { in: searches.map((s) => s.id) }, userId: user.id }, data: { groupLabel: null } });
+  revalidatePath("/searches");
 }
 
 export async function deleteSearch(formData: FormData) {

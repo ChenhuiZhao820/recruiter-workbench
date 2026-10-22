@@ -461,6 +461,16 @@ a.metric-card:hover > div > svg { color: var(--color-accent); }
 .settings-link-button.is-danger:hover:not(:disabled) { color: rgb(136 19 55); }
 .settings-link-button:disabled { cursor: not-allowed; opacity: .55; }
 
+/* Your account uses the same sections as Settings. */
+.settings-section.account-first { padding-top: 8px; border-top: 0; }
+.account-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 24px; font-size: 14px; line-height: 1.55; }
+.account-facts dt { color: var(--color-ink-soft); }
+.account-facts dd { min-width: 0; color: var(--color-ink); }
+.account-password .settings-save.account-save { padding: 4px 0 0; }
+.account-password > [role="alert"], .account-password > [role="status"] { max-width: 520px; }
+.account-danger .settings-section-title { color: var(--color-danger); }
+.account-danger .settings-section-body > div:last-child { justify-self: start; }
+
 @media (max-width: 860px) {
   .settings-section { grid-template-columns: minmax(0, 1fr); padding: 28px 0; }
   .settings-section-text { max-width: 60ch; }

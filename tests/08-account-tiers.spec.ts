@@ -236,7 +236,7 @@ for (const tier of ["basic", "pro", "trial"] as const) {
     await page.goto("/account");
     await expectAccountType(page, label);
     expect((await page.request.get("/api/extension/download")).status()).toBe(200);
-    await expect(page.getByRole("region", { name: "Browser extension", exact: true }).getByRole("link", { name: "Download extension ZIP", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Browser extension", exact: true }).getByRole("link", { name: "Open Settings", exact: true })).toBeVisible();
   });
 }
 
@@ -266,7 +266,7 @@ test("T3 upgrades and downgrades update existing sessions without changing role,
     expect(await db.session.findUnique({ where: { tokenHash: hashToken(actor.token) } })).toEqual(session);
     expect(await db.extensionAccess.findUnique({ where: { userId: actor.id } })).toEqual(access);
     expect(await db.settings.findUnique({ where: { userId: actor.id } })).toEqual(settings);
-    await expect(actor.page.getByRole("region", { name: "Browser extension", exact: true }).getByRole("link", { name: "Download extension ZIP", exact: true })).toBeVisible();
+    await expect(actor.page.getByRole("region", { name: "Browser extension", exact: true }).getByRole("link", { name: "Open Settings", exact: true })).toBeVisible();
     expect(await db.auditEvent.count({ where: { actorId: admin.id, targetUserId: actor.id, action: `account_tier_changed_to_${tier}` } })).toBe(1);
   }
   expect((await tierEvents(admin.id)).map((event) => event.action)).toEqual(["account_tier_changed_to_pro", "account_tier_changed_to_trial", "account_tier_changed_to_basic"]);

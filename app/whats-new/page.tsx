@@ -39,6 +39,7 @@ export default async function WhatsNewPage() {
             width={316}
             height={589}
             className="w-full max-w-[260px] flex-none rounded border border-line"
+            unoptimized
           />
           <div className="min-w-0 space-y-3 text-ink/80">
             <p>
@@ -58,6 +59,7 @@ export default async function WhatsNewPage() {
                 width={314}
                 height={77}
                 className="w-full max-w-[314px] rounded border border-line"
+                unoptimized
               />
             </>}
           </div>

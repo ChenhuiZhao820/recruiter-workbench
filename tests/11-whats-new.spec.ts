@@ -76,10 +76,12 @@ test("R1 signing in with an unread release lands where it always did, and readin
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/What.s new/);
   await expect(page.getByRole("heading", { name: "Their company, next to their name" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Download the new extension/ })).toBeVisible();
+  // Served straight from public/: the image optimizer fetches through the
+  // canonical-host redirect in production and gets no image back.
   // A Basic account is not told about the email finder its plan does not have,
   // and its picture has no Find email in it.
   const picture = page.getByRole("img", { name: /Company name filled in/ });
-  await expect(picture).toHaveAttribute("src", /extension-company-plain/);
+  await expect(picture).toHaveAttribute("src", "/whats-new/extension-company-plain.png");
   expect(await picture.evaluate((image: HTMLImageElement) => image.decode().then(() => image.naturalWidth))).toBeGreaterThan(0);
   await expect(page.getByText(/Find email/)).toHaveCount(0);
   await expect(page.getByRole("img", { name: /Find email by/ })).toHaveCount(0);
@@ -111,7 +113,7 @@ test("R1b a Pro account is told how Find email uses the company and where to swi
       const picture = page.getByRole("img", { name });
       expect(await picture.evaluate((image: HTMLImageElement) => image.decode().then(() => image.naturalWidth))).toBeGreaterThan(0);
     }
-    await expect(page.getByRole("img", { name: /Company name filled in/ })).toHaveAttribute("src", /extension-company\.png/);
+    await expect(page.getByRole("img", { name: /Company name filled in/ })).toHaveAttribute("src", "/whats-new/extension-company.png");
   } finally {
     await cleanUp(user.id);
   }

@@ -1453,3 +1453,12 @@ span.hover-tip { display: inline-flex; }
 .hover-tip::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; z-index: 40; width: max-content; max-width: 240px; padding: 5px 8px; border-radius: 5px; background: var(--color-ink); font-size: 12px; font-weight: 450; line-height: 1.4; color: white; white-space: normal; text-align: left; opacity: 0; pointer-events: none; transform: translate(-50%, 2px); transition: opacity .12s, transform .12s; }
 .hover-tip:hover::after, .hover-tip:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
 .hover-tip > button:disabled { pointer-events: none; }
+
+/* Add a candidate with a small menu beside it, as one joined button. */
+.split-button { position: relative; display: inline-flex; }
+.split-button-main { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-button-more { min-width: 40px; padding-left: 10px; padding-right: 10px; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid rgb(255 255 255 / .3); }
+.split-button-menu { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; min-width: 220px; padding: 4px; border: 1px solid var(--color-line); border-radius: var(--radius); background: var(--color-surface); box-shadow: 0 12px 32px rgb(var(--rgb-ink) / .14); }
+.split-button-menu button { display: flex; width: 100%; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 6px; font-size: 14px; text-align: left; color: var(--color-ink); }
+.split-button-menu button:hover, .split-button-menu button:focus-visible { background: var(--color-sunken); outline: none; }
+.split-button-menu svg { color: var(--color-ink-soft); }

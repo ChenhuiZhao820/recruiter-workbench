@@ -39,6 +39,7 @@ import { roleTabFrom } from "@/lib/role-tabs";
 import { CandidateList, type CandidateListRow } from "@/components/CandidateList";
 import { PopoverDetails } from "@/components/PopoverDetails";
 import { AddCandidateToolbar } from "@/components/AddCandidateToolbar";
+import { ImportCandidatesForm } from "@/components/ImportCandidatesForm";
 
 export const dynamic = "force-dynamic";
 
@@ -304,7 +305,7 @@ export default async function RolePage({ params, searchParams }: { params: { id:
         {/* Rendered for a read-only view too, disabled by the fieldset around
             the page: what cannot be done is visible as refused, rather than
             quietly absent. */}
-        <AddCandidateToolbar readOnly={readOnly} form={
+        <AddCandidateToolbar readOnly={readOnly} importForm={<ImportCandidatesForm roleId={role.id} />} form={
               <div className="card">
                 <ActionForm action={addCandidate} className="space-y-3">
                   <input type="hidden" name="roleId" value={role.id} />

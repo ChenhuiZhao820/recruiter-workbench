@@ -45,7 +45,7 @@ test("ZIP has standard headers, correct CRC-32 test vector and a fixed safe file
   const files = Object.fromEntries(names.map((name) => [name, "123456789"]));
   const zip = extensionZip({ ...files, "../../.env": "DO-NOT-PACK", "user-key.txt": "DO-NOT-PACK" });
   const decoded = unpack(zip);
-  assert.deepEqual(Object.keys(decoded), names.map((name) => `capture-extension/${name}`));
+  assert.deepEqual(Object.keys(decoded), names.map((name) => `retrivr-extension/${name}`));
   for (const entry of Object.values(decoded)) assert.deepEqual(entry, { text: "123456789", crc: 0xcbf43926 });
   assert.equal(zip.includes(Buffer.from("DO-NOT-PACK")), false);
   assert.deepEqual(zip, extensionZip(files));
@@ -55,7 +55,7 @@ test("download bundle shares exact hosted origin restrictions and preserves sour
   const before = JSON.stringify(source);
   const files = extensionFiles({ ...source, ".env": "DO-NOT-PACK" }, "https://capture.example.test");
   const decoded = unpack(extensionZip(files));
-  for (const name of names) assert.equal(decoded[`capture-extension/${name}`].text, files[name]);
+  for (const name of names) assert.equal(decoded[`retrivr-extension/${name}`].text, files[name]);
   const manifest = JSON.parse(files["manifest.json"]);
   assert.deepEqual(manifest.permissions, ["activeTab", "scripting", "sidePanel", "storage"]);
   assert.deepEqual(manifest.side_panel, { default_path: "popup.html" });

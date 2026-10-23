@@ -375,6 +375,18 @@ test("EF11 the extension finds an email with its extension key: a kept person ge
     const nobody = await (await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: "https://www.linkedin.com/in/nobody-here/" } })).json();
     expect(await settle(nobody.id)).toMatchObject({ status: "not_found", remaining: 248 });
 
+    // A company in the panel: searched by name and company first, unless the
+    // LinkedIn link was chosen first; a single name falls back to the link.
+    const byCompany = await (await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: "https://www.linkedin.com/in/oriel-vance/", fullName: "Oriel Vance", company: "Kestrel Labs" } })).json();
+    expect(await settle(byCompany.id)).toMatchObject({ status: "found", email: "oriel.vance@kestrellabs.example" });
+    expect((await stub()).requests.at(-1)).toEqual({ fullname: "Oriel Vance", company_name: "Kestrel Labs" });
+    const linkFirst = await (await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: "https://www.linkedin.com/in/perrin-quade/", fullName: "Perrin Quade", company: "Kestrel Labs", prefer: "linkedin" } })).json();
+    await settle(linkFirst.id);
+    expect((await stub()).requests.at(-1)).toEqual({ linkedin_url: "https://www.linkedin.com/in/perrin-quade" });
+    const oneName = await (await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: "https://www.linkedin.com/in/nobody-solo/", fullName: "Solo", company: "Kestrel Labs" } })).json();
+    await settle(oneName.id);
+    expect((await stub()).requests.at(-1)).toEqual({ linkedin_url: "https://www.linkedin.com/in/nobody-solo" });
+
     // Do not contact, a page that is not a profile, another account's search, no key, Basic: refused.
     const dnc = await person(own.user.id, "Delphine Marr", { doNotContact: true });
     expect((await request.post("/api/capture/email", { headers: headers(captureKey), data: { profileUrl: dnc.profileUrl } })).status()).toBe(409);

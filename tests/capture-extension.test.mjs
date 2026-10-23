@@ -1319,6 +1319,70 @@ test("without the finder on this plan or server there is no Find email, and the 
   assert.equal(body.emailFound, false);
 });
 
+const atCompany = {
+  url: "https://www.linkedin.com/in/priya-kaur/",
+  title: "Priya Kaur | LinkedIn",
+  nodes: {
+    "main h1": "Priya Kaur",
+    "main .text-body-medium": "Finance Analyst",
+    'button[aria-label^="Current company"]': "Current company: Example Foods Ltd. Click to skip to experience card",
+  },
+};
+
+test("the company is read from the profile into its own box beside the name", async () => {
+  const p = await popup({ profile: atCompany });
+  assert.equal(p.elements.company.value, "Example Foods Ltd");
+  assert.match(html, /<div class="pair">[\s\S]*id="name"[\s\S]*id="company"[\s\S]*<\/div>\s*<\/div>/);
+  // Without the button, "at X" in the headline.
+  const q = await popup({ hash: "#panel", linkedInGranted: true, profile: { ...otherProfile, nodes: { ...otherProfile.nodes, "main .text-body-medium": "Plant Manager at Northwind | Ops" } } });
+  assert.equal(q.elements.company.value, "Northwind");
+  // A new profile with nothing to say empties it.
+  await q.navigate({ ...atCompany, nodes: { "main h1": "Priya Kaur", "main .text-body-medium": "Finance Analyst" } });
+  assert.equal(q.elements.company.value, "");
+});
+
+test("an employment type under Experience is not taken for a company", async () => {
+  const selector = 'section:has(> #experience) li .t-14.t-normal > span[aria-hidden="true"]';
+  const p = await popup({ profile: { ...atCompany, nodes: { "main h1": "Priya Kaur", [selector]: "Full-time · 3 yrs" } } });
+  assert.equal(p.elements.company.value, "");
+  const q = await popup({ profile: { ...atCompany, nodes: { "main h1": "Priya Kaur", [selector]: "Contoso · Full-time" } } });
+  assert.equal(q.elements.company.value, "Contoso");
+});
+
+test("with a company, Find email sends the name and company and asks for them first", async () => {
+  const p = await popup({ timeout: 0, profile: atCompany, responses: [withFinder(), withFinder({ existing: null, person: null })] });
+  p.responses.push({ status: 200, body: { status: "found", email: "priya@example.test", remaining: 248 } });
+  await p.click("find-email");
+  assert.deepEqual(JSON.parse(p.requests.at(-1).body), {
+    profileUrl: "https://www.linkedin.com/in/priya-kaur/", fullName: "Priya Kaur", company: "Example Foods Ltd", prefer: "company",
+  });
+  // A company typed by the recruiter is the one sent.
+  const q = await popup({ timeout: 0, responses: [withFinder(), withFinder({ existing: null, person: null })] });
+  await q.edit("company", "  Typed Co ");
+  q.responses.push({ status: 200, body: { status: "not_found", remaining: 249 } });
+  await q.click("find-email");
+  assert.equal(JSON.parse(q.requests.at(-1).body).company, "Typed Co");
+});
+
+test("Settings chooses the LinkedIn link or the company name first, remembered, without the address lecture", async () => {
+  assert.doesNotMatch(html, /Other remote addresses are not allowed/);
+  const p = await popup({ timeout: 0, profile: atCompany, responses: [withFinder(), withFinder({ existing: null, person: null })] });
+  await p.click("settings");
+  assert.equal(p.elements["email-by-company"].checked, true);
+  assert.equal(p.elements["email-by-linkedin"].checked, false);
+  await p.toggle("email-by-linkedin", true);
+  assert.equal(p.stored.emailBy, "linkedin");
+  assert.equal(p.elements["email-by-company"].checked, false);
+  await p.click("setup-back");
+  p.responses.push({ status: 200, body: { status: "not_found", remaining: 249 } });
+  await p.click("find-email");
+  assert.equal(JSON.parse(p.requests.at(-1).body).prefer, "linkedin");
+  // Remembered on the next opening.
+  const q = await popup({ stored: { ...config, emailBy: "linkedin" } });
+  await q.click("settings");
+  assert.equal(q.elements["email-by-linkedin"].checked, true);
+});
+
 test("a red warning is words alone, not a box", () => {
   const css = readFileSync(new URL("../extension/popup.css", import.meta.url), "utf8");
   assert.match(css, /\.message\.bad \{ padding: 0; border-color: transparent; background: none; color: var\(--color-bad\); \}/);

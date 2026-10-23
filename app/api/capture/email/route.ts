@@ -16,8 +16,8 @@ export const runtime = "nodejs";
 // nothing goes to LinkedIn. The rules are the workbench's own: the plan's
 // allowance, do not contact refused, only a found search spending. Someone
 // this account already keeps is searched as that person, and the found email
-// goes on their record; anyone else is searched by address alone, and the
-// panel keeps what was found for the save.
+// goes on their record; anyone else is searched with no person, and the panel
+// keeps what was found for the save.
 export async function OPTIONS(request: Request) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(request.headers.get("origin")) });
 }
@@ -30,10 +30,17 @@ export async function POST(request: Request) {
   if (!canUseFeature(account, "emailFinder")) return fail(404, "Not found");
   if (!enrowKey()) return fail(503, "Email search is not set up on this server.");
 
-  const body = (await request.json().catch(() => null)) as { profileUrl?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { profileUrl?: unknown; fullName?: unknown; company?: unknown; prefer?: unknown } | null;
   const profileUrl = normalizeProfileUrl(typeof body?.profileUrl === "string" ? body.profileUrl : "");
-  const search = lookupRequest({ fullName: "", profileUrl });
-  if (!search) return fail(400, "Open a LinkedIn profile to search for its email.");
+  // A company in the panel means a name-and-company search, first unless the
+  // recruiter chose the LinkedIn link first in the panel's settings; either
+  // way the other is what is left when the first has too little to go on.
+  const fullName = typeof body?.fullName === "string" ? body.fullName.slice(0, 200) : "";
+  const company = typeof body?.company === "string" ? body.company : null;
+  const byName = company ? lookupRequest({ fullName, profileUrl: "" }, company) : null;
+  const byLink = lookupRequest({ fullName: "", profileUrl });
+  const search = body?.prefer === "linkedin" ? byLink ?? byName : byName ?? byLink;
+  if (!search) return fail(400, company ? "Add their full name to search by name and company." : "Open a LinkedIn profile to search for its email.");
 
   const canonical = canonicalProfileUrl(profileUrl);
   const person = canonical
@@ -52,8 +59,8 @@ export async function POST(request: Request) {
   }
   if (lookup.created) {
     const launched = await launchLookup(lookup.id, account.id, search);
-    // The panel has no name-and-company search to offer instead.
-    if (!launched.ok) return fail(launched.status, launched.status === 422 ? "Enrow could not search this LinkedIn address." : launched.error);
+    // Never retried on its own: the panel says what would search instead.
+    if (!launched.ok) return fail(launched.status, launched.status === 422 ? "Enrow could not search this LinkedIn address. Add the company name, or choose Company name in Settings, and search again." : launched.error);
   }
   return NextResponse.json({ id: lookup.id, status: "pending", remaining: (await emailAllowance(account)).remaining }, { headers: cors });
 }

@@ -255,6 +255,19 @@ textarea.field-input { resize: vertical; min-height: 68px; line-height: 1.55; }
 .field-head .field-label { margin: 0; }
 .finder-count { font-family: var(--font-mono); font-size: 10px; color: var(--color-ink-soft); white-space: nowrap; }
 .finder-count.empty { color: var(--color-bad); }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pair-cell { min-width: 0; }
+
+/* Two choices on one sliding track: the thumb sits under the one chosen. */
+.seg { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 2px; border: 1px solid var(--color-line); border-radius: 999px; background: var(--color-sunken); }
+.seg input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.seg label { position: relative; z-index: 1; padding: 6px 4px; text-align: center; font-size: 12px; font-weight: 500; color: var(--color-ink-soft); border-radius: 999px; cursor: pointer; user-select: none; transition: color .15s; }
+.seg input:checked + label { color: var(--color-ink); font-weight: 600; }
+.seg input:focus-visible + label { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.seg-thumb { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: 999px; background: var(--color-surface); box-shadow: 0 1px 2px rgb(0 0 0 / .14); transition: transform .18s ease; }
+#email-by-linkedin:checked ~ .seg-thumb { transform: translateX(100%); }
+@media (prefers-reduced-motion: reduce) { .seg-thumb, .seg label { transition: none; } }
+
 .email-row { display: flex; gap: 6px; }
 .email-row .field-input { flex: 1 1 auto; }
 .find-wrap { position: relative; display: inline-flex; flex: none; }

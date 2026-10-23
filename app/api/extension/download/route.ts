@@ -30,7 +30,7 @@ export async function GET() {
     ])));
     const zip = extensionZip(extensionFiles(inputs, appOrigin(), { allowLoopback: true }));
     return new Response(new Uint8Array(zip), {
-      headers: { ...headers, "Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="capture-extension.zip"', "Content-Length": String(zip.length) },
+      headers: { ...headers, "Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="retrivr-extension.zip"', "Content-Length": String(zip.length) },
     });
   } catch {
     return NextResponse.json({ error: "The extension package is unavailable. Please contact your administrator." }, { status: 503, headers });

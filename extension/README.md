@@ -97,8 +97,12 @@ workbench** takes you straight to where the person landed.
 
 Below the profile link is an **Email** field. Type an address there, or, when
 your plan has the email finder, press the green **Find email** beside it: the
-panel asks your workbench, which asks Enrow by the profile's LinkedIn address.
-Nothing is asked of LinkedIn. The searches left show above the field, and only
+panel asks your workbench, which asks Enrow. Beside the name, **Company name**
+is filled in from the profile (the top card's current company, else the first
+entry under Experience, else "at ..." in the headline) and can be changed.
+While it holds a company, Enrow is asked by name and company first; with it
+empty, by the profile's LinkedIn address. **Settings** has a **Find email by**
+switch to put the LinkedIn link first instead. Nothing is asked of LinkedIn. The searches left show above the field, and only
 a search that finds an email uses one. It says **Found.** and fills the field,
 or **Email cannot be found. No credit was used.** It searches once per click,
 never on its own. Someone you already keep an email for shows it instead, and

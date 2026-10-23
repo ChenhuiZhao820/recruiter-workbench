@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { getWorkspace } from "@/lib/workspace";
 import { featureAvailability } from "@/lib/feature-access";
@@ -23,89 +24,57 @@ export default async function WhatsNewPage() {
     <fieldset disabled={readOnly} className="min-w-0 max-w-3xl">
       <header className="page-header">
         <div>
-          <p className="page-eyebrow">Retrivr / 22 October</p>
+          <p className="page-eyebrow">Retrivr / 23 October</p>
           <h1>What&rsquo;s new</h1>
-          <p className="page-description">
-            {allowance
-              ? "The browser extension can now find someone's email while you save them."
-              : "The browser extension now takes someone's email while you save them."}{" "}
-            And a candidate&rsquo;s row on a role is tidier. Load the new copy of the extension, once.
-          </p>
+          <p className="page-description">A new copy of the browser extension.</p>
         </div>
       </header>
 
-      <section aria-label="This version" className="space-y-4">
-        <div className="card space-y-3">
-          <h2 className="text-lg">{allowance ? "Find their email from the extension" : "Their email, in the extension"}</h2>
-          <p className="text-ink/80">
-            Below the profile link there is now an <em>Email</em> field.
-            {allowance
-              ? <> Press the green <em>Find email</em> beside it and Retrivr looks the address up from the LinkedIn profile you are on.
-                It fills the field and says <em>Found</em>, or says it cannot be found and that no search was used. The searches left
-                show above the field, and only one that finds an email counts.</>
-              : " Type an address there and it is saved on the person with them."}{" "}
-            Someone you already keep an email for shows it there. Saving never replaces an address you already keep.
-          </p>
-          <p className="text-ink/80">
-            The extension is now called Retrivr in Chrome, with Retrivr&rsquo;s logo at the top of the panel. Warnings in it are plain
-            red words, and the panel no longer repeats that it works apart from your website sign-in.
-          </p>
-          {currentRelease.extension && <>
-            <p className="rounded border border-line bg-sunken p-3 text-sm">
-              <strong>One thing to do.</strong> Download the new copy. In <code className="font-mono">chrome://extensions</code>, remove
-              the old copy and load the new folder, then generate a new extension key in{" "}
-              <Link href="/settings" className="text-accent underline">Settings</Link> and paste it into the extension. Loading the new
-              folder over the old one instead keeps your key.
+      <section aria-label="This version" className="card space-y-5">
+        <h2 className="text-lg">{allowance ? "Find more emails with the company name" : "Their company, next to their name"}</h2>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <Image
+            src={allowance ? "/whats-new/extension-company.png" : "/whats-new/extension-company-plain.png"}
+            alt="The extension with Company name filled in next to Name"
+            width={316}
+            height={589}
+            className="w-full max-w-[260px] flex-none rounded border border-line"
+          />
+          <div className="min-w-0 space-y-3 text-ink/80">
+            <p>
+              The extension now picks up the company from the LinkedIn profile you&rsquo;re on and puts it next to the name. You can
+              fix it if it&rsquo;s wrong.
+              {allowance && <> <em>Find email</em> then searches with the name and company, which finds more people than the profile
+                link alone.</>}
             </p>
-            {canDownload && (
+            {allowance && <>
               <p>
-                <a href="/api/extension/download" download className="btn-primary">Download the new extension<Icon name="down" size={16} /></a>
+                If it can&rsquo;t find an email, or finds one that&rsquo;s clearly wrong, open <em>Settings</em> in the extension,
+                switch <em>Find email by</em> to <em>LinkedIn link</em>, and try again.
               </p>
-            )}
-          </>}
+              <Image
+                src="/whats-new/extension-email-by.png"
+                alt="Find email by, with Company name and LinkedIn link to choose from"
+                width={314}
+                height={77}
+                className="w-full max-w-[314px] rounded border border-line"
+              />
+            </>}
+          </div>
         </div>
-
-        <div className="card space-y-2">
-          <h2 className="text-lg">A candidate&rsquo;s row, tidied</h2>
-          <p className="text-ink/80">
-            On a role, the pencil beside a name edits their details{allowance ? ", with Find email beside their email," : ","} and the
-            bin removes them, each asking first. The stage is a menu in the corner: pick one and it is saved. <em>Arrange interview</em>{" "}
-            appears when the client asks to meet someone, and what the client said is one line where <em>Put forward</em> was.
+        {currentRelease.extension && <>
+          <p className="rounded border border-line bg-sunken p-3 text-sm">
+            <strong>One thing to do.</strong> Download the new extension. In <code className="font-mono">chrome://extensions</code>,
+            remove the old Retrivr and load the new <code className="font-mono">retrivr-extension</code> folder. Then generate a new
+            extension key in <Link href="/settings" className="text-accent underline">Settings</Link> and paste it in.
           </p>
-        </div>
+          {canDownload && (
+            <p>
+              <a href="/api/extension/download" download className="btn-primary">Download the new extension<Icon name="down" size={16} /></a>
+            </p>
+          )}
+        </>}
       </section>
-
-      <h2 className="mt-8 mb-3 section-heading">From 21 October, in case you missed it</h2>
-      <ol className="space-y-4">
-        {allowance && (
-          <li className="card space-y-2">
-            <h2 className="text-lg">Find someone&rsquo;s work email</h2>
-            <p className="text-ink/80">
-              Press <em>Find email</em> on a person&rsquo;s page, in a candidate&rsquo;s details on a role, or on the card in an outreach
-              or follow-up run. The address is saved on the person, marked <em>unverified</em>.
-            </p>
-            <p className="text-ink/80">
-              Your plan has {allowance.quota} searches {allowance.trial ? "for your trial" : "a month"}, and only a search that finds
-              an email counts.
-            </p>
-            <p className="rounded border border-line bg-sunken p-3 text-sm">
-              <strong>Before you write.</strong> They did not give you this address, so tell them where you found it and how to
-              opt out, for example with <code className="font-mono">{"{{privacy_notice}}"}</code> in your template.
-            </p>
-          </li>
-        )}
-        <li className="card space-y-2">
-          <h2 className="text-lg">Email them from the same click</h2>
-          <p className="text-ink/80">
-            When Retrivr has someone&rsquo;s email, the outreach card shows <em>Also email it to &hellip;</em>, and <em>Copy and
-            open</em> also opens an email draft for your own email app. <em>Mark as sent</em> records whether it went on LinkedIn,
-            by email or both.
-          </p>
-          <p>
-            <Link href="/people" className="btn-quiet">Open People</Link>
-          </p>
-        </li>
-      </ol>
 
       {!readOnly && (
         <form action={dismissRelease} className="mt-6">

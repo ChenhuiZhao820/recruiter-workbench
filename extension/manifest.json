@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Retrivr",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Save the LinkedIn profile you are looking at to Retrivr, in one click.",
   "permissions": [
     "activeTab",

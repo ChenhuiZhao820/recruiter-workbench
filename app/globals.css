@@ -1366,7 +1366,8 @@ label > .im-editor-note { margin-top: 6px; }
 .sort-menu-option { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; padding: 0 10px; border-radius: 6px; font-size: 14px; text-align: left; color: var(--color-ink); }
 .sort-menu-option:hover, .sort-menu-option:focus-visible { background: var(--color-sunken); outline: none; }
 .sort-menu-option[aria-selected="true"] { font-weight: 600; color: var(--color-accent); }
-.candidate-tools-count { margin-left: auto; font-size: 13px; color: var(--color-ink-soft); font-variant-numeric: tabular-nums; }
+.candidate-tools-count { font-size: 13px; color: var(--color-ink-soft); font-variant-numeric: tabular-nums; }
+.candidate-tools-add { margin-left: auto; }
 .candidate-none { padding: 18px 0; font-size: 14px; color: var(--color-ink-soft); }
 .candidate-rows { display: grid; gap: 8px; }
 

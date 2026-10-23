@@ -270,8 +270,8 @@ test("E10 an outreach log survives deleting the template it came from", async ({
 
   await page.goto("/templates");
   const broken = page.locator("li", { hasText: "Broken template" }).first();
-  await broken.locator("summary").first().click();
-  await broken.getByRole("button", { name: "Delete" }).click();
+  await broken.getByRole("button", { name: "Delete Broken template" }).click();
+  await page.getByRole("dialog", { name: "Delete Broken template?" }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByText("Broken template")).toHaveCount(0);
 
   await page.goto(`/candidates/${cara!.id}/outreach`);
@@ -314,8 +314,8 @@ test("E12 your name from Settings fills a sign-off placeholder", async ({ page }
   // It is a known gap, so it is highlighted rather than warned about.
   await expect(page.locator("[data-form-message='notice']")).not.toContainText("UNKNOWN");
   await page.goto("/templates");
-  const signOff = page.locator("details", { hasText: "Sign-off" }).first();
-  await signOff.locator("summary").first().click();
+  const signOff = page.locator("li.template-card", { hasText: "Sign-off" }).first();
+  await signOff.getByRole("button", { name: /^Show Sign-off/ }).click();
   await expect(signOff.locator("mark", { hasText: "{{recruiter_name}}" })).toBeVisible();
 
   const cara = await db.candidate.findFirst({ where: { fullName: "Cara Test" } });

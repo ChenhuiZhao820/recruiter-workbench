@@ -111,8 +111,9 @@ export function CandidateList({ rows }: { rows: CandidateListRow[] }) {
         <p role="status" aria-live="polite" className="candidate-tools-count">
           {filtering ? `${shown.length} of ${rows.length}` : ""}
         </p></>}
-        {slot && <div className="candidate-tools-add">{slot.add}</div>}
+        {slot && <div className="candidate-tools-actions">{slot.actions}</div>}
       </div>
+      {slot && <div className="role-toolbar">{slot.add}</div>}
       {slot?.panels}
 
       {rows.length === 0 && (

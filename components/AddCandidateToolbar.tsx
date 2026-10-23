@@ -5,7 +5,7 @@ import { Icon } from "@/components/Icon";
 
 // The candidate list puts the add control on its own search-and-sort row and
 // the open form under it; this is how it gets them.
-const Slot = createContext<{ add: ReactNode; panels: ReactNode } | null>(null);
+const Slot = createContext<{ add: ReactNode; panels: ReactNode; actions: ReactNode } | null>(null);
 export const useToolbarSlot = () => useContext(Slot);
 
 type Panel = "add" | "import" | null;
@@ -61,8 +61,7 @@ export function AddCandidateToolbar({ form, importForm, readOnly = false, action
 
   return (
     <>
-      <div className="role-toolbar">{actions}</div>
-      <Slot.Provider value={{ add, panels }}>{children}</Slot.Provider>
+      <Slot.Provider value={{ add, panels, actions }}>{children}</Slot.Provider>
     </>
   );
 }

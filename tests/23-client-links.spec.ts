@@ -352,7 +352,7 @@ test("L8 the client answers on the page - interview, or not for us with a reason
 });
 
 test("L9 'Client wants to meet' is a follow-up and a run of its own, and leaves once the candidate is written to", async ({ page }) => {
-  await page.goto("/followups");
+  await page.goto("/followups?tab=client");
   const bucket = page.getByRole("region", { name: "Client wants to meet" });
   await expect(bucket.getByText("Imogen Achterberg")).toBeVisible();
   await expect(bucket.getByText(/Halden Systems Ltd wants to meet them/)).toBeVisible();

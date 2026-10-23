@@ -105,7 +105,7 @@ test("I1 a spreadsheet is previewed on one screen without writing, then imported
   expect(await db.auditEvent.count({ where: { actorId: owner.id, action: "people.imported" } })).toBe(1);
   expect(await db.usageEvent.count({ where: { userId: owner.id, kind: "people_imported" } })).toBe(1);
 
-  await owner.page.goto("/people");
+  await owner.page.goto("/people?q=Ana");
   await expect(owner.page.getByRole("link", { name: "Ana Test" })).toBeVisible();
 });
 

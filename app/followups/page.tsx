@@ -14,6 +14,7 @@ import { REVISIT_SOON_DAYS } from "@/lib/talent.mjs";
 import { factDate } from "@/lib/fact-labels";
 import { ResumeRun } from "@/components/FollowUpRun";
 import { clientKey } from "@/lib/shortlist-core.mjs";
+import { RoleTabs } from "@/components/RoleTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,6 @@ function QuickStageButton({
 
 function Bucket({
   title,
-  number,
   description,
   rows,
   actions,
@@ -47,7 +47,6 @@ function Bucket({
   run,
 }: {
   title: string;
-  number: string;
   description: string;
   rows: FollowUpRow[];
   readOnly: boolean;
@@ -57,13 +56,13 @@ function Bucket({
 }) {
   return (
     <section aria-label={title} className="workspace-section">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="section-heading"><span className="section-number" aria-hidden="true">{number}</span>{title}</h2>
+      <div className="role-panel-head">
+        <h2 className="sr-only">{title}</h2>
+        <p className="section-caption">{description}</p>
         {run && rows.length > 0 && (
           <Link href={run} className="btn-quiet">Go through these one by one</Link>
         )}
       </div>
-      <p className="section-caption mb-4">{description}</p>
       {rows.length === 0 ? (
         <p className="text-ink/60">Nothing here. All clear.</p>
       ) : (
@@ -108,7 +107,7 @@ function Bucket({
   );
 }
 
-export default async function FollowUpsPage() {
+export default async function FollowUpsPage({ searchParams }: { searchParams: { tab?: string } }) {
   const { owner, readOnly } = await getWorkspace();
   const now = new Date();
   const features = await featureAvailability();
@@ -168,6 +167,11 @@ export default async function FollowUpsPage() {
   const due = features.followUpRuns ? buckets.repliedWaiting.length + buckets.clientWantsToMeet.length + buckets.saidYesNeverBooked.length + buckets.wentQuiet.length : 0;
   const callTime = new Intl.DateTimeFormat("en-GB", { timeZone: settings.bookingTimezone, weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
+  // Open on what was asked for, else the first group that has someone in it.
+  const groups: [string, number][] = [["replied", buckets.repliedWaiting.length], ["client", buckets.clientWantsToMeet.length + shortlistAnswers.length], ["booking", buckets.saidYesNeverBooked.length], ["quiet", buckets.wentQuiet.length], ["revisit", features.revisitReminders ? revisits.length : 0]];
+  const asked = groups.find(([id, count]) => id === searchParams.tab && (count > 0 || id === "replied" || id === "booking" || id === "quiet" || id === "revisit"))?.[0];
+  const initialTab = asked ?? groups.find(([, count]) => count > 0)?.[0] ?? "replied";
+
   return (
     <fieldset disabled={readOnly} className="min-w-0 space-y-8">
       <header className="page-header">
@@ -206,138 +210,147 @@ export default async function FollowUpsPage() {
         </section>
       )}
 
-      <Bucket
-        readOnly={readOnly}
-        number="01"
-        title="Replied, waiting on you"
-        description="They answered and you have not responded yet."
-        rows={buckets.repliedWaiting}
-        run={features.followUpRuns ? "/followups/run?only=r" : undefined}
-        actions={(row) => (
-          <>
-            <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
-              Draft reply
-            </Link>
-            <QuickStageButton candidateId={row.candidateId} stage="booking_pending" label="They said yes" />
-            <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
-          </>
-        )}
-      />
-
-      {/* Shown only when a client has answered: most weeks it is empty, and
-          an empty heading for it would be noise above the usual three. */}
-      {buckets.clientWantsToMeet.length > 0 && (
-        <Bucket
-          readOnly={readOnly}
-          number="02"
-          title="Client wants to meet"
-          description="A client pressed Interview on your client link. Set the time, or offer a few, and let the candidate know."
-          rows={buckets.clientWantsToMeet}
-          run={features.followUpRuns ? "/followups/run?only=m" : undefined}
-          actions={(row) => (
+      <RoleTabs
+        key="followups"
+        home="replied"
+        label="Follow-ups"
+        initial={initialTab}
+        tabs={[
+          { id: "replied", label: "Replied", count: buckets.repliedWaiting.length, panel: (
+            <Bucket
+              readOnly={readOnly}
+              title="Replied, waiting on you"
+              description="They answered and you have not responded yet."
+              rows={buckets.repliedWaiting}
+              run={features.followUpRuns ? "/followups/run?only=r" : undefined}
+              actions={(row) => (
+                <>
+                  <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
+                    Draft reply
+                  </Link>
+                  <QuickStageButton candidateId={row.candidateId} stage="booking_pending" label="They said yes" />
+                  <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
+                </>
+              )}
+            />
+          ) },
+          // Only when a client has answered: most weeks it is empty.
+          ...(buckets.clientWantsToMeet.length > 0 || shortlistAnswers.length > 0 ? [{ id: "client", label: "Client wants to meet", count: buckets.clientWantsToMeet.length + shortlistAnswers.length, panel: (
             <>
-              <Link href={`/candidates/${row.candidateId}/interview`} className="btn-quiet btn-arrange">
-                Arrange interview
-              </Link>
-              <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
+              {buckets.clientWantsToMeet.length > 0 && (
+                <Bucket
+                  readOnly={readOnly}
+                  title="Client wants to meet"
+                  description="A client pressed Interview on your client link. Set the time, or offer a few, and let the candidate know."
+                  rows={buckets.clientWantsToMeet}
+                  run={features.followUpRuns ? "/followups/run?only=m" : undefined}
+                  actions={(row) => (
+                    <>
+                      <Link href={`/candidates/${row.candidateId}/interview`} className="btn-quiet btn-arrange">
+                        Arrange interview
+                      </Link>
+                      <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
+                    </>
+                  )}
+                />
+              )}
+              {shortlistAnswers.length > 0 && (
+                <section aria-label="Wants to meet, from a shortlist" className="workspace-section">
+                  <h2 className="sr-only">Wants to meet, from a shortlist</h2>
+                  <p className="section-caption role-panel-head">A client pressed Interview on a shortlist you sent. Arranging the interview also puts them on the role&rsquo;s client link.</p>
+                  <ul className="space-y-2">
+                    {shortlistAnswers.map((answer) => (
+                      <li key={answer.id} className="card flex flex-wrap items-center justify-between gap-2">
+                        <span className="min-w-0">
+                          <Link href={`/people/${answer.person.id}`} className="person-row-name">{answer.person.fullName}</Link>
+                          <span className="text-ink-soft"> · {answer.shortlist.client} wants to meet · {answer.shortlist.title}</span>
+                        </span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          {answer.roles.length > 0
+                            ? answer.roles.map((candidate) => (
+                                <Link key={candidate.id} href={`/candidates/${candidate.id}/interview`} className="btn-quiet btn-arrange">{answer.roles.length > 1 ? `Arrange interview · ${candidate.role.title}` : "Arrange interview"}</Link>
+                              ))
+                            : <>
+                                <span className="text-sm text-ink-soft">Not on an open role for {answer.shortlist.client}</span>
+                                <Link href={`/people/${answer.person.id}`} className="btn-quiet">Add to a role</Link>
+                              </>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </>
-          )}
-        />
-      )}
-
-      {shortlistAnswers.length > 0 && (
-        <section aria-label="Wants to meet, from a shortlist" className="workspace-section">
-          <h2 className="section-heading">Wants to meet, from a shortlist</h2>
-          <p className="section-caption mb-4">A client pressed Interview on a shortlist you sent. Arranging the interview also puts them on the role&rsquo;s client link.</p>
-          <ul className="space-y-2">
-            {shortlistAnswers.map((answer) => (
-              <li key={answer.id} className="card flex flex-wrap items-center justify-between gap-2">
-                <span className="min-w-0">
-                  <Link href={`/people/${answer.person.id}`} className="person-row-name">{answer.person.fullName}</Link>
-                  <span className="text-ink-soft"> · {answer.shortlist.client} wants to meet · {answer.shortlist.title}</span>
-                </span>
-                <span className="flex flex-wrap items-center gap-2">
-                  {answer.roles.length > 0
-                    ? answer.roles.map((candidate) => (
-                        <Link key={candidate.id} href={`/candidates/${candidate.id}/interview`} className="btn-quiet btn-arrange">{answer.roles.length > 1 ? `Arrange interview · ${candidate.role.title}` : "Arrange interview"}</Link>
-                      ))
-                    : <>
-                        <span className="text-sm text-ink-soft">Not on an open role for {answer.shortlist.client}</span>
-                        <Link href={`/people/${answer.person.id}`} className="btn-quiet">Add to a role</Link>
-                      </>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <Bucket
-        readOnly={readOnly}
-        number={buckets.clientWantsToMeet.length > 0 ? "03" : "02"}
-        title="Said yes, never booked"
-        description={`Keen but no booking after ${settings.bookingChaseDays} ${settings.bookingChaseDays === 1 ? "day" : "days"}.`}
-        rows={buckets.saidYesNeverBooked}
-        run={features.followUpRuns ? "/followups/run?only=b" : undefined}
-        actions={(row) => (
-          <>
-            <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
-              Draft nudge
-            </Link>
-            <QuickStageButton candidateId={row.candidateId} stage="booked" label="Mark booked" />
-            <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
-          </>
-        )}
+          ) }] : []),
+          { id: "booking", label: "Said yes", count: buckets.saidYesNeverBooked.length, panel: (
+            <Bucket
+              readOnly={readOnly}
+              title="Said yes, never booked"
+              description={`Keen but no booking after ${settings.bookingChaseDays} ${settings.bookingChaseDays === 1 ? "day" : "days"}.`}
+              rows={buckets.saidYesNeverBooked}
+              run={features.followUpRuns ? "/followups/run?only=b" : undefined}
+              actions={(row) => (
+                <>
+                  <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
+                    Draft nudge
+                  </Link>
+                  <QuickStageButton candidateId={row.candidateId} stage="booked" label="Mark booked" />
+                  <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
+                </>
+              )}
+            />
+          ) },
+          { id: "quiet", label: "Went quiet", count: buckets.wentQuiet.length, panel: (
+            <Bucket
+              readOnly={readOnly}
+              title="Went quiet"
+              description={`Contacted, no reply, and more than ${settings.quietNudgeDays} days have passed.`}
+              rows={buckets.wentQuiet}
+              run={features.followUpRuns ? "/followups/run?only=q" : undefined}
+              actions={(row) => (
+                <>
+                  <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
+                    Draft nudge
+                  </Link>
+                  <QuickStageButton candidateId={row.candidateId} stage="replied" label="They replied" />
+                  <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
+                </>
+              )}
+            />
+          ) },
+          ...(features.revisitReminders ? [{ id: "revisit", label: "Due to revisit", count: revisits.length, panel: (
+            <section aria-labelledby="revisit-heading" className="workspace-section">
+              <h2 id="revisit-heading" className="sr-only">Due to revisit</h2>
+              <p className="section-caption role-panel-head">People you said you would get back in touch with, due this week or overdue.</p>
+              {revisits.length === 0 ? (
+                <p className="text-ink/60">Nothing here. All clear.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {revisits.map((person) => (
+                    <li key={person.id} className="card">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <Link href={`/people/${person.id}`} className="font-medium underline-offset-2 hover:underline">{person.fullName}</Link>
+                        <span className={`text-sm tabular ${person.revisitOn! < now ? "text-rose-900" : "text-ink/60"}`}>
+                          {person.revisitOn! < now ? "Overdue since" : "Due"} {factDate.format(person.revisitOn!)}
+                        </span>
+                      </div>
+                      {person.revisitNote && <p className="mt-1 text-sm text-ink/80">{person.revisitNote}</p>}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link href={`/people/${person.id}`} className="btn-quiet">Open record</Link>
+                        <ActionForm action={setRevisit}>
+                          <input type="hidden" name="personId" value={person.id} />
+                          <input type="hidden" name="intent" value="clear" />
+                          <button type="submit" className="btn-quiet">Done, clear reminder</button>
+                        </ActionForm>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) }] : []),
+        ]}
       />
-
-      <Bucket
-        readOnly={readOnly}
-        number={buckets.clientWantsToMeet.length > 0 ? "04" : "03"}
-        title="Went quiet"
-        description={`Contacted, no reply, and more than ${settings.quietNudgeDays} days have passed.`}
-        rows={buckets.wentQuiet}
-        run={features.followUpRuns ? "/followups/run?only=q" : undefined}
-        actions={(row) => (
-          <>
-            <Link href={`/candidates/${row.candidateId}/outreach`} className="btn-quiet">
-              Draft nudge
-            </Link>
-            <QuickStageButton candidateId={row.candidateId} stage="replied" label="They replied" />
-            <QuickStageButton candidateId={row.candidateId} stage="rejected" label="Mark rejected" />
-          </>
-        )}
-      />
-      {features.revisitReminders && (
-        <section aria-labelledby="revisit-heading" className="workspace-section">
-          <h2 id="revisit-heading" className="section-heading"><span className="section-number" aria-hidden="true">{buckets.clientWantsToMeet.length > 0 ? "05" : "04"}</span>Due to revisit</h2>
-          <p className="section-caption mb-4">People you said you would get back in touch with, due this week or overdue.</p>
-          {revisits.length === 0 ? (
-            <p className="text-ink/60">Nothing here. All clear.</p>
-          ) : (
-            <ul className="space-y-2">
-              {revisits.map((person) => (
-                <li key={person.id} className="card">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <Link href={`/people/${person.id}`} className="font-medium underline-offset-2 hover:underline">{person.fullName}</Link>
-                    <span className={`text-sm tabular ${person.revisitOn! < now ? "text-rose-900" : "text-ink/60"}`}>
-                      {person.revisitOn! < now ? "Overdue since" : "Due"} {factDate.format(person.revisitOn!)}
-                    </span>
-                  </div>
-                  {person.revisitNote && <p className="mt-1 text-sm text-ink/80">{person.revisitNote}</p>}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Link href={`/people/${person.id}`} className="btn-quiet">Open record</Link>
-                    <ActionForm action={setRevisit}>
-                      <input type="hidden" name="personId" value={person.id} />
-                      <input type="hidden" name="intent" value="clear" />
-                      <button type="submit" className="btn-quiet">Done, clear reminder</button>
-                    </ActionForm>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
     </fieldset>
   );
 }

@@ -302,7 +302,7 @@ test("EF9 a month's searches used up refuse the next one; a trial has 50 for the
     await trial.page.getByRole("button", { name: "Save email" }).click();
     await expect(trial.page.getByText("Email saved.")).toBeVisible();
     expect((await db.person.findUniqueOrThrow({ where: { id: theirs.id } })).emailSource).toBe("manual");
-    await trial.page.goto("/people");
+    await trial.page.goto("/people?q=Odette");
     await expect(trial.page.getByRole("link", { name: "Odette Marsh" })).toBeVisible();
   } finally {
     await full.close();

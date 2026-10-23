@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { RoleTab } from "@/lib/role-tabs";
+type RoleTab = string;
 
 // A role page shows one of its three parts at a time, chosen from a row of
 // plain words with a line under the one on screen. Every part stays rendered,
 // only hidden, so a half-typed form survives a look at another tab. The choice
 // is kept in the address (?tab=) without a reload, and an address that points
 // inside a part (#candidate-…) opens that part.
-export function RoleTabs({ initial, tabs }: { initial: RoleTab; tabs: { id: RoleTab; label: string; count?: number; panel: ReactNode }[] }) {
+export function RoleTabs({ initial, tabs, home = "candidates", label = "Role" }: { initial: RoleTab; tabs: { id: RoleTab; label: string; count?: number; panel: ReactNode }[]; home?: RoleTab; label?: string }) {
   const [active, setActive] = useState<RoleTab>(initial);
   const list = useRef<HTMLDivElement>(null);
   const line = useRef<HTMLSpanElement>(null);
@@ -16,12 +16,12 @@ export function RoleTabs({ initial, tabs }: { initial: RoleTab; tabs: { id: Role
   const choose = useCallback((tab: RoleTab, focus = false) => {
     setActive(tab);
     const url = new URL(window.location.href);
-    if (tab === "candidates") url.searchParams.delete("tab");
+    if (tab === home) url.searchParams.delete("tab");
     else url.searchParams.set("tab", tab);
     url.hash = "";
     window.history.replaceState(window.history.state, "", url);
     if (focus) list.current?.querySelector<HTMLButtonElement>(`#role-tab-${tab}`)?.focus();
-  }, []);
+  }, [home]);
 
   // The line slides to the tab on screen, and follows it when text reflows.
   useLayoutEffect(() => {
@@ -64,7 +64,7 @@ export function RoleTabs({ initial, tabs }: { initial: RoleTab; tabs: { id: Role
 
   return (
     <div className="role-tabs">
-      <div ref={list} role="tablist" aria-label="Role" className="role-tablist" onKeyDown={keys}>
+      <div ref={list} role="tablist" aria-label={label} className="role-tablist" onKeyDown={keys}>
         {tabs.map((tab) => (
           // Not a <button>: a read-only view disables everything in the page's
           // fieldset, and looking at another part of a role is not a change.

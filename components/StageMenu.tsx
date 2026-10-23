@@ -5,10 +5,11 @@ import { Icon } from "@/components/Icon";
 import { setCandidateStage } from "@/app/actions/candidates";
 import { STAGES, STAGE_COLORS, STAGE_LABELS, isStage, type Stage } from "@/lib/stages";
 
-// A stage chosen here moves the candidate into another group on the role page,
-// so this row is unmounted and a new one mounted under the new heading. What
-// was just changed is kept here, outside the component, for the new row to say
-// so; it is only ever a few seconds old and lives in this tab alone.
+// A stage chosen here may move the row (the list can be sorted by stage), and
+// the saved stage comes back from the server as a new prop, possibly to a row
+// mounted afresh. What was just changed is kept here, outside the component,
+// for that row to say so; it is only ever a few seconds old and lives in this
+// tab alone.
 const changed = new Map<string, { stage: string; at: number }>();
 const SAID_FOR_MS = 4000;
 

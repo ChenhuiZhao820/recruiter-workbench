@@ -124,16 +124,27 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   are not displayed. `tests/01-walkthrough.spec.ts` covers toggling, keyboard/mobile
   use and legacy compatibility; the AI stub checks the questions-only prompt and
   deliberately returns extra answer fields to verify they are discarded.
-- A role page reads as three headings of equal weight - Briefing, Candidates,
-  Searches for this role. Candidates is a plain heading carrying its count;
-  the stage groups inside it are what open and close, so a long pipeline can be
-  folded down without the section itself becoming a thing to unfold. With
-  talent matches, "From your database" is one more collapsed group at the end
-  of Candidates, not a fourth heading. Adding a
-  candidate is a button at the top of that section that opens the fields, the
-  same shape as a new role or a new template. It stays rendered in a read-only
-  view and is disabled by the page's fieldset, so what cannot be done reads as
-  refused rather than missing.
+- A role page shows one of its three parts at a time - Briefing, Candidates,
+  Searches - under a row of plain-word tabs with a line under the one on
+  screen (`components/RoleTabs.tsx`, `lib/role-tabs.ts`). Candidates is the
+  default; `?tab=briefing|searches` holds the others in the address without a
+  reload, a role search created from the role comes back to `?tab=searches`,
+  and an anchor inside a hidden part (`#candidate-…`) opens that part. Every
+  part stays rendered, only hidden, so a half-typed form survives a look at
+  another tab. Edit and delete are a pencil and a bin beside the title; delete
+  asks in the row dialog.
+- Candidates is one list, not stage groups: a name search (`lib/name-match.mjs`,
+  forgiving of case, accents, partial words, word order and a slip or two)
+  and a sort, A to Z by default, also Z to A, recently active, recently added
+  and by stage (`components/CandidateList.tsx`, which only chooses what shows
+  and writes nothing). Above it, one toolbar row: Add a candidate, which opens
+  the fields under the row and pushes the list down
+  (`components/AddCandidateToolbar.tsx`), the Client link as a panel floating
+  under the row (`components/PopoverDetails.tsx`), Send outreach and Match this
+  role on People. The role page lists no database matches of its own; Instant
+  Match on People does that. In a read-only view the add fields show open and
+  disabled by the page's fieldset, so what cannot be done reads as refused
+  rather than missing.
 - A candidate's row: the name (underlined, to the person's page) with a pencil
   and a bin beside it, each a bare icon with a hover tip and no fill. The
   pencil opens Edit details and the bin "Remove <name>?", both modal dialogs
@@ -148,13 +159,16 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   changed, and a candidate with no link or member id keeps their own person
   on save rather than being given a fresh one.
 - The stage is a menu at the row's corner (`components/StageMenu.tsx`): pick a
-  stage and it is saved, with "Stage changed to ..." under it. The row then
-  moves to its new group, so the line is carried across the remount and the
-  row brought into view. Each stage has its own colour (`STAGE_COLORS`), shared
+  stage and it is saved, with "Stage changed to ..." under it once the server
+  has it (the menu shows the pick at once; the line is the confirmation). When
+  the list is sorted by stage the row moves, so the line is carried across a
+  remount and the row brought into view. Each stage has its own colour (`STAGE_COLORS`), shared
   with `StageBadge`; colour is decoration beside the label, never instead.
 - Then the actions: the LinkedIn mark (`LinkedInLogo`, the profile, on a
-  click), Draft outreach, Screening call, and Arrange interview only when the
-  client asked to meet them (see Arranging a client interview). Below, where
+  click), Draft outreach and Screening call as words, and Arrange interview as
+  a calendar icon with a tip, only when the client asked to meet them (see
+  Arranging a client interview). A booked call's Add to Google Calendar,
+  calendar file and cancel are icons too; cancel asks in the row dialog. Below, where
   Put forward stands until they are on the client link, one line of words:
   what the client said in place of "On the client link" once they said it
   ("<client> wants to meet" in the accent, "Not for <client>" in red), "No CV
@@ -526,9 +540,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   60 more days". `/shortlists` is a library to read and manage, with no New
   shortlist button of its own; building one is `/shortlists/new`, started
   from the New shortlist button on People (which has no row checkboxes: the
-  people are found by name on the new page), a person's page, or a role's
-  "From your database" matches, with the people (`p`) and the client in the
-  address. Its back link returns to People. The client is settled by
+  people are found by name on the new page) or a person's page, with the
+  people (`p`) and the client in the address. Its back link returns to People. The client is settled by
   the GET form before anything is saved, so each person's consent is worked
   out for that client: consent Capture already has for it (`knownConsentAt`)
   shows as "Agreed before", anyone else needs the tick, and do-not-contact
@@ -883,9 +896,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   People box (`PeopleBox`): each shows its value once set, opens a small
   editor, and its cross clears it; they navigate, so the address still holds
   them.
-- Talent matches (`talentMatches`, Pro): the role's briefing key skills and
-  search titles are scored against people not on the role and not do not
-  contact: three points a whole phrase, one a significant word. People whose
+- Talent matches (`talentMatches`, Pro): the scoring in `lib/talent.mjs`
+  (`rankMatches`), which a role page no longer shows - it points to Instant
+  Match instead - and which the feature still gates `addPersonToRole` for. The
+  role's briefing key skills and search titles are scored against people not
+  on the role and not do not contact: three points a whole phrase, one a significant word. People whose
   confirmed salary is above the budget are left out; without a confirmed salary,
   or in another currency, they are shown as "Salary unknown"; without a budget
   nothing is filtered. Top ten, with what matched. `addPersonToRole` files the

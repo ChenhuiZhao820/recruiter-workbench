@@ -18,7 +18,7 @@ export const FEATURE_TIERS = {
   screening: "basic",       // screening assistant; the monthly allowance is per plan
   clientEmail: "pro",       // "one-click sign-off to clients"
   peopleSearch: "basic",    // filters and keyword search across people
-  talentMatches: "basic",   // "From your database" on a role
+  talentMatches: "basic",   // filing a matched person against a role
   revisitReminders: "basic",
   instantMatch: "basic",    // a brief in, people from your own database out
   clientShortlists: "lite", // client links and shortlists; a limit below Pro

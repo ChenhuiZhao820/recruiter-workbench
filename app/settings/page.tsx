@@ -76,7 +76,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { n
                       : "Or let candidates pick a time from Retrivr's own page. Choose your hours and how the call happens."}
                   </p>
                 </div>
-                <Link href="/settings/booking" className="btn-secondary">{readOnly ? "View" : bookingReady ? "Change" : "Set up"}</Link>
+                <Link href="/settings/booking" className="btn-secondary" aria-label={`${readOnly ? "View" : bookingReady ? "Change" : "Set up"} booking page`}>{readOnly ? "View" : bookingReady ? "Change" : "Set up"}</Link>
               </div>
               <div className="settings-field" role="group" aria-labelledby="remind-heading">
                 <p id="remind-heading" className="settings-label">Remind me</p>

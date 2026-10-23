@@ -94,11 +94,23 @@ test("02 create a role", async ({ page }) => {
   await page.waitForURL(/\/roles\/(?!new$)[^/]+$/, { timeout: 30_000 });
   roleId = page.url().split("/roles/")[1];
   await expect(page.getByRole("heading", { name: "Operations Director" })).toBeVisible();
+  // One part of the role at a time: Candidates first, the others a tab away,
+  // and the address remembers the choice without a reload.
+  const tabs = page.getByRole("tablist", { name: "Role" });
+  await expect(tabs.getByRole("tab")).toHaveText(["Briefing", "Candidates", "Searches"]);
+  await expect(tabs.getByRole("tab", { name: "Candidates" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText("No briefing yet")).toBeHidden();
+  await tabs.getByRole("tab", { name: "Briefing" }).click();
   await expect(page.getByText("No briefing yet")).toBeVisible();
+  await expect(page).toHaveURL(/\?tab=briefing$/);
+  await page.keyboard.press("ArrowRight");
+  await expect(tabs.getByRole("tab", { name: "Candidates" })).toBeFocused();
+  await expect(page.getByText("No briefing yet")).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`/roles/${roleId}$`));
 });
 
 test("03 generate briefing", async ({ page }) => {
-  await page.goto(`/roles/${roleId}`);
+  await page.goto(`/roles/${roleId}?tab=briefing`);
   await page.getByRole("button", { name: "Generate briefing" }).click();
   await expect(page.getByRole("heading", { name: "What they do all day" })).toBeVisible({
     timeout: 30_000,
@@ -152,7 +164,7 @@ test("03b existing briefings show only questions on mobile", async ({ page }) =>
     }]) },
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/roles/${roleId}`);
+  await page.goto(`/roles/${roleId}?tab=briefing`);
   const questions = page.getByRole("region", { name: "Briefing" }).locator("details").filter({ hasText: "First-call questions" });
   await expect(questions.getByText("What did you improve?")).toBeHidden();
   await questions.locator("summary").click();
@@ -165,7 +177,7 @@ test("03b existing briefings show only questions on mobile", async ({ page }) =>
 });
 
 test("04 regenerate briefing overwrites", async ({ page }) => {
-  await page.goto(`/roles/${roleId}`);
+  await page.goto(`/roles/${roleId}?tab=briefing`);
   await page.locator("summary", { hasText: "What they do all day" }).click();
   await expect(page.getByText(firstDayToDay)).toBeVisible();
   await page.getByRole("button", { name: "Regenerate briefing" }).click();
@@ -178,7 +190,7 @@ test("04 regenerate briefing overwrites", async ({ page }) => {
 });
 
 test("05 create a search from the briefing", async ({ page }) => {
-  await page.goto(`/roles/${roleId}`);
+  await page.goto(`/roles/${roleId}?tab=briefing`);
   await page.getByRole("link", { name: "Create a search from this" }).click();
   await page.waitForURL(/\/searches\/new/);
 
@@ -197,7 +209,7 @@ test("05 create a search from the briefing", async ({ page }) => {
   // The picker only stores entries LinkedIn recognises, so one has to be chosen.
   await page.getByRole("button", { name: /^Manufacturing/ }).first().click();
   await page.getByRole("button", { name: "Create search" }).click();
-  await page.waitForURL(`**/roles/${roleId}`);
+  await page.waitForURL(`**/roles/${roleId}?tab=searches`);
 
   const card = page.locator("li.card", { hasText: "Operations Director search" });
   await expect(card.getByText("never run")).toBeVisible();
@@ -206,7 +218,7 @@ test("05 create a search from the briefing", async ({ page }) => {
 });
 
 test("06 run search opens LinkedIn with keywords and records last-run", async ({ page }) => {
-  await page.goto(`/roles/${roleId}`);
+  await page.goto(`/roles/${roleId}?tab=searches`);
   const card = page.locator("li.card", { hasText: "Operations Director search" });
   const [popup] = await Promise.all([
     page.waitForEvent("popup"),
@@ -350,7 +362,10 @@ test("08 add candidates and open a profile", async ({ page }) => {
   await add("Bob Sample", "https://www.linkedin.com/in/bob-sample", "Head of Operations, Gears plc");
   await add("Cara Test", "https://www.linkedin.com/in/cara-test", "Plant Director, Cogs Co");
 
-  await expect(page.getByRole("heading", { name: "Sourced (3)" })).toBeVisible();
+  // One list, no stage groups: every row carries its stage, and A to Z is the order.
+  await expect(page.locator("li.candidate-row .person-row-name")).toHaveText(["Alice Example", "Bob Sample", "Cara Test"]);
+  for (const name of ["Alice Example", "Bob Sample", "Cara Test"]) await expect(page.getByRole("button", { name: `Change stage for ${name}: Sourced` })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Sourced/ })).toHaveCount(0);
 
   const aliceCard = page.locator("li.card", { hasText: "Alice Example" });
   const [popup] = await Promise.all([
@@ -361,13 +376,36 @@ test("08 add candidates and open a profile", async ({ page }) => {
   await popup.close();
 });
 
+test("08b candidates are found by name, forgivingly, and sorted, A to Z first", async ({ page }) => {
+  await page.goto(`/roles/${roleId}`);
+  const names = page.locator("li.candidate-row .person-row-name");
+  const find = page.getByRole("searchbox", { name: "Find a candidate by name" });
+  await find.fill("bob smaple");
+  await expect(names).toHaveText(["Bob Sample"]);
+  await expect(page.getByRole("status").filter({ hasText: "1 of 3" })).toBeVisible();
+  await find.fill("CARA");
+  await expect(names).toHaveText(["Cara Test"]);
+  await find.fill("nobody here");
+  await expect(names).toHaveCount(0);
+  await expect(page.getByText("No one on this role matches")).toBeVisible();
+  await page.getByRole("button", { name: "Clear the search" }).click();
+  await expect(names).toHaveText(["Alice Example", "Bob Sample", "Cara Test"]);
+  const sort = page.getByLabel("Sort candidates");
+  await expect(sort).toHaveValue("az");
+  await sort.selectOption({ label: "Z to A" });
+  await expect(names).toHaveText(["Cara Test", "Bob Sample", "Alice Example"]);
+  await sort.selectOption({ label: "Recently added" });
+  await expect(names).toHaveText(["Cara Test", "Bob Sample", "Alice Example"]);
+});
+
 test("09 stage dropdown moves a candidate and updates grouping", async ({ page }) => {
   await page.goto(`/roles/${roleId}`);
   const aliceCard = page.locator("li.card", { hasText: "Alice Example" });
   await aliceCard.getByRole("button", { name: /^Change stage for / }).click();
   await aliceCard.getByRole("option", { name: "Contacted", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Contacted (1)" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Sourced (2)" })).toBeVisible();
+  await expect(aliceCard.getByText("Stage changed to Contacted")).toBeVisible();
+  await expect(aliceCard.getByRole("button", { name: "Change stage for Alice Example: Contacted" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /: Sourced$/ })).toHaveCount(2);
   await expect(
     page.locator("li.card", { hasText: "Alice Example" }).getByText("last activity today")
   ).toBeVisible();
@@ -457,20 +495,20 @@ test("13 follow-up buckets fill from stages and backdated timestamps", async ({ 
   const alice = page.locator("li.card", { hasText: "Alice Example" });
   await alice.getByRole("button", { name: /^Change stage for / }).click();
   await alice.getByRole("option", { name: "Replied", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Replied (1)" })).toBeVisible();
+  await expect(alice.getByText("Stage changed to Replied")).toBeVisible();
 
   // Bob -> booking_pending, backdated 3 days.
   const bob = page.locator("li.card", { hasText: "Bob Sample" });
   await bob.getByRole("button", { name: /^Change stage for / }).click();
   await bob.getByRole("option", { name: "Booking pending", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Booking pending (1)" })).toBeVisible();
+  await expect(bob.getByText("Stage changed to Booking pending")).toBeVisible();
   await backdateCandidate("Bob Sample", { lastActivityAt: daysAgo(3) });
 
   // Cara -> contacted, backdated 6 days.
   const cara = page.locator("li.card", { hasText: "Cara Test" });
   await cara.getByRole("button", { name: /^Change stage for / }).click();
   await cara.getByRole("option", { name: "Contacted", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Contacted (1)" })).toBeVisible();
+  await expect(cara.getByText("Stage changed to Contacted")).toBeVisible();
   await backdateCandidate("Cara Test", { lastActivityAt: daysAgo(6) });
 
   await page.goto("/followups");

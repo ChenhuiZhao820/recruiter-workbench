@@ -360,9 +360,11 @@ function handleReplySuggestion(res, request) {
 }
 
 // Stripe, as far as Retrivr uses it: Checkout and portal sessions, reading
-// and cancelling a subscription. The SDK posts form-encoded bodies; tests set
-// subscriptions and read the last Checkout request through /__stripe.
-const stripe = { subscriptions: {}, lastCheckout: null, sessions: 0 };
+// and cancelling a subscription, and reading a customer and their invoices
+// for the billing page. The SDK posts form-encoded bodies; tests set
+// subscriptions, customers and invoices, and read the last Checkout and
+// portal requests, through /__stripe. A customer set to "fail" answers 500.
+const stripe = { subscriptions: {}, customers: {}, invoices: {}, lastCheckout: null, lastPortal: null, sessions: 0 };
 
 function handleStripe(req, res, body) {
   const url = new URL(req.url, "http://localhost");
@@ -373,7 +375,21 @@ function handleStripe(req, res, body) {
     return json(res, 200, { id, object: "checkout.session", url: `http://localhost:8766/stripe-checkout/${id}` });
   }
   if (req.method === "POST" && url.pathname === "/v1/billing_portal/sessions") {
-    return json(res, 200, { id: "bps_test", object: "billing_portal.session", url: "http://localhost:8766/stripe-portal" });
+    stripe.lastPortal = Object.fromEntries(new URLSearchParams(body));
+    const flow = stripe.lastPortal["flow_data[type]"];
+    return json(res, 200, { id: "bps_test", object: "billing_portal.session", url: `http://localhost:8766/stripe-portal${flow ? `/${flow}` : ""}` });
+  }
+  const customer = url.pathname.match(new RegExp("^/v1/customers/([A-Za-z0-9_]+)$"));
+  if (req.method === "GET" && customer) {
+    const found = stripe.customers[customer[1]];
+    if (found === "fail") return json(res, 500, { error: { type: "api_error", message: "Stub outage" } });
+    if (!found) return json(res, 404, { error: { type: "invalid_request_error", message: "No such customer" } });
+    return json(res, 200, { id: customer[1], object: "customer", ...found });
+  }
+  if (req.method === "GET" && url.pathname === "/v1/invoices") {
+    const owner = url.searchParams.get("customer");
+    if (stripe.customers[owner] === "fail") return json(res, 500, { error: { type: "api_error", message: "Stub outage" } });
+    return json(res, 200, { object: "list", has_more: false, url: "/v1/invoices", data: stripe.invoices[owner] ?? [] });
   }
   const match = url.pathname.match(new RegExp("^/v1/subscriptions/([A-Za-z0-9_]+)$"));
   if (match) {
@@ -394,11 +410,16 @@ const server = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     if (req.url === "/__stripe") {
-      if (req.method === "POST") Object.assign(stripe.subscriptions, JSON.parse(body || "{}").subscriptions ?? {});
+      if (req.method === "POST") {
+        const set = JSON.parse(body || "{}");
+        Object.assign(stripe.subscriptions, set.subscriptions ?? {});
+        Object.assign(stripe.customers, set.customers ?? {});
+        Object.assign(stripe.invoices, set.invoices ?? {});
+      }
       json(res, 200, stripe);
       return;
     }
-    if (req.url?.startsWith("/v1/checkout/") || req.url?.startsWith("/v1/billing_portal/") || req.url?.startsWith("/v1/subscriptions/") || req.url?.startsWith("/stripe-")) {
+    if (req.url?.startsWith("/v1/checkout/") || req.url?.startsWith("/v1/billing_portal/") || req.url?.startsWith("/v1/subscriptions/") || req.url?.startsWith("/v1/customers/") || req.url?.startsWith("/v1/invoices") || req.url?.startsWith("/stripe-")) {
       handleStripe(req, res, body);
       return;
     }

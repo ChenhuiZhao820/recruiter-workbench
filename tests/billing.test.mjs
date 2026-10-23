@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CHECKOUT_PLANS, priceFor, priceTable, shouldApply, subscriptionFields } from "../lib/billing-core.mjs";
+import { CHECKOUT_PLANS, billingDetails, formatAmount, formatDay, invoiceRow, listWords, portalFlow, priceFor, priceTable, shouldApply, stripeLink, subscriptionFields } from "../lib/billing-core.mjs";
 
 const env = {
   STRIPE_PRICE_LITE_MONTHLY: "price_LiteM", STRIPE_PRICE_LITE_YEARLY: "price_LiteY",
@@ -54,4 +54,62 @@ test("an old subscription ending never wipes out a newer live one", () => {
   assert.equal(shouldApply(subscription({ id: "sub_other", status: "active" }), live), true);
   assert.equal(shouldApply(subscription({ id: "sub_old", status: "canceled" }), { stripeSubscriptionId: "sub_new", billingStatus: "canceled" }), true);
   assert.equal(shouldApply(subscription(), null), true);
+});
+
+test("the portal opens only the three named flows", () => {
+  assert.equal(portalFlow("update"), "update");
+  assert.equal(portalFlow("cancel"), "cancel");
+  assert.equal(portalFlow("payment"), "payment");
+  for (const other of ["", "customer_update", "subscription_update_confirm", "UPDATE", null, undefined]) assert.equal(portalFlow(other), null);
+});
+
+test("links out go only to Stripe, and to loopback only outside production", () => {
+  assert.equal(stripeLink("https://invoice.stripe.com/i/acct_1/test_x", true), "https://invoice.stripe.com/i/acct_1/test_x");
+  assert.equal(stripeLink("https://pay.stripe.com/invoice/x/pdf", true), "https://pay.stripe.com/invoice/x/pdf");
+  assert.equal(stripeLink("https://stripe.com.evil.example/x", true), null);
+  assert.equal(stripeLink("https://evilstripe.com/x", true), null);
+  assert.equal(stripeLink("http://invoice.stripe.com/x", true), null);
+  assert.equal(stripeLink("javascript:alert(1)", false), null);
+  assert.equal(stripeLink("http://localhost:8766/invoice/1", true), null);
+  assert.equal(stripeLink("http://localhost:8766/invoice/1", false), "http://localhost:8766/invoice/1");
+  assert.equal(stripeLink(null, false), null);
+});
+
+test("money and days read the way an invoice does", () => {
+  assert.equal(formatAmount(2999, "gbp"), "£29.99");
+  assert.equal(formatAmount(1700, "usd"), "US$17.00");
+  assert.equal(formatAmount(500, "jpy"), "JP¥500");
+  assert.equal(formatDay(new Date("2026-11-21T23:30:00.000Z")), "21 November 2026");
+  assert.equal(listWords(["the street"]), "the street");
+  assert.equal(listWords(["the street", "the city"]), "the street and the city");
+  assert.equal(listWords(["a", "b", "c"]), "a, b and c");
+});
+
+test("an invoice row shows what was bought and links only to Stripe; drafts are left out", () => {
+  const invoice = {
+    id: "in_1", number: "DAA95AD0-0001", status: "paid", currency: "gbp", amount_paid: 2999, amount_due: 0, total: 2999, created: 1_792_540_800,
+    status_transitions: { finalized_at: 1_792_540_900 }, hosted_invoice_url: "https://invoice.stripe.com/i/x", invoice_pdf: "https://evil.example/x.pdf",
+    lines: { data: [{ description: "1 × Retrivr Basic (at £29.99 / month)" }] },
+  };
+  const row = invoiceRow(invoice, true);
+  assert.equal(row.product, "1 × Retrivr Basic");
+  assert.equal(row.amount, "£29.99");
+  assert.equal(row.statusLabel, "Paid");
+  assert.equal(row.date.getTime(), 1_792_540_900_000);
+  assert.equal(row.viewUrl, "https://invoice.stripe.com/i/x");
+  assert.equal(row.pdfUrl, null, "a PDF link off Stripe is dropped");
+  assert.equal(invoiceRow({ ...invoice, status: "open", amount_due: 4999 }, true).amount, "£49.99");
+  assert.equal(invoiceRow({ ...invoice, status: "draft" }, true), null);
+});
+
+test("billing details say which parts of the address are missing", () => {
+  const full = billingDetails({ name: "Aditya Shah", email: "a@example.com", address: { line1: "1 High St", city: "Belfast", postal_code: "BT47 2AF", country: "GB" }, tax_ids: { data: [{ value: "GB123456789" }] } });
+  assert.deepEqual(full.missing, []);
+  assert.equal(full.country, "United Kingdom");
+  assert.deepEqual(full.taxIds, ["GB123456789"]);
+  const partial = billingDetails({ name: "Aditya Shah", address: { postal_code: "BT47 2AF", country: "GB" } });
+  assert.deepEqual(partial.missing, ["the street", "the city"]);
+  assert.deepEqual(partial.lines, ["BT47 2AF"]);
+  assert.equal(billingDetails({ deleted: true }), null);
+  assert.deepEqual(billingDetails({}).missing, ["the street", "the city", "the postcode", "the country"]);
 });

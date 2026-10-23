@@ -1271,6 +1271,12 @@ label > .im-editor-note { margin-top: 6px; }
 .email-finder-row .field-input { flex: 1 1 12rem; }
 .email-finder-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; overflow-wrap: anywhere; }
 .person-email { display: grid; gap: 10px; }
+.person-email-block { display: grid; gap: 10px; }
+.person-email-edit { display: grid; gap: 8px; }
+.person-email-edit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.wrong-email-link { display: inline-flex; align-items: center; gap: 6px; justify-self: start; padding: 0; border: 0; background: none; font-size: 13px; font-weight: 500; color: var(--color-accent); text-align: left; cursor: pointer; }
+.wrong-email-link:hover { color: var(--color-accent-hard); text-decoration: underline; text-underline-offset: 3px; }
+.wrong-email-form { display: grid; gap: 14px; }
 .person-email-address { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; overflow-wrap: anywhere; }
 .outreach-email { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-sunken); }
 .outreach-email > label { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; overflow-wrap: anywhere; }

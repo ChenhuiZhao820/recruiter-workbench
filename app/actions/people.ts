@@ -48,6 +48,15 @@ export async function setPersonEmail(_prev: FormState, formData: FormData): Prom
   return { notice: email ? "Email saved." : "Email removed." };
 }
 
+// Removes the address kept for someone, once the recruiter has confirmed it in
+// the dialog. Nothing else about the person changes.
+export async function removePersonEmail(formData: FormData) {
+  const user = await requireWritableFeature("people");
+  const id = String(formData.get("id") ?? "");
+  const updated = await db.person.updateMany({ where: { id, userId: user.id, email: { not: null } }, data: { email: null, emailSource: null, emailConsentAt: null } });
+  if (updated.count) revalidatePeople(id);
+}
+
 // Erasure. The person, every candidacy, screening, booking and message log
 // goes; what stays is a hash of each identifier, so the same profile saved
 // again is recognised as someone who was removed. The audit event records

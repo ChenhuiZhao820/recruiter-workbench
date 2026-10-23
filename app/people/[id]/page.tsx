@@ -7,7 +7,7 @@ import { profileHref } from "@/lib/urls";
 import { templateKindLabel } from "@/lib/templates";
 import { StageBadge } from "@/components/StageBadge";
 import { Icon } from "@/components/Icon";
-import { deletePerson, setDoNotContact, setPersonEmail } from "@/app/actions/people";
+import { deletePerson, setDoNotContact } from "@/app/actions/people";
 import { oncePerDay } from "@/lib/outreach-log";
 import { NoteComposer } from "@/components/NoteComposer";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
@@ -22,7 +22,8 @@ import { CvUpload } from "@/components/CvUpload";
 import { deleteCv } from "@/app/actions/cv";
 import { FindEmail } from "@/components/FindEmail";
 import { emailAllowance } from "@/lib/email-finder";
-import { emailSourceLabel, finderTarget } from "@/lib/enrow-core.mjs";
+import { finderTarget } from "@/lib/enrow-core.mjs";
+import { PersonEmail } from "@/components/PersonEmail";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +84,8 @@ export default async function PersonPage({ params }: { params: { id: string } })
   // Find email is offered only where it can run: their own workspace, no
   // address yet, and not someone who asked not to be contacted.
   const finder = features.emailFinder && !readOnly && !person.email && !person.doNotContact ? await emailAllowance(owner) : null;
+  // An address Enrow found can be searched again, by name and company, when the recruiter doubts it.
+  const recheck = features.emailFinder && !readOnly && person.email && person.emailSource === "finder" && !person.doNotContact ? await emailAllowance(owner) : null;
 
   return (
     <fieldset key={person.id} disabled={readOnly} className="min-w-0">
@@ -317,25 +320,9 @@ export default async function PersonPage({ params }: { params: { id: string } })
           <aside aria-label="Reminders, contact and privacy" className="person-aside">
             <section aria-labelledby="email-heading" className="person-email">
               <h2 id="email-heading" className="text-base font-semibold">Email</h2>
-              {person.email ? (
-                <p className="person-email-address">
-                  <a href={`mailto:${person.email}`} className="font-medium underline">{person.email}</a>
-                  <span className="chip">{emailSourceLabel(person.emailSource)}</span>
-                </p>
-              ) : finder ? (
-                <FindEmail {...finderTarget(person)} allowance={finder} />
-              ) : (
-                <p className="text-sm text-ink-soft">No email yet.</p>
-              )}
-              <details>
-                <summary className="cursor-pointer text-sm text-ink/70">{person.email ? "Change or remove" : "Add it by hand"}</summary>
-                <ActionForm action={setPersonEmail} className="mt-2 space-y-2">
-                  <input type="hidden" name="id" value={person.id} />
-                  <label htmlFor="person-email" className="field-label">Email address</label>
-                  <input id="person-email" name="email" type="email" defaultValue={person.email ?? ""} autoComplete="off" className="field-input" />
-                  <SubmitButton className="btn-secondary" pendingLabel="Saving...">Save email</SubmitButton>
-                </ActionForm>
-              </details>
+              <PersonEmail personId={person.id} email={person.email} fullName={person.fullName} companyGuess={finderTarget(person).companyGuess} recheck={recheck}>
+                {finder ? <FindEmail {...finderTarget(person)} allowance={finder} /> : <p className="text-sm text-ink-soft">No email yet.</p>}
+              </PersonEmail>
             </section>
             {features.revisitReminders && (
               <ActionForm action={setRevisit} className="space-y-3 border-t border-line pt-5">

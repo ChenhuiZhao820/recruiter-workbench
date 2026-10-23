@@ -344,9 +344,20 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `personId` to null and keeps the row, so erasing does not refund the
   search. It is not exported or imported. Usage events count
   `email_search_started`, `email_found` and `email_not_found` only.
-- Find email is on the person page (the Email block, with "Add it by hand" /
-  "Change or remove" through `setPersonEmail`, which marks the address
-  "manual"), in a role row's Edit details dialog and on the outreach queue
+- On the person page the Email block is `components/PersonEmail.tsx`: with no
+  address, Find email and "Add it by hand"; with one, the address with a
+  pencil (edit in place, through `setPersonEmail`, which marks it "manual")
+  and a bin (`removePersonEmail`, after a confirmation dialog). The address
+  carries no source tag. One Enrow found (`emailSource` "finder") also offers
+  "I believe this is the wrong email", a borderless accent link with a flag:
+  a dialog that only says the feedback is received (nothing is sent to us), asks
+  for the full name and company, and searches again by them
+  (`POST /api/email-finder` with `recheck: true`, never by LinkedIn address).
+  The lookup's method is `recheck`: only that search may replace the address,
+  and only while it is still `finder`-sourced, so a typed one always wins; it
+  spends and refunds the allowance like any search, and finding nothing leaves
+  the address as it was. Find email is also in a role row's Edit details
+  dialog and on the outreach queue
   and follow-up run cards. In the dialog a search that finds nothing says
   only that, in red, and that no credit was used; it offers no other way.
 - The extension panel has an Email field below the profile link, and, when

@@ -127,8 +127,10 @@ export async function settleLookup(lookup: { id: string; userId: string; personI
       data: { status: finished.state, reason: finished.state === "not_found" ? finished.reason : null, enrowId: null, finishedAt: now },
     });
     if (!count || !email || !lookup.personId) return;
+    // A search again ("recheck") may replace an address Enrow itself found
+    // before; an address the recruiter typed is never replaced.
     await tx.person.updateMany({
-      where: { id: lookup.personId, userId: lookup.userId, email: null, doNotContact: false },
+      where: { id: lookup.personId, userId: lookup.userId, doNotContact: false, OR: [{ email: null }, ...(lookup.method === "recheck" ? [{ emailSource: "finder" }] : [])] },
       data: { email, emailSource: "finder", emailConsentAt: null },
     });
   });

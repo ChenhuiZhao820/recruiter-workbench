@@ -344,7 +344,7 @@ export default async function RolePage({ params, searchParams }: { params: { id:
                   </button>
                 </ActionForm>
               </div>
-        }>
+        } actions={<>
           {!readOnly && role.candidates.length > 0 && (
             <Link href={`/roles/${role.id}/outreach`} className="btn-secondary">
               Send outreach
@@ -356,14 +356,8 @@ export default async function RolePage({ params, searchParams }: { params: { id:
               Match this role on People
             </Link>
           )}
-        </AddCandidateToolbar>
-        {role.candidates.length === 0 && (
-          <p className="mb-3 text-ink/70">
-            No candidates yet. When you find someone on LinkedIn, paste their profile link and
-            name above.
-          </p>
-        )}
-        {role.candidates.length > 0 && <CandidateList rows={role.candidates.map((c): CandidateListRow => ({
+        </>}>
+        <CandidateList rows={role.candidates.map((c): CandidateListRow => ({
           id: c.id,
           name: c.fullName,
           stageRank: (STAGES as readonly string[]).indexOf(c.stage),
@@ -575,7 +569,8 @@ export default async function RolePage({ params, searchParams }: { params: { id:
                         </div>
                       )}
           </>),
-        }))} />}
+        }))} />
+        </AddCandidateToolbar>
       </section>
       ) },
       { id: "searches", label: "Searches", count: role.searches.length, panel: (

@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import { compareNames, nameMatches } from "@/lib/name-match.mjs";
+import { useToolbarSlot } from "@/components/AddCandidateToolbar";
 
 export type CandidateListRow = { id: string; name: string; stageRank: number; addedAt: string; activeAt: string; node: ReactNode };
 
@@ -77,6 +78,7 @@ export function CandidateList({ rows }: { rows: CandidateListRow[] }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortId>("az");
   const typed = useDeferredValue(query);
+  const slot = useToolbarSlot();
   const searchId = useId();
   const sortId = useId();
 
@@ -85,8 +87,8 @@ export function CandidateList({ rows }: { rows: CandidateListRow[] }) {
 
   return (
     <div className="candidate-list">
-      <div className="candidate-tools" role="search" aria-label="Candidates on this role">
-        <div className="candidate-search">
+      <div className="candidate-tools" role={rows.length ? "search" : undefined} aria-label={rows.length ? "Candidates on this role" : undefined}>
+        {rows.length > 0 && <><div className="candidate-search">
           <Icon name="search" size={16} />
           <label htmlFor={searchId} className="sr-only">Find a candidate by name</label>
           <input
@@ -108,8 +110,16 @@ export function CandidateList({ rows }: { rows: CandidateListRow[] }) {
         <SortMenu id={sortId} value={sort} onChange={setSort} />
         <p role="status" aria-live="polite" className="candidate-tools-count">
           {filtering ? `${shown.length} of ${rows.length}` : ""}
-        </p>
+        </p></>}
+        {slot && <div className="candidate-tools-add">{slot.add}</div>}
       </div>
+      {slot?.panels}
+
+      {rows.length === 0 && (
+        <p className="mb-3 text-ink/70">
+          No candidates yet. When you find someone on LinkedIn, paste their profile link and name above.
+        </p>
+      )}
 
       {filtering && shown.length === 0 && (
         <p className="candidate-none">No one on this role matches &ldquo;{typed.trim()}&rdquo;.</p>

@@ -210,8 +210,8 @@ test("B5 cancelling frees the time and puts the candidate back to booking pendin
   const candidate = await db.candidate.findFirstOrThrow({ where: { roleId, fullName: "Imogen Achterberg" } });
   const booking = await db.booking.findFirstOrThrow({ where: { candidateId: candidate.id, status: "booked" } });
   await page.goto(`/roles/${roleId}`);
-  page.once("dialog", (dialog) => dialog.accept());
   await page.locator("li.card", { hasText: "Imogen Achterberg" }).getByRole("button", { name: "Cancel call" }).click();
+  await page.getByRole("dialog", { name: "Cancel the call with Imogen Achterberg?" }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.locator("li.card", { hasText: "Imogen Achterberg" }).getByText("Call booked")).toHaveCount(0);
   expect((await db.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe("cancelled");
   expect(await db.bookedSlot.count({ where: { bookingId: booking.id } })).toBe(0);

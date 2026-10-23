@@ -63,7 +63,7 @@ export async function createSearch(_prev: FormState, formData: FormData): Promis
     },
   });
   revalidateSearches(roleId);
-  redirect(roleId ? `/roles/${roleId}` : "/searches");
+  redirect(roleId ? `/roles/${roleId}?tab=searches` : "/searches");
 }
 
 export async function updateSearch(_prev: FormState, formData: FormData): Promise<FormState> {

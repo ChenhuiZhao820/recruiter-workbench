@@ -101,39 +101,21 @@ test("T2 people search filters on confirmed details, shows the facts, and flags 
   await expect(page.locator(".person-row")).toHaveCount(1);
 });
 
-test("T3 a role is matched against your database: best first, budget kept, labelled, and one click to add", async ({ page }) => {
+test("T3 a role page no longer lists database matches; it hands the role to Instant Match on People", async ({ page }) => {
   await db.briefing.create({ data: {
     roleId, dayToDay: "Runs the platform.", salaryRange: "£80k to £95k", targetCompanies: "[]", firstCallQuestions: "[]",
     keySkills: JSON.stringify([{ skill: "Quarkslate", real_vs_buzzword: "" }, { skill: "Helmforge", real_vs_buzzword: "" }]),
     searchTitles: JSON.stringify(["Lattice Reliability Engineer"]),
   } });
-  await person("Bram Oyelaran", { salaryMin: 140000, confirmedDaysAgo: 5, skills: "quarkslate helmforge lattice reliability engineer" });
   await person("Cerys Lindqvist-Obi", { skills: "helmforge lattice reliability engineer" });
-  await person("Tavish Morrow-Iqbal", { skills: "quarkslate helmforge", doNotContact: true });
-  const already = await person("Noor Halloran", { skills: "quarkslate helmforge" });
-  await db.candidate.create({ data: { roleId, personId: already.id, fullName: already.fullName } });
 
   await page.goto(`/roles/${roleId}`);
-  await page.getByText(/From your database \(\d+\)/).click();
-  const matches = page.locator(".match-row");
-  const names = await matches.locator(".person-row-name").allTextContents();
-  expect(names[0]).toBe("Ilse Vandermeer");
-  expect(names).toContain("Cerys Lindqvist-Obi");
-  expect(names).toContain("Dorian Kettleworth");
-  for (const absent of ["Bram Oyelaran", "Tavish Morrow-Iqbal", "Noor Halloran", "Rosalind Achebe-Moss"]) expect(names).not.toContain(absent);
-  await expect(matches.filter({ hasText: "Cerys Lindqvist-Obi" }).getByText("Salary unknown")).toBeVisible();
-  await expect(matches.filter({ hasText: "Ilse Vandermeer" }).getByRole("list", { name: "Matched on" })).toContainText("quarkslate");
-
-  await matches.filter({ hasText: "Ilse Vandermeer" }).getByRole("button", { name: "Add to this role" }).click();
-  // Added, she leaves the matches and appears among the candidates as sourced.
-  await expect(page.locator("li.card", { hasText: "Ilse Vandermeer" })).toBeVisible();
-  const imogen = await db.person.findFirstOrThrow({ where: { userId: TEST_ADMIN_ID, fullName: "Ilse Vandermeer" } });
-  const candidate = await db.candidate.findFirstOrThrow({ where: { roleId, personId: imogen.id } });
-  expect(candidate.stage).toBe("sourced");
-  await page.reload();
-  await expect(page.locator("li.card", { hasText: "Ilse Vandermeer" })).toBeVisible();
-  await page.getByText(/From your database \(\d+\)/).click();
-  await expect(page.locator(".match-row", { hasText: "Ilse Vandermeer" })).toHaveCount(0);
+  await expect(page.getByText(/From your database/)).toHaveCount(0);
+  await expect(page.locator(".match-row")).toHaveCount(0);
+  const shortcut = page.getByRole("link", { name: "Match this role on People" });
+  await expect(shortcut).toHaveAttribute("href", `/people?role=${roleId}`);
+  await shortcut.click();
+  await expect(page).toHaveURL(new RegExp(`/people\\?role=${roleId}`));
 });
 
 test("T4 a revisit reminder is set on the person, shows in Follow-ups the week it is due, and clears", async ({ page }) => {
@@ -231,7 +213,7 @@ test("T7 a Lite account keeps the review list and loses matches, filters and rem
   }
 });
 
-test("T8 a read-only Admin view shows the review list and matches but cannot act on them", async ({ page }) => {
+test("T8 a read-only Admin view shows the review list, and its role pages list no matches to act on", async ({ page }) => {
   const other = await db.user.create({ data: { email: `talent-pro-${randomUUID()}@test.capture.invalid`, name: "Pro Recruiter", role: "recruiter", accountTier: "pro", settings: { create: {} } } });
   const role = await db.role.create({ data: { userId: other.id, title: "Viewed Role" } });
   await db.briefing.create({ data: { roleId: role.id, dayToDay: "x", salaryRange: "x", targetCompanies: "[]", firstCallQuestions: "[]", keySkills: JSON.stringify([{ skill: "Quarkslate", real_vs_buzzword: "" }]), searchTitles: "[]" } });
@@ -240,8 +222,9 @@ test("T8 a read-only Admin view shows the review list and matches but cannot act
   await db.session.update({ where: { tokenHash: hashToken(token) }, data: { viewUserId: other.id } });
   try {
     await page.goto(`/roles/${role.id}`);
-    await page.getByText(/From your database \(1\)/).click();
-    await expect(page.getByRole("button", { name: "Add to this role" })).toBeDisabled();
+    // The role page lists no database matches, and a read-only view is not handed to Instant Match.
+    await expect(page.getByText(/From your database/)).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Match this role on People" })).toHaveCount(0);
   } finally {
     await db.session.update({ where: { tokenHash: hashToken(token) }, data: { viewUserId: null } });
   }

@@ -231,8 +231,8 @@ test("I7 the recruiter cancels an interview from the role page and the candidate
     await candidate.close();
   }
   await page.goto(`/roles/${otherRoleId}`);
-  page.once("dialog", (dialog) => dialog.accept());
   await page.locator("li.card", { hasText: "Sam Okafor" }).getByRole("button", { name: "Cancel interview" }).click();
+  await page.getByRole("dialog", { name: "Cancel Sam Okafor's interview?" }).getByRole("button", { name: "Confirm" }).click();
   await expect(page.locator("li.card", { hasText: "Sam Okafor" }).getByText("Interview with Halden Systems Ltd")).toHaveCount(0);
   expect((await db.candidate.findUniqueOrThrow({ where: { id: sam.id } })).stage).toBe("submitted");
   expect(await db.interviewSlot.count({ where: { booking: { candidateId: sam.id } } })).toBe(0);

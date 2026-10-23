@@ -49,12 +49,9 @@ export async function backdateMessages(candidateId: string, to: Date) {
 // Adding a candidate is a button until it is wanted, so a test that fills the
 // fields has to ask for them first. Safe to call when it is already open.
 export async function openAddCandidate(page: { locator: (selector: string) => any }) {
-  // The section around it is a details too, so take the innermost one.
-  const summary = page.locator('details:has(#new-fullName) > summary').last();
-  if (await summary.count()) {
-    const fields = page.locator("#new-fullName");
-    if (!(await fields.isVisible())) await summary.click();
-  }
+  // The button above the list opens the fields under the toolbar.
+  const fields = page.locator("#new-fullName");
+  if ((await fields.count()) && !(await fields.isVisible())) await page.locator('button[aria-controls]:has-text("Add a candidate")').click();
 }
 
 // Putting forward someone without a CV asks first; specs about something else

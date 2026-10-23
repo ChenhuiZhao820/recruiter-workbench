@@ -7,13 +7,11 @@ import { getWorkspace } from "@/lib/workspace";
 import { featureAvailability } from "@/lib/feature-access";
 import { getSettings } from "@/lib/settings";
 import { googleCalendarUrl } from "@/lib/booking-core.mjs";
-import { factsAreStale, matchTerms, rankMatches } from "@/lib/talent.mjs";
-import { locationText, noticeText, rightToWorkText, salaryText } from "@/lib/fact-labels";
-import { addPersonToRole } from "@/app/actions/talent";
+import { salaryText } from "@/lib/fact-labels";
 import { SCREENING_HINT } from "@/lib/screening";
 import { cancelBooking } from "@/app/actions/booking";
 import { parseObjectArray, parseStringArray } from "@/lib/json";
-import { STAGES, STAGE_LABELS } from "@/lib/stages";
+import { STAGES } from "@/lib/stages";
 import { formatWhen } from "@/lib/dates";
 import { profileHref } from "@/lib/urls";
 import { addCandidate, setCandidateStage } from "@/app/actions/candidates";
@@ -36,6 +34,11 @@ import { adoptShortlistAnswer, newClientLink, putForward, revokeClientLink, take
 import { ShortlistSharing } from "@/components/ShortlistSharing";
 import { emailAllowance } from "@/lib/email-finder";
 import { finderTarget } from "@/lib/enrow-core.mjs";
+import { RoleTabs } from "@/components/RoleTabs";
+import { roleTabFrom } from "@/lib/role-tabs";
+import { CandidateList, type CandidateListRow } from "@/components/CandidateList";
+import { PopoverDetails } from "@/components/PopoverDetails";
+import { AddCandidateToolbar } from "@/components/AddCandidateToolbar";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +57,15 @@ function BriefingSection({ title, children }: { title: string; children: ReactNo
   );
 }
 
-export default async function RolePage({ params }: { params: { id: string } }) {
+// A row action shown as its icon, named for what it does, with a tip.
+function RowAction({ href, icon, label, tip, className = "", download = false, external = false }: { href: string; icon: Parameters<typeof Icon>[0]["name"]; label: string; tip?: string; className?: string; download?: boolean; external?: boolean }) {
+  const props = { className: `row-action hover-tip ${className}`.trim(), "aria-label": label, "data-tip": tip ?? label };
+  if (download || external) return <a href={href} {...props} {...(download ? { download: true } : { target: "_blank", rel: "noopener noreferrer" })}><Icon name={icon} size={17} /></a>;
+  return <Link href={href} {...props}><Icon name={icon} size={17} /></Link>;
+}
+
+export default async function RolePage({ params, searchParams }: { params: { id: string }; searchParams: { tab?: string } }) {
+  const initialTab = roleTabFrom(searchParams.tab);
   const { owner, readOnly } = await getWorkspace();
   const features = await featureAvailability();
   const finder = features.emailFinder && !readOnly ? await emailAllowance(owner) : null;
@@ -151,22 +162,6 @@ export default async function RolePage({ params }: { params: { id: string } }) {
     .filter(Boolean)
     .join(" ");
 
-  // People already in the database who fit this role, best first. Plain word
-  // matching of the briefing against what each person told you; people above
-  // the budget are left out and people with no confirmed salary are labelled.
-  const terms = briefing ? matchTerms(skills.map((item) => item.skill), searchTitles) : [];
-  const matches = features.talentMatches && terms.length
-    ? rankMatches(
-        await db.person.findMany({
-          where: { userId: owner.id, doNotContact: false, candidates: { none: { roleId: role.id } } },
-          orderBy: { updatedAt: "desc" },
-          take: 5000,
-          select: { id: true, fullName: true, headline: true, searchText: true, salaryMin: true, salaryMax: true, salaryCurrency: true, noticeWeeks: true, location: true, remotePreference: true, rightToWork: true, factsConfirmedAt: true },
-        }),
-        terms,
-        role,
-      )
-    : [];
   const budgetText = salaryText(role.budgetMin, role.budgetMax, role.budgetCurrency);
 
   const createSearchHref = briefing
@@ -174,13 +169,30 @@ export default async function RolePage({ params }: { params: { id: string } }) {
     : `/searches/new?roleId=${role.id}`;
 
   return (
-    <fieldset disabled={readOnly} className="min-w-0 space-y-10">
+    <fieldset disabled={readOnly} className="min-w-0">
       {!readOnly && unread.count > 0 && <MarkSeen renderedAt={now.toISOString()} roleId={role.id} />}
-      <header className="page-header">
+      <header className="page-header role-header">
         <div className="min-w-0 flex-1">
           <p className="page-eyebrow">Roles / Workspace</p>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="role-title">
             <h1>{role.title}</h1>
+            {!readOnly && (
+              <Link href={`/roles/${role.id}/edit`} className="row-icon-button hover-tip" aria-label="Edit role" data-tip="Edit role">
+                <Icon name="pencil" size={18} />
+              </Link>
+            )}
+            <ConfirmActionButton
+              action={deleteRole}
+              fields={{ id: role.id }}
+              title={`Delete ${role.title}?`}
+              body={deleteWarning}
+              pendingLabel="Deleting…"
+              className="row-icon-button is-danger"
+              label="Delete role"
+              tip="Delete role"
+            >
+              <Icon name="trash" size={18} />
+            </ConfirmActionButton>
             {role.status === "closed" && <span className="chip">Closed</span>}
           </div>
           {role.client && <p className="mt-1 text-ink/70">{role.client}</p>}
@@ -196,26 +208,13 @@ export default async function RolePage({ params }: { params: { id: string } }) {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {!readOnly && <Link href={`/roles/${role.id}/edit`} className="btn-quiet">
-            Edit role
-          </Link>}
-          <form action={deleteRole}>
-            <input type="hidden" name="id" value={role.id} />
-            <ConfirmSubmitButton
-              label="Delete role"
-              confirmText={deleteWarning}
-            />
-          </form>
-        </div>
       </header>
 
-      {/* Briefing */}
+      <RoleTabs key={role.id} initial={initialTab} tabs={[
+      { id: "briefing", label: "Briefing", panel: (
       <section aria-labelledby="briefing-heading" className="workspace-section">
         <div className="mb-3">
-          <h2 id="briefing-heading" className="text-2xl">
-            Briefing
-          </h2>
+          <h2 id="briefing-heading" className="sr-only">Briefing</h2>
           <p className="section-caption">The role, translated into what matters.</p>
         </div>
         {!briefing ? (
@@ -296,28 +295,17 @@ export default async function RolePage({ params }: { params: { id: string } }) {
           </div>
         )}
       </section>
-
-      {/* Candidates */}
+      ) },
+      { id: "candidates", label: "Candidates", count: role.candidates.length, panel: (
       <section aria-labelledby="candidates-heading">
-        <h2 id="candidates-heading" className="mb-3 text-2xl">
-          Candidates
-          {role.candidates.length > 0 && (
-            <span className="ml-2 text-ink/40">{role.candidates.length}</span>
-          )}
-        </h2>
+        <h2 id="candidates-heading" className="sr-only">Candidates</h2>
         {/* Adding someone comes first, the way a new role or a new template
             does: a button until it is wanted, then the fields. */}
-        <div className="mb-4 flex flex-wrap items-start gap-2">
-          {/* Rendered for a read-only view too, disabled by the fieldset
-              around the page: what cannot be done is visible as refused,
-              rather than quietly absent. */}
-          {(
-            <details className="group/add min-w-0 flex-1">
-              <summary className="btn-primary inline-flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-                <Icon name="plus" size={16} />
-                Add a candidate
-              </summary>
-              <div className="card mt-3">
+        {/* Rendered for a read-only view too, disabled by the fieldset around
+            the page: what cannot be done is visible as refused, rather than
+            quietly absent. */}
+        <AddCandidateToolbar readOnly={readOnly} form={
+              <div className="card">
                 <ActionForm action={addCandidate} className="space-y-3">
                   <input type="hidden" name="roleId" value={role.id} />
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -356,21 +344,19 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   </button>
                 </ActionForm>
               </div>
-            </details>
-          )}
-          {!readOnly && role.candidates.length > 0 && (
-            <Link href={`/roles/${role.id}/outreach`} className="btn-secondary">
-              Send outreach
-            </Link>
-          )}
+        }>
           {features.clientShortlists && (
-            <details className="client-link min-w-0 basis-full" aria-label="Client link">
-              <summary className="btn-secondary inline-flex cursor-pointer items-center gap-2">
+            <PopoverDetails
+              className="client-link"
+              label="Client link"
+              summaryClassName="btn-secondary inline-flex cursor-pointer items-center gap-2"
+              summary={<>
                 <Icon name="external" size={16} />
                 Client link
                 {/* People on the page, not links: a role has one link. */}
                 <span className="tabular text-ink-soft">· {onLinkCount} {onLinkCount === 1 ? "person" : "people"}</span>
-              </summary>
+              </>}
+            >
               <div className="client-link-panel">
                 {!clientList ? (
                   <div className="space-y-1">
@@ -429,34 +415,34 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                   </div>
                 )}
               </div>
-            </details>
+            </PopoverDetails>
           )}
-        </div>
+          <span className="role-toolbar-gap" aria-hidden="true" />
+          {!readOnly && role.candidates.length > 0 && (
+            <Link href={`/roles/${role.id}/outreach`} className="btn-secondary">
+              Send outreach
+            </Link>
+          )}
+          {features.instantMatch && !readOnly && (
+            <Link href={`/people?role=${role.id}`} className="btn-secondary">
+              <Icon name="spark" size={16} />
+              Match this role on People
+            </Link>
+          )}
+        </AddCandidateToolbar>
         {role.candidates.length === 0 && (
           <p className="mb-3 text-ink/70">
             No candidates yet. When you find someone on LinkedIn, paste their profile link and
             name above.
           </p>
         )}
-        <div className="space-y-4">
-          {STAGES.map((stage) => {
-            const inStage = role.candidates.filter((c) => c.stage === stage);
-            if (inStage.length === 0) return null;
-            return (
-              <details key={stage} open className="group/stage">
-                <summary className="mb-2 flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-                  <h3 className="font-mono text-sm uppercase tracking-wide text-ink/70">
-                    {STAGE_LABELS[stage]} ({inStage.length})
-                  </h3>
-                  <Icon
-                    name="down"
-                    size={14}
-                    className="text-ink/40 group-open/stage:rotate-180 group-open/stage:text-accent"
-                  />
-                </summary>
-                <ul className="space-y-2">
-                  {inStage.map((c) => (
-                    <li key={c.id} id={`candidate-${c.id}`} className="card candidate-row">
+        {role.candidates.length > 0 && <CandidateList rows={role.candidates.map((c): CandidateListRow => ({
+          id: c.id,
+          name: c.fullName,
+          stageRank: (STAGES as readonly string[]).indexOf(c.stage),
+          addedAt: c.createdAt.toISOString(),
+          activeAt: c.lastActivityAt.toISOString(),
+          node: (<>
                       <div className="candidate-row-head">
                         <div className="min-w-0">
                           <div className="candidate-row-title">
@@ -519,9 +505,7 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                           const interviewBooked = c.bookings[0]?.kind === "interview";
                           if (!wantsToMeet || !features.clientShortlists || readOnly || role.status !== "open" || CLOSED_STAGES.includes(c.stage) || c.person?.doNotContact || !c.personId || interviewBooked || offered.has(c.id)) return null;
                           return (
-                            <Link href={`/candidates/${c.id}/interview`} className="btn-quiet btn-arrange">
-                              Arrange interview
-                            </Link>
+                            <RowAction href={`/candidates/${c.id}/interview`} icon="calendar" label="Arrange interview" tip={`Arrange the interview ${clientName} asked for`} className="is-accent" />
                           );
                         })()}
                       </div>
@@ -537,8 +521,11 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                             </span>
                           </p>
                           {!readOnly && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <a
+                            <div className="booking-on-card-actions">
+                              <RowAction
+                                external
+                                icon="calendar"
+                                label="Add to Google Calendar"
                                 href={googleCalendarUrl({
                                   start: c.bookings[0].startsAt.getTime(),
                                   end: c.bookings[0].endsAt.getTime(),
@@ -546,22 +533,22 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                                   details: c.bookings[0].kind === "interview" ? c.bookings[0].meetingUrl ?? c.bookings[0].place ?? role.interviewLocation ?? "" : c.bookings[0].mode === "phone" ? `Call ${c.fullName} on ${c.bookings[0].phone}` : c.bookings[0].meetingUrl ?? "",
                                   location: c.bookings[0].meetingUrl ?? (c.bookings[0].kind === "interview" ? c.bookings[0].place ?? role.interviewLocation ?? undefined : undefined),
                                 })}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn-quiet"
+                              />
+                              <RowAction download icon="download" label="Calendar file" tip="Calendar file (.ics)" href={`/api/bookings/${c.bookings[0].id}/ics`} />
+                              <ConfirmActionButton
+                                action={cancelBooking}
+                                fields={{ bookingId: c.bookings[0].id }}
+                                title={c.bookings[0].kind === "interview" ? `Cancel ${c.fullName}'s interview?` : `Cancel the call with ${c.fullName}?`}
+                                body={c.bookings[0].kind === "interview"
+                                  ? `The time becomes free again and they go back to Submitted. Retrivr tells neither them nor ${clientName}, so let them both know yourself.`
+                                  : "The time becomes free again. Retrivr does not tell them, so let them know yourself."}
+                                pendingLabel="Cancelling…"
+                                className="row-action hover-tip is-danger"
+                                label={c.bookings[0].kind === "interview" ? "Cancel interview" : "Cancel call"}
+                                tip={c.bookings[0].kind === "interview" ? "Cancel interview" : "Cancel call"}
                               >
-                                Add to Google Calendar
-                              </a>
-                              <a href={`/api/bookings/${c.bookings[0].id}/ics`} className="btn-quiet" download>Calendar file</a>
-                              <form action={cancelBooking}>
-                                <input type="hidden" name="bookingId" value={c.bookings[0].id} />
-                                <ConfirmSubmitButton
-                                  label={c.bookings[0].kind === "interview" ? "Cancel interview" : "Cancel call"}
-                                  confirmText={c.bookings[0].kind === "interview"
-                                    ? `Cancel ${c.fullName}'s interview with ${clientName}? The time becomes free again and they go back to Submitted. Retrivr tells neither of them, so let them both know yourself.`
-                                    : `Cancel the call with ${c.fullName}? The time becomes free again. Retrivr does not tell them, so let them know yourself.`}
-                                />
-                              </form>
+                                <Icon name="close" size={17} />
+                              </ConfirmActionButton>
                             </div>
                           )}
                         </div>
@@ -657,92 +644,18 @@ export default async function RolePage({ params }: { params: { id: string } }) {
                       {features.clientShortlists && !readOnly && role.status === "open" && !CLOSED_STAGES.includes(c.stage) && !c.person?.doNotContact && offered.has(c.id) && c.bookings[0]?.kind !== "interview" && (
                         <div className="put-forward">
                           <span className="chip">Times offered, waiting for {c.fullName.split(/\s+/)[0]}</span>
-                          <Link href={`/candidates/${c.id}/interview`} className="btn-quiet">See the offer</Link>
+                          <RowAction href={`/candidates/${c.id}/interview`} icon="eye" label="See the offer" tip="See the times you offered" />
                         </div>
                       )}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            );
-          })}
-        </div>
-
-        {features.talentMatches && (
-          <details className="role-matches">
-            <summary>
-              <span className="font-mono text-sm uppercase tracking-wide text-ink/70">From your database ({matches.length})</span>
-              <Icon name="down" size={14} className="text-ink/40" />
-            </summary>
-            {features.instantMatch && (
-              <p className="section-caption">
-                Want to match on the client&rsquo;s own words instead?{" "}
-                <Link href={`/people?role=${role.id}`} className="underline">Match this role on People</Link>
-              </p>
-            )}
-            {!briefing ? (
-              <p className="section-caption">Generate the briefing first: people are matched on its key skills and job titles.</p>
-            ) : matches.length === 0 ? (
-              <p className="section-caption">No one else in your database mentions this role&rsquo;s key skills or job titles yet.</p>
-            ) : (
-              <>
-                <p className="section-caption">
-                  People you already know who are not on this role, matched on the briefing&rsquo;s key skills and job titles
-                  {role.budgetMax !== null ? ", leaving out anyone whose confirmed salary is above the budget" : ""}. Their details are their own words from a screening call, not checked.
-                </p>
-                {features.clientShortlists && !readOnly && (
-                  <Link
-                    href={`/shortlists/new?${new URLSearchParams([...(role.client ? [["client", role.client]] : []), ...matches.map(({ person }) => ["p", person.id])]).toString()}`}
-                    className="btn-quiet mt-3"
-                  >
-                    Put these on a shortlist{role.client ? ` for ${role.client}` : ""}
-                  </Link>
-                )}
-                <ul className="people-list mt-3">
-                  {matches.map(({ person, hits, budget }) => {
-                    const facts = [
-                      salaryText(person.salaryMin, person.salaryMax, person.salaryCurrency),
-                      noticeText(person.noticeWeeks) && `${noticeText(person.noticeWeeks)} notice`,
-                      locationText(person.location, person.remotePreference),
-                      rightToWorkText(person.rightToWork),
-                    ].filter(Boolean);
-                    return (
-                      <li key={person.id} className="match-row">
-                        <div className="min-w-0">
-                          <Link href={`/people/${person.id}`} className="person-row-name">{person.fullName}</Link>
-                          {person.headline && <p className="person-row-headline">{person.headline}</p>}
-                          <p className="person-row-facts">
-                            {facts.length ? facts.join(" / ") : "No facts confirmed yet"}
-                            {budget === "unknown" && <span className="chip">Salary unknown</span>}
-                            {factsAreStale(person.factsConfirmedAt, now) && <span className="chip person-stale">May be out of date</span>}
-                          </p>
-                          <ul className="match-hits" aria-label="Matched on">
-                            {hits.slice(0, 5).map((hit) => <li key={hit} className="chip">{hit}</li>)}
-                          </ul>
-                        </div>
-                        {role.status === "open" && (
-                          <ActionForm action={addPersonToRole} className="match-add">
-                            <input type="hidden" name="personId" value={person.id} />
-                            <input type="hidden" name="roleId" value={role.id} />
-                            <button type="submit" className="btn-quiet">Add to this role</button>
-                          </ActionForm>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </>
-            )}
-          </details>
-        )}
+          </>),
+        }))} />}
       </section>
-
-      {/* Searches for this role */}
+      ) },
+      { id: "searches", label: "Searches", count: role.searches.length, panel: (
       <section aria-labelledby="searches-heading">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 id="searches-heading" className="text-2xl">
-            Searches for this role
-          </h2>
+        <div className="role-panel-head">
+          <h2 id="searches-heading" className="sr-only">Searches for this role</h2>
+          <p className="section-caption">Saved LinkedIn searches for this role, to run again in one click.</p>
           {!readOnly && <Link href={`/searches/new?roleId=${role.id}`} className="btn-secondary">
             New search
           </Link>}
@@ -758,6 +671,8 @@ export default async function RolePage({ params }: { params: { id: string } }) {
           </ul>
         )}
       </section>
+      ) },
+      ]} />
     </fieldset>
   );
 }

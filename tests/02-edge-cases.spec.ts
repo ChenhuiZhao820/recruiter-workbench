@@ -26,6 +26,7 @@ async function createRole(page: Page, title: string, jobDesc = "") {
 
 test("E1 a role with no job description cannot start a briefing", async ({ page }) => {
   await createRole(page, "Empty Role");
+  await page.getByRole("tab", { name: "Briefing" }).click();
   await expect(page.getByText("This role has no job description yet")).toBeVisible();
 
   // The page already knows it would fail, so the button says no up front
@@ -42,11 +43,13 @@ test("E1 a role with no job description cannot start a briefing", async ({ page 
   await page.getByRole("button", { name: "Save role" }).click();
   await expect(page.locator("[data-form-message='notice']")).toContainText("Role saved");
   await page.getByRole("link", { name: "Back to role" }).click();
+  await page.getByRole("tab", { name: "Briefing" }).click();
   await expect(page.getByRole("button", { name: "Generate briefing" })).toBeEnabled();
 });
 
 test("E2 a malformed model response is reported, not half-saved", async ({ page }) => {
   const id = await createRole(page, "BADJSON Role", "Runs operations for a plant. BADJSON marker.");
+  await page.getByRole("tab", { name: "Briefing" }).click();
   await page.getByRole("button", { name: "Generate briefing" }).click();
   await expect(page.locator("p[role='alert']")).toContainText("shape we could not read", {
     timeout: 30_000,
@@ -155,16 +158,14 @@ test("E6 deleting a role says what happens to its saved searches", async ({ page
   await page.getByLabel(/Job titles/).fill("Doomed Title");
   await page.getByLabel(/Linked role/).selectOption(roleId);
   await page.getByRole("button", { name: "Create search" }).click();
-  await page.waitForURL(`**/roles/${roleId}`);
+  await page.waitForURL(`**/roles/${roleId}?tab=searches`);
   await expect(page.locator("li.card", { hasText: "Doomed Role search" })).toBeVisible();
 
-  let confirmText = "";
-  page.removeAllListeners("dialog");
-  page.on("dialog", (d) => {
-    confirmText = d.message();
-    d.accept();
-  });
+  // The bin beside the title asks first, in the row dialog.
   await page.getByRole("button", { name: "Delete role" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete Doomed Role?" });
+  const confirmText = await dialog.innerText();
+  await dialog.getByRole("button", { name: "Confirm" }).click();
   await page.waitForURL("**/");
 
   // The dialog must account for the search that outlives the role.

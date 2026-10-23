@@ -199,7 +199,6 @@ test("IM6 criteria join a role's briefing only when saved there, with the budget
 
   await page.goto(`/roles/${role.id}`);
   await expect(page.getByText("What they do all day")).toHaveCount(0);
-  await page.getByText(/From your database/).click();
   await page.getByRole("link", { name: "Match this role on People" }).click();
   await expect(page).toHaveURL(/\/people\?role=/);
   await expect(page.getByLabel("Paste a job description, or describe who you need")).toHaveValue(/MUST: zephlang/);

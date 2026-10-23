@@ -1349,12 +1349,12 @@ test("an employment type under Experience is not taken for a company", async () 
   assert.equal(q.elements.company.value, "Contoso");
 });
 
-test("with a company, Find email sends the name and company and asks for them first", async () => {
+test("with a company, Find email sends the name and company too, the LinkedIn link first by default", async () => {
   const p = await popup({ timeout: 0, profile: atCompany, responses: [withFinder(), withFinder({ existing: null, person: null })] });
   p.responses.push({ status: 200, body: { status: "found", email: "priya@example.test", remaining: 248 } });
   await p.click("find-email");
   assert.deepEqual(JSON.parse(p.requests.at(-1).body), {
-    profileUrl: "https://www.linkedin.com/in/priya-kaur/", fullName: "Priya Kaur", company: "Example Foods Ltd", prefer: "company",
+    profileUrl: "https://www.linkedin.com/in/priya-kaur/", fullName: "Priya Kaur", company: "Example Foods Ltd", prefer: "linkedin",
   });
   // A company typed by the recruiter is the one sent.
   const q = await popup({ timeout: 0, responses: [withFinder(), withFinder({ existing: null, person: null })] });
@@ -1368,19 +1368,21 @@ test("Settings chooses the LinkedIn link or the company name first, remembered, 
   assert.doesNotMatch(html, /Other remote addresses are not allowed/);
   const p = await popup({ timeout: 0, profile: atCompany, responses: [withFinder(), withFinder({ existing: null, person: null })] });
   await p.click("settings");
-  assert.equal(p.elements["email-by-company"].checked, true);
-  assert.equal(p.elements["email-by-linkedin"].checked, false);
-  await p.toggle("email-by-linkedin", true);
-  assert.equal(p.stored.emailBy, "linkedin");
+  assert.equal(p.elements["email-by-linkedin"].checked, true);
   assert.equal(p.elements["email-by-company"].checked, false);
+  // LinkedIn link is the default, and the left of the two.
+  assert.ok(html.indexOf('id="email-by-linkedin"') < html.indexOf('id="email-by-company"'));
+  await p.toggle("email-by-company", true);
+  assert.equal(p.stored.emailBy, "company");
+  assert.equal(p.elements["email-by-linkedin"].checked, false);
   await p.click("setup-back");
   p.responses.push({ status: 200, body: { status: "not_found", remaining: 249 } });
   await p.click("find-email");
-  assert.equal(JSON.parse(p.requests.at(-1).body).prefer, "linkedin");
+  assert.equal(JSON.parse(p.requests.at(-1).body).prefer, "company");
   // Remembered on the next opening.
-  const q = await popup({ stored: { ...config, emailBy: "linkedin" } });
+  const q = await popup({ stored: { ...config, emailBy: "company" } });
   await q.click("settings");
-  assert.equal(q.elements["email-by-linkedin"].checked, true);
+  assert.equal(q.elements["email-by-company"].checked, true);
 });
 
 test("a red warning is words alone, not a box", () => {

@@ -45,13 +45,12 @@ export default async function WhatsNewPage() {
             <p>
               The extension now picks up the company from the LinkedIn profile you&rsquo;re on and puts it next to the name. You can
               fix it if it&rsquo;s wrong.
-              {allowance && <> <em>Find email</em> then searches with the name and company, which finds more people than the profile
-                link alone.</>}
             </p>
             {allowance && <>
               <p>
-                If it can&rsquo;t find an email, or finds one that&rsquo;s clearly wrong, open <em>Settings</em> in the extension,
-                switch <em>Find email by</em> to <em>LinkedIn link</em>, and try again.
+                <em>Find email</em> still searches by the profile link first. If it can&rsquo;t find an email, or finds one
+                that&rsquo;s clearly wrong, open <em>Settings</em> in the extension, switch <em>Find email by</em> to <em>Company
+                name</em>, and try again.
               </p>
               <Image
                 src="/whats-new/extension-email-by.png"

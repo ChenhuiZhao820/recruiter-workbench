@@ -265,7 +265,7 @@ textarea.field-input { resize: vertical; min-height: 68px; line-height: 1.55; }
 .seg input:checked + label { color: var(--color-ink); font-weight: 600; }
 .seg input:focus-visible + label { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .seg-thumb { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: 999px; background: var(--color-surface); box-shadow: 0 1px 2px rgb(0 0 0 / .14); transition: transform .18s ease; }
-#email-by-linkedin:checked ~ .seg-thumb { transform: translateX(100%); }
+#email-by-company:checked ~ .seg-thumb { transform: translateX(100%); }
 @media (prefers-reduced-motion: reduce) { .seg-thumb, .seg label { transition: none; } }
 
 .email-row { display: flex; gap: 6px; }

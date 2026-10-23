@@ -34,6 +34,7 @@ const paths = {
   pencil: "M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16zM13.5 6.5l4 4",
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5",
   card: "M3 6h18v12H3zM3 10h18M7 15h4",
+  flag: "M5 21V4m0 0h12l-2.5 4.5L17 13H5",
 } as const;
 
 export function Icon({ name, size = 20, className, style }: { name: keyof typeof paths; size?: number; className?: string; style?: CSSProperties }) {

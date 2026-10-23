@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import {
   PENDING_COUNTS_MS,
   allowanceStart,
+  cleanName,
   companyFromHeadline,
   countsAgainstAllowance,
   emailSourceLabel,
@@ -110,11 +111,24 @@ test("the routes check the origin, refuse read-only views and claim the allowanc
   assert.match(start, /if \(readOnly\) return fail\(403/);
   assert.match(start, /canUseFeature\(user, "emailFinder"\) \|\| !canUseFeature\(owner, "emailFinder"\)/);
   assert.match(start, /person\.doNotContact/);
-  assert.match(start, /claimLookup\(user, person\.id, search\.method\)/);
+  assert.match(start, /claimLookup\(user, person\.id, recheck \? "recheck" : search\.method\)/);
+  // Searching again is only for an address Enrow itself found.
+  assert.match(start, /person\.emailSource !== "finder"/);
   assert.match(await read("lib/email-finder.ts"), /isolationLevel: "Serializable"/);
   const poll = await read("app/api/email-finder/[id]/route.ts");
   assert.match(poll, /where: \{ id: params\.id, userId: user\.id \}/);
   assert.match(poll, /if \(readOnly\) return fail\(403/);
-  // A found email never overwrites one the person already has.
-  assert.match(await read("lib/email-finder.ts"), /where: \{ id: lookup\.personId, userId: lookup\.userId, email: null, doNotContact: false \}/);
+  // A found email never overwrites one the person already has, except that a
+  // search again may replace an address Enrow found, never one typed.
+  assert.match(await read("lib/email-finder.ts"), /OR: \[\{ email: null \}, \.\.\.\(lookup\.method === "recheck" \? \[\{ emailSource: "finder" \}\] : \[\]\)\]/);
+});
+
+test("a name typed to search again is cleaned, and searching again always goes by name and company", () => {
+  assert.equal(cleanName("  Imogen   Achterberg "), "Imogen Achterberg");
+  assert.equal(cleanName("   "), null);
+  assert.equal(cleanName("x".repeat(121)), null);
+  // The profile address is left out on purpose: the doubt is about what it found.
+  assert.deepEqual(lookupRequest({ fullName: "Imogen Achterberg", profileUrl: null }, "Halden Systems"), { method: "name", body: { fullname: "Imogen Achterberg", company_name: "Halden Systems" } });
+  assert.equal(lookupRequest({ fullName: "Imogen", profileUrl: null }, "Halden Systems"), null);
+  assert.match(notFoundText(null, "recheck").text, /name and company/);
 });

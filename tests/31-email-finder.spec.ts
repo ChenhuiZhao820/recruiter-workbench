@@ -86,7 +86,9 @@ test("EF1 Find email searches by the LinkedIn address alone, saves what it finds
 
   await page.reload();
   await expect(block.getByText("imogen.achterberg@enrow-stub.example")).toBeVisible();
-  await expect(block.getByText("Found by Enrow, unverified")).toBeVisible();
+  // The address carries no source tag; Enrow-found ones offer the doubt link instead.
+  await expect(block.getByText(/Found by Enrow/)).toHaveCount(0);
+  await expect(block.getByRole("button", { name: "I believe this is the wrong email" })).toBeVisible();
   await expect(block.getByRole("button", { name: "Find email" })).toHaveCount(0);
   // A person who already has an email is not searched again.
   expect((await find(page, imogen.id)).status()).toBe(409);
@@ -385,6 +387,102 @@ test("EF11 the extension finds an email with its extension key: a kept person ge
     const basicKey = await key(basic.user.id);
     expect((await request.post("/api/capture/email", { headers: headers(basicKey), data: { profileUrl: "https://www.linkedin.com/in/ione-castellano/" } })).status()).toBe(404);
     expect((await (await request.get("/api/capture", { headers: headers(basicKey) })).json()).emailFinder).toBeNull();
+  } finally {
+    await own.close();
+    await other.close();
+    await basic.close();
+  }
+});
+
+test("EF14 an address Enrow found can be doubted: the dialog says thanks, searches again by name and company, and replaces only a found address", async ({ browser }) => {
+  const own = await account(browser, { accountTier: "pro" });
+  try {
+    const { page, user } = own;
+    const imogen = await db.person.create({ data: {
+      userId: user.id, fullName: "Imogen Achterberg", searchText: "imogen achterberg", headline: "Platform Lead at Halden Systems",
+      profileUrl: "https://www.linkedin.com/in/imogen-achterberg", email: "imogen.old@enrow-stub.example", emailSource: "finder",
+    } });
+    await page.goto(`/people/${imogen.id}`);
+    const block = page.getByRole("region", { name: "Email" });
+    // No bordered source tag; the address has an edit and a remove icon and the doubt link.
+    await expect(block.getByText("imogen.old@enrow-stub.example")).toBeVisible();
+    await expect(block.getByText(/Found by Enrow/)).toHaveCount(0);
+    await expect(block.getByText("Change or remove")).toHaveCount(0);
+    await expect(block.getByRole("button", { name: "Edit email" })).toBeVisible();
+    await expect(block.getByRole("button", { name: "Remove email" })).toBeVisible();
+
+    await block.getByRole("button", { name: "I believe this is the wrong email" }).click();
+    const dialog = page.getByRole("dialog", { name: "Thanks for telling us" });
+    await expect(dialog.getByText("We have received your feedback that imogen.old@enrow-stub.example may be the wrong address.")).toBeVisible();
+    await expect(dialog.getByLabel("Full name")).toHaveValue("Imogen Achterberg");
+    await expect(dialog.getByLabel("Company name")).toHaveValue("Halden Systems");
+    // Nothing to search on without a company and a full name.
+    await dialog.getByLabel("Company name").fill("");
+    await expect(dialog.getByRole("button", { name: "Search again" })).toBeDisabled();
+
+    // Nobody found: free, and the address stays.
+    await dialog.getByLabel("Company name").fill("Nowhere");
+    await dialog.getByRole("button", { name: "Search again" }).click();
+    await expect(dialog.getByText("Email cannot be found. No credit was used.")).toBeVisible({ timeout: 15_000 });
+    expect((await db.person.findUniqueOrThrow({ where: { id: imogen.id } })).email).toBe("imogen.old@enrow-stub.example");
+
+    // Found by the name and company typed: it replaces the old address, still Enrow's.
+    await dialog.getByLabel("Full name").fill("Imogen  Achterberg-Lowe");
+    await dialog.getByLabel("Company name").fill("Halden Systems");
+    await dialog.getByRole("button", { name: "Search again" }).click();
+    await expect(dialog.getByText("Found imogen.achterberg-lowe@haldensystems.example. It has replaced the old address.")).toBeVisible({ timeout: 15_000 });
+    expect((await stub()).requests).toEqual([
+      { fullname: "Imogen Achterberg", company_name: "Nowhere" },
+      { fullname: "Imogen Achterberg-Lowe", company_name: "Halden Systems" },
+    ]);
+    expect(await db.person.findUniqueOrThrow({ where: { id: imogen.id }, select: { email: true, emailSource: true } })).toEqual({ email: "imogen.achterberg-lowe@haldensystems.example", emailSource: "finder" });
+    expect((await db.emailLookup.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } })).map((row) => [row.status, row.method])).toEqual([["not_found", "recheck"], ["found", "recheck"]]);
+    await dialog.getByRole("button", { name: "Done" }).click();
+    await expect(block.getByText("imogen.achterberg-lowe@haldensystems.example")).toBeVisible();
+
+    // Editing in place makes it the recruiter's own, which can no longer be doubted or replaced.
+    await block.getByRole("button", { name: "Edit email" }).click();
+    await block.getByLabel("Email address").fill("imogen@halden.example");
+    await block.getByRole("button", { name: "Save email" }).click();
+    await expect(block.getByText("Email saved.")).toBeVisible();
+    await expect(block.getByText("imogen@halden.example")).toBeVisible();
+    await expect(block.getByRole("button", { name: "I believe this is the wrong email" })).toHaveCount(0);
+    expect((await find(page, imogen.id, { recheck: true, name: "Imogen Achterberg", company: "Halden Systems" })).status()).toBe(409);
+
+    // Removing asks first, and then the address is gone from the page.
+    await block.getByRole("button", { name: "Remove email" }).click();
+    const confirm = page.getByRole("dialog", { name: "Remove this email?" });
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+    await expect(block.getByText("imogen@halden.example")).toBeVisible();
+    await block.getByRole("button", { name: "Remove email" }).click();
+    await page.getByRole("dialog", { name: "Remove this email?" }).getByRole("button", { name: "Confirm" }).click();
+    await expect(block.getByText("imogen@halden.example")).toHaveCount(0);
+    await expect(block.getByRole("button", { name: "Find email" })).toBeVisible();
+    expect(await db.person.findUniqueOrThrow({ where: { id: imogen.id }, select: { email: true, emailSource: true } })).toEqual({ email: null, emailSource: null });
+  } finally {
+    await own.close();
+  }
+});
+
+test("EF15 searching again is refused for another account's person, a missing company or full name, a forged origin and a plan without the finder", async ({ browser }) => {
+  const own = await account(browser, { accountTier: "pro" });
+  const other = await account(browser, { accountTier: "pro" });
+  const basic = await account(browser, { accountTier: "basic" });
+  try {
+    const mine = await db.person.create({ data: { userId: own.user.id, fullName: "Odette Marsh", searchText: "odette marsh", email: "odette.old@enrow-stub.example", emailSource: "finder" } });
+    expect((await find(other.page, mine.id, { recheck: true, name: "Odette Marsh", company: "Kestrel" })).status()).toBe(404);
+    const noCompany = await find(own.page, mine.id, { recheck: true, name: "Odette Marsh" });
+    expect(noCompany.status()).toBe(400);
+    expect(await noCompany.json()).toMatchObject({ error: "Give their full name and the company they work for.", needCompany: true });
+    expect((await find(own.page, mine.id, { recheck: true, name: "Odette", company: "Kestrel" })).status()).toBe(400);
+    expect((await find(own.page, mine.id, { recheck: true, name: "Odette Marsh", company: "Kestrel" }, "https://evil.example")).status()).toBe(403);
+    const theirs = await db.person.create({ data: { userId: basic.user.id, fullName: "Odile Brannagh", searchText: "odile brannagh", email: "odile@enrow-stub.example", emailSource: "finder" } });
+    expect((await find(basic.page, theirs.id, { recheck: true, name: "Odile Brannagh", company: "Kestrel" })).status()).toBe(404);
+    await basic.page.goto(`/people/${theirs.id}`);
+    await expect(basic.page.getByRole("button", { name: "I believe this is the wrong email" })).toHaveCount(0);
+    // Nothing was spent or changed by any refusal.
+    expect(await db.emailLookup.count({ where: { userId: { in: [own.user.id, other.user.id, basic.user.id] } } })).toBe(0);
+    expect((await db.person.findUniqueOrThrow({ where: { id: mine.id } })).email).toBe("odette.old@enrow-stub.example");
   } finally {
     await own.close();
     await other.close();

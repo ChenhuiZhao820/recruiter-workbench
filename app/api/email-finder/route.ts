@@ -3,7 +3,7 @@ import { appOrigin, getSession } from "@/lib/auth";
 import { getWorkspace } from "@/lib/workspace";
 import { canUseFeature } from "@/lib/features";
 import { AllowanceUsed, allowanceUsedText, claimLookup, emailAllowance, launchLookup } from "@/lib/email-finder";
-import { enrowKey, lookupRequest } from "@/lib/enrow-core.mjs";
+import { cleanName, enrowKey, lookupRequest } from "@/lib/enrow-core.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,19 +26,28 @@ export async function POST(request: Request) {
   if (!canUseFeature(user, "emailFinder") || !canUseFeature(owner, "emailFinder")) return fail(404, "Not found");
   if (!enrowKey()) return fail(503, "Email search is not set up on this server.");
 
-  const body = (await request.json().catch(() => null)) as { personId?: unknown; company?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { personId?: unknown; company?: unknown; name?: unknown; recheck?: unknown } | null;
   const personId = typeof body?.personId === "string" ? body.personId : "";
   const company = typeof body?.company === "string" ? body.company : null;
-  const person = await db.person.findFirst({ where: { id: personId, userId: user.id }, select: { id: true, fullName: true, profileUrl: true, email: true, doNotContact: true } });
+  // "I believe this is the wrong email": the recruiter gives the name and
+  // company to search by, for an address Enrow found, and a found one replaces it.
+  const recheck = body?.recheck === true;
+  const person = await db.person.findFirst({ where: { id: personId, userId: user.id }, select: { id: true, fullName: true, profileUrl: true, email: true, emailSource: true, doNotContact: true } });
   if (!person) return fail(404, "That person could not be found.");
   if (person.doNotContact) return fail(409, "This person is marked do not contact.");
-  if (person.email) return fail(409, "This person already has an email.");
-  const search = lookupRequest(person, company);
-  if (!search) return fail(400, "Add the company they work for to search by name.", { needCompany: true });
+  if (recheck) {
+    if (person.emailSource !== "finder") return fail(409, "Only an address Enrow found can be searched again. Edit this one by hand.");
+  } else if (person.email) {
+    return fail(409, "This person already has an email.");
+  }
+  const search = recheck
+    ? lookupRequest({ fullName: cleanName(body?.name) ?? person.fullName, profileUrl: null }, company)
+    : lookupRequest(person, company);
+  if (!search) return fail(400, recheck ? "Give their full name and the company they work for." : "Add the company they work for to search by name.", { needCompany: true });
 
   let lookup: { id: string; created: boolean };
   try {
-    lookup = await claimLookup(user, person.id, search.method);
+    lookup = await claimLookup(user, person.id, recheck ? "recheck" : search.method);
   } catch (error) {
     if (error instanceof AllowanceUsed) return fail(429, allowanceUsedText(error.trial));
     throw error;

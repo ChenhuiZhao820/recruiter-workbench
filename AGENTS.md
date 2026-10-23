@@ -57,7 +57,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   name, toolbar title and description, the update line and every message in
   the panel, and Retrivr's logo in the panel header, carried inside
   `popup.html` as a data URI because the package holds no image files (no
-  toolbar icon yet, so Chrome shows the letter R). Its key is still the
+  toolbar icon yet, so Chrome shows the letter R). The download from
+  `/api/extension/download` is `retrivr-extension.zip`, unpacking to a
+  `retrivr-extension` folder; the CLI packager still writes
+  `dist/capture-extension`. Its key is still the
   "extension key", the workbench's own word for it in Settings. The API's
   messages and these docs are renamed separately. Code identifiers, cookie
   and header names, environment variables and routes keep "capture".
@@ -366,9 +369,20 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   above. It calls `POST /api/capture/email` and polls
   `GET /api/capture/email/[id]` with the extension key, never cookies; the
   rules are the workbench's (`claimLookup`/`launchLookup` in
-  `lib/email-finder.ts`, shared with `/api/email-finder`). The panel sends
-  only the profile address it read, to the workbench; the workbench asks
-  Enrow; nobody asks LinkedIn. A person this account already keeps is
+  `lib/email-finder.ts`, shared with `/api/email-finder`). Beside the name
+  sits Company name, read from the profile on the same click (the top card's
+  "Current company" button, else the first Experience entry unless it is an
+  employment type, else "at X" in the headline) and editable; a new profile
+  empties it like the other read fields. The panel sends the profile address
+  it read and, while Company name is not empty, the name and company too,
+  to the workbench and nobody else; the workbench asks Enrow; nobody asks
+  LinkedIn. With a company the search is by name and company first and the
+  address only when the name is a single word; the panel's Settings has a
+  sliding "Find email by" choice (Company name, the default, or LinkedIn
+  link; `emailBy` in extension storage, sent as `prefer`) that puts the
+  address first instead. Never retried on its own. The setup screen no
+  longer carries the paragraph about allowed workbench addresses; a refused
+  address still says so when Connect is pressed. A person this account already keeps is
   searched as that person (do not contact refused, a kept email returned
   without a search); anyone else is searched with no person, and the email
   comes back to the panel. The save (`POST /api/capture`, `email` and

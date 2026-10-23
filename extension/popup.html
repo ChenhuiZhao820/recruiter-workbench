@@ -42,7 +42,15 @@
         <input id="token" class="field-input" type="password" placeholder="From Settings in the workbench" spellcheck="false" />
 
         <p class="hint">Settings &rarr; Browser extension &rarr; Generate your personal extension key. Each key connects one account, independently of your website login. To switch accounts here, paste that account's key.</p>
-        <p class="hint">Use this build's configured HTTPS workbench address, or HTTP localhost/127.0.0.1 for local development. Other remote addresses are not allowed.</p>
+
+        <span id="email-by-label" class="field-label">Find email by</span>
+        <div class="seg" role="radiogroup" aria-labelledby="email-by-label">
+          <input id="email-by-company" type="radio" name="email-by" value="company" />
+          <label for="email-by-company">Company name</label>
+          <input id="email-by-linkedin" type="radio" name="email-by" value="linkedin" />
+          <label for="email-by-linkedin">LinkedIn link</label>
+          <span class="seg-thumb" aria-hidden="true"></span>
+        </div>
 
         <button id="connect" class="btn-primary" type="button">Connect</button>
         <div class="row-actions">
@@ -81,8 +89,16 @@
         <label class="field-label" for="role">Role</label>
         <select id="role" class="field-input" required></select>
 
-        <label class="field-label" for="name">Name</label>
-        <input id="name" class="field-input" type="text" spellcheck="false" required />
+        <div class="pair">
+          <div class="pair-cell">
+            <label class="field-label" for="name">Name</label>
+            <input id="name" class="field-input" type="text" spellcheck="false" required />
+          </div>
+          <div class="pair-cell">
+            <label class="field-label" for="company">Company name</label>
+            <input id="company" class="field-input" type="text" spellcheck="false" autocomplete="off" />
+          </div>
+        </div>
 
         <label class="field-label" for="headline">Headline</label>
         <input id="headline" class="field-input" type="text" spellcheck="false" />

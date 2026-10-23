@@ -137,7 +137,7 @@ async function expectZip(page: Page, privateValues: string[]) {
   const response = await page.request.get(DOWNLOAD);
   await expectPrivateDownload(response, 200);
   expect(response.headers()["content-type"]).toMatch(/^application\/zip(?:;|$)/);
-  expect(response.headers()["content-disposition"]).toMatch(/^attachment;/);
+  expect(response.headers()["content-disposition"]).toBe('attachment; filename="retrivr-extension.zip"');
   const files = zipContents(await response.body());
   const manifestName = Array.from(files.keys()).find((name) => /(^|\/)manifest\.json$/.test(name));
   expect(manifestName).toBeTruthy();

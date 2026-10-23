@@ -11,8 +11,8 @@
 
 const el = (id) => document.getElementById(id);
 
-const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "", filled: { name: "", headline: "" }, waiting: false, leftName: "", settleUrl: "", settleTries: 0, finder: null, found: "", kept: false, finding: false, findRun: 0 };
-const fields = ["role", "name", "headline", "profile", "email", "notes"];
+const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "", filled: { name: "", headline: "", company: "" }, waiting: false, leftName: "", settleUrl: "", settleTries: 0, finder: null, found: "", kept: false, finding: false, findRun: 0, emailBy: "company" };
+const fields = ["role", "name", "headline", "company", "profile", "email", "notes"];
 const controls = ["settings", "open-role", "reread", "find-email"];
 // Where Retrivr actually lives. A package built by scripts/package-extension.mjs
 // or by the site's own download endpoint declares its origin in workbench.js and
@@ -44,7 +44,15 @@ function readProfile() {
   const match = location.pathname.match(/^\/in\/([^/]+)/);
   const isProfile = /(^|\.)linkedin\.com$/.test(location.hostname) && Boolean(match);
   const profileUrl = isProfile ? `https://${location.hostname}/in/${match[1]}/` : "";
-  if (!isProfile) return { profileUrl, name: "", headline: "", memberId: "", isProfile, settled: true };
+  if (!isProfile) return { profileUrl, name: "", headline: "", company: "", memberId: "", isProfile, settled: true };
+  // A selector this Chrome does not know is a missed field, not a failed read.
+  const pick = (selector) => {
+    try {
+      return document.querySelector(selector);
+    } catch {
+      return null;
+    }
+  };
 
   const heading = document.querySelector("main h1") || document.querySelector("h1");
   let name = clean(heading && heading.textContent);
@@ -80,7 +88,30 @@ function readProfile() {
     if (recipient && /^[A-Za-z0-9_-]{5,60}$/.test(recipient)) memberId = recipient;
   }
 
-  return { profileUrl, name, headline, memberId, isProfile, settled };
+  // Where they work now, for Find email: a name and a company find people a
+  // LinkedIn address does not. The top card's "Current company" button names
+  // it; failing that, the first entry under Experience; failing that, "at X"
+  // in the headline. Only ever a suggestion in a field the recruiter can edit.
+  let company = "";
+  const current = pick('button[aria-label^="Current company"]') || pick('[aria-label^="Current company"]');
+  if (current) {
+    const label = clean(current.getAttribute("aria-label"));
+    company = clean((label.match(/^Current company:?\s*(.+?)(?:\.\s*Click\b.*)?$/i) || [])[1]);
+  }
+  if (!company) {
+    const entry = pick('section:has(> #experience) li .t-14.t-normal > span[aria-hidden="true"]');
+    const first = clean(entry && entry.textContent).split(" · ")[0];
+    // A run of roles at one employer puts the employment type where the
+    // company would be; that is not a company.
+    if (first && !/^(full-time|part-time|self-employed|freelance|contract|internship|apprenticeship|seasonal|\d)/i.test(first)) company = first;
+  }
+  if (!company) {
+    const at = /(?:^|\s)(?:at\s+|@\s*)(.+)$/i.exec(headline);
+    if (at) company = at[1].split(/\s+[|·•]\s+|\s+[-–—]\s+|,\s+|\s+\/\s+/)[0].trim().replace(/[.;:]+$/, "");
+  }
+  company = company.slice(0, 120);
+
+  return { profileUrl, name, headline, company, memberId, isProfile, settled };
 }
 
 async function readActiveTab() {
@@ -312,8 +343,9 @@ function applyProfile(profile, { quiet = false } = {}) {
   el("reread").hidden = true;
   el("name").value = profile.name || "";
   el("headline").value = profile.headline || "";
+  el("company").value = profile.company || "";
   el("profile").value = profile.profileUrl || "";
-  state.filled = { name: el("name").value, headline: el("headline").value };
+  state.filled = { name: el("name").value, headline: el("headline").value, company: el("company").value };
   resetEmail();
   el("save").disabled = false;
   if (!profile.isProfile) {
@@ -344,10 +376,10 @@ function markStale(message, { clear = false } = {}) {
   if (clear) {
     state.profileUrl = "";
     state.memberId = "";
-    state.filled = { name: "", headline: "" };
+    state.filled = { name: "", headline: "", company: "" };
     state.waiting = false;
     pageSettled();
-    for (const id of ["name", "headline", "profile"]) el(id).value = "";
+    for (const id of ["name", "headline", "company", "profile"]) el(id).value = "";
     resetEmail();
   }
   say(el("message"), message, "bad");
@@ -406,7 +438,7 @@ function pageSettled() {
 // corrected is theirs, and so is the note.
 function updateProfile(profile) {
   let changed = false;
-  for (const id of ["name", "headline"]) {
+  for (const id of ["name", "headline", "company"]) {
     const value = profile[id] || "";
     if (el(id).value === state.filled[id] && value !== state.filled[id]) {
       el(id).value = value;
@@ -458,7 +490,7 @@ async function refreshOnce() {
     // are emptied rather than left describing the last person.
     if (!samePerson) {
       state.leftName = lastName;
-      applyProfile({ ...profile, name: "", headline: "", memberId: "" }, { quiet: true });
+      applyProfile({ ...profile, name: "", headline: "", company: "", memberId: "" }, { quiet: true });
       el("notes").value = "";
       state.waiting = true;
       say(el("message"), "Reading this profile...", "");
@@ -485,13 +517,13 @@ function markIdle(message) {
   state.savedRoleId = "";
   state.profileUrl = "";
   state.memberId = "";
-  state.filled = { name: "", headline: "" };
+  state.filled = { name: "", headline: "", company: "" };
   state.waiting = false;
   pageSettled();
   el("open-role").hidden = true;
   el("reread").hidden = true;
   el("save").disabled = false;
-  for (const id of ["name", "headline", "profile"]) el(id).value = "";
+  for (const id of ["name", "headline", "company", "profile"]) el(id).value = "";
   resetEmail();
   clearExisting();
   say(el("message"), message, "");
@@ -602,7 +634,14 @@ async function findEmail() {
   noteEmail("", "");
   showFinder();
   try {
-    let { ok, status, body } = await api("/api/capture/email", { method: "POST", body: JSON.stringify({ profileUrl: link }) });
+    // A name and a company are sent alongside the address only while the
+    // company box holds something; the workbench searches by them first unless
+    // Settings says the LinkedIn link comes first.
+    const company = el("company").value.trim();
+    const search = company
+      ? { profileUrl: link, fullName: el("name").value.trim(), company, prefer: state.emailBy }
+      : { profileUrl: link };
+    let { ok, status, body } = await api("/api/capture/email", { method: "POST", body: JSON.stringify(search) });
     if (!current()) return;
     count(body);
     if (status === 401) {
@@ -744,7 +783,15 @@ function showSetup(message) {
   const connected = Boolean(state.account) && state.roles.length > 0;
   el("setup-back").hidden = !connected;
   el("disconnect").hidden = !state.token;
+  showEmailBy();
   say(el("setup-message"), message, message ? "bad" : "");
+}
+
+// Which search Find email tries first when the company box is filled in. The
+// company name by default: it finds people a LinkedIn address does not.
+function showEmailBy() {
+  el("email-by-company").checked = state.emailBy !== "linkedin";
+  el("email-by-linkedin").checked = state.emailBy === "linkedin";
 }
 
 function clearAccount() {
@@ -972,6 +1019,15 @@ el("find-email").addEventListener("click", findEmail);
 
 el("settings").addEventListener("click", () => showSetup(""));
 
+for (const id of ["email-by-company", "email-by-linkedin"]) {
+  el(id).addEventListener("change", async () => {
+    if (!el(id).checked) return;
+    state.emailBy = el(id).value === "linkedin" ? "linkedin" : "company";
+    showEmailBy();
+    await remember({ emailBy: state.emailBy });
+  });
+}
+
 el("setup-back").addEventListener("click", async () => {
   if (!state.account || state.roles.length === 0) return;
   await showCapture();
@@ -1071,6 +1127,8 @@ el("save").addEventListener("click", async () => {
 
 (async function start() {
   await applySurface();
+  const preference = await recall(["emailBy"]);
+  state.emailBy = preference.emailBy === "linkedin" ? "linkedin" : "company";
   try {
     const stored = await chrome.storage.local.get(["url", "token"]);
     state.url = stored.url || "";

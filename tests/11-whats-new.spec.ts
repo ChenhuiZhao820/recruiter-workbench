@@ -74,12 +74,15 @@ test("R1 signing in with an unread release lands where it always did, and readin
   await page.getByRole("link", { name: /^What.s new$/ }).click();
   await expect(page).toHaveURL(`${BASE}/whats-new`);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/What.s new/);
-  await expect(page.getByRole("heading", { name: "Email them from the same click" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Their email, in the extension" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Their company, next to their name" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Download the new extension/ })).toBeVisible();
-  // A Basic account is not told about the email finder its plan does not have.
-  await expect(page.getByRole("heading", { name: /Find someone.s work email/ })).toHaveCount(0);
-  await expect(page.getByText(/find their work email/)).toHaveCount(0);
+  // A Basic account is not told about the email finder its plan does not have,
+  // and its picture has no Find email in it.
+  const picture = page.getByRole("img", { name: /Company name filled in/ });
+  await expect(picture).toHaveAttribute("src", /extension-company-plain/);
+  expect(await picture.evaluate((image: HTMLImageElement) => image.decode().then(() => image.naturalWidth))).toBeGreaterThan(0);
+  await expect(page.getByText(/Find email/)).toHaveCount(0);
+  await expect(page.getByRole("img", { name: /Find email by/ })).toHaveCount(0);
   // Reading the page is not reading the release.
   expect((await db.settings.findUniqueOrThrow({ where: { userId: user.id } })).seenRelease).toBeNull();
 
@@ -94,17 +97,21 @@ test("R1 signing in with an unread release lands where it always did, and readin
   await cleanUp(user.id);
 });
 
-test("R1b a Pro account is told about the email finder and how many searches its plan has", async ({ page }) => {
+test("R1b a Pro account is told how Find email uses the company and where to switch it", async ({ page }) => {
   const user = await account();
   await db.user.update({ where: { id: user.id }, data: { accountTier: "pro" } });
   try {
     await signIn(page, user.email);
     await expect(page).toHaveURL(`${BASE}/`);
     await page.goto("/whats-new");
-    await expect(page.getByRole("heading", { name: /Find someone.s work email/ })).toBeVisible();
-    await expect(page.getByText("Your plan has 250 searches a month, and only a search that finds an email counts.", { exact: false })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Email them from the same click" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Find their email from the extension" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Find more emails with the company name" })).toBeVisible();
+    // When nothing or the wrong address is found, the switch in Settings is the way out.
+    await expect(page.getByText(/finds one that.s clearly wrong, open Settings in the extension/)).toBeVisible();
+    for (const name of [/Company name filled in/, /Find email by/]) {
+      const picture = page.getByRole("img", { name });
+      expect(await picture.evaluate((image: HTMLImageElement) => image.decode().then(() => image.naturalWidth))).toBeGreaterThan(0);
+    }
+    await expect(page.getByRole("img", { name: /Company name filled in/ })).toHaveAttribute("src", /extension-company\.png/);
   } finally {
     await cleanUp(user.id);
   }

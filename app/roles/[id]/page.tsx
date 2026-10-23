@@ -37,8 +37,8 @@ import { finderTarget } from "@/lib/enrow-core.mjs";
 import { RoleTabs } from "@/components/RoleTabs";
 import { roleTabFrom } from "@/lib/role-tabs";
 import { CandidateList, type CandidateListRow } from "@/components/CandidateList";
-import { PopoverDetails } from "@/components/PopoverDetails";
 import { AddCandidateToolbar } from "@/components/AddCandidateToolbar";
+import { ImportCandidatesForm } from "@/components/ImportCandidatesForm";
 
 export const dynamic = "force-dynamic";
 
@@ -304,7 +304,7 @@ export default async function RolePage({ params, searchParams }: { params: { id:
         {/* Rendered for a read-only view too, disabled by the fieldset around
             the page: what cannot be done is visible as refused, rather than
             quietly absent. */}
-        <AddCandidateToolbar readOnly={readOnly} form={
+        <AddCandidateToolbar readOnly={readOnly} importForm={<ImportCandidatesForm roleId={role.id} />} form={
               <div className="card">
                 <ActionForm action={addCandidate} className="space-y-3">
                   <input type="hidden" name="roleId" value={role.id} />
@@ -345,79 +345,6 @@ export default async function RolePage({ params, searchParams }: { params: { id:
                 </ActionForm>
               </div>
         }>
-          {features.clientShortlists && (
-            <PopoverDetails
-              className="client-link"
-              label="Client link"
-              summaryClassName="btn-secondary inline-flex cursor-pointer items-center gap-2"
-              summary={<>
-                <Icon name="external" size={16} />
-                Client link
-                {/* People on the page, not links: a role has one link. */}
-                <span className="tabular text-ink-soft">· {onLinkCount} {onLinkCount === 1 ? "person" : "people"}</span>
-              </>}
-            >
-              <div className="client-link-panel">
-                {!clientList ? (
-                  <div className="space-y-1">
-                    <p>A page {clientName} opens without signing in, to see who you put forward and choose who to interview.</p>
-                    <p className="text-ink-soft">To add someone, press <strong>Put forward to {clientName}</strong> on their row under <a href="#candidates-heading" className="underline">Candidates</a>.</p>
-                  </div>
-                ) : linkStatus === "closed" ? (
-                  <p>This role is closed, so its client link shows {clientName} that it is no longer active.</p>
-                ) : linkStatus === "revoked" ? (
-                  <p>You closed this link. Its address no longer opens. A new link brings the page back at a new address, with the same people on it.</p>
-                ) : (
-                  <>
-                    <p>
-                      The page shows the {onLinkCount === 1 ? "person" : "people"} you put forward, as {clientName} would.
-                      People you put forward later appear on it too, at the same address.
-                    </p>
-                    <ShortlistSharing
-                      shortlist={clientList}
-                      accesses={openAccesses}
-                      active={linkStatus === "active"}
-                      readOnly={readOnly}
-                      recruiterName={settings.recruiterName || owner.name}
-                    />
-                  </>
-                )}
-                {clientList && (
-                  <p className="client-link-stats">
-                    <span><strong className="tabular">{onLinkCount}</strong> on the page</span>
-                    <span>{lastViewed ? <>Last opened <strong>{formatWhen(lastViewed)}</strong></> : "Not opened yet"}</span>
-                    {wantToMeet > 0 && <span><strong className="tabular">{wantToMeet}</strong> {clientName} wants to meet</span>}
-                    {notForThem > 0 && <span><strong className="tabular">{notForThem}</strong> not for them</span>}
-                  </p>
-                )}
-                {clientList && (
-                  <div className="client-link-actions">
-                    <Link href={`/shortlists/${clientList.id}/preview`} className="btn-quiet">See what {clientName} sees</Link>
-                    {linkStatus !== "closed" && (
-                      <form action={newClientLink}>
-                        <input type="hidden" name="roleId" value={role.id} />
-                        <ConfirmSubmitButton
-                          label={linkStatus === "revoked" ? "Make a new link" : "Replace the link"}
-                          confirmText={linkStatus === "revoked"
-                            ? "Make a new link for this role? The page opens again at a new address, with the same people on it."
-                            : clientList.access === "people"
-                              ? "Give everyone a new link? Each person's current link stops working at once."
-                              : "Replace this link? The address you sent stops working at once, and the page moves to a new address."}
-                        />
-                      </form>
-                    )}
-                    {linkStatus === "active" && (
-                      <form action={revokeClientLink}>
-                        <input type="hidden" name="roleId" value={role.id} />
-                        <ConfirmSubmitButton label="Close the link" confirmText={`Close this link? ${clientName} can no longer open the page. You can make a new link later.`} />
-                      </form>
-                    )}
-                  </div>
-                )}
-              </div>
-            </PopoverDetails>
-          )}
-          <span className="role-toolbar-gap" aria-hidden="true" />
           {!readOnly && role.candidates.length > 0 && (
             <Link href={`/roles/${role.id}/outreach`} className="btn-secondary">
               Send outreach
@@ -672,6 +599,71 @@ export default async function RolePage({ params, searchParams }: { params: { id:
         )}
       </section>
       ) },
+      ...(features.clientShortlists ? [{ id: "client" as const, label: "Client link", count: onLinkCount, panel: (
+      <section aria-labelledby="client-heading">
+        <h2 id="client-heading" className="sr-only">Client link</h2>
+        <div className="client-link">
+              <div className="client-link-panel">
+                {!clientList ? (
+                  <div className="space-y-1">
+                    <p>A page {clientName} opens without signing in, to see who you put forward and choose who to interview.</p>
+                    <p className="text-ink-soft">To add someone, press <strong>Put forward to {clientName}</strong> on their row under <a href="#candidates-heading" className="underline">Candidates</a>.</p>
+                  </div>
+                ) : linkStatus === "closed" ? (
+                  <p>This role is closed, so its client link shows {clientName} that it is no longer active.</p>
+                ) : linkStatus === "revoked" ? (
+                  <p>You closed this link. Its address no longer opens. A new link brings the page back at a new address, with the same people on it.</p>
+                ) : (
+                  <>
+                    <p>
+                      The page shows the {onLinkCount === 1 ? "person" : "people"} you put forward, as {clientName} would.
+                      People you put forward later appear on it too, at the same address.
+                    </p>
+                    <ShortlistSharing
+                      shortlist={clientList}
+                      accesses={openAccesses}
+                      active={linkStatus === "active"}
+                      readOnly={readOnly}
+                      recruiterName={settings.recruiterName || owner.name}
+                    />
+                  </>
+                )}
+                {clientList && (
+                  <p className="client-link-stats">
+                    <span><strong className="tabular">{onLinkCount}</strong> on the page</span>
+                    <span>{lastViewed ? <>Last opened <strong>{formatWhen(lastViewed)}</strong></> : "Not opened yet"}</span>
+                    {wantToMeet > 0 && <span><strong className="tabular">{wantToMeet}</strong> {clientName} wants to meet</span>}
+                    {notForThem > 0 && <span><strong className="tabular">{notForThem}</strong> not for them</span>}
+                  </p>
+                )}
+                {clientList && (
+                  <div className="client-link-actions">
+                    <Link href={`/shortlists/${clientList.id}/preview`} className="btn-quiet">See what {clientName} sees</Link>
+                    {linkStatus !== "closed" && (
+                      <form action={newClientLink}>
+                        <input type="hidden" name="roleId" value={role.id} />
+                        <ConfirmSubmitButton
+                          label={linkStatus === "revoked" ? "Make a new link" : "Replace the link"}
+                          confirmText={linkStatus === "revoked"
+                            ? "Make a new link for this role? The page opens again at a new address, with the same people on it."
+                            : clientList.access === "people"
+                              ? "Give everyone a new link? Each person's current link stops working at once."
+                              : "Replace this link? The address you sent stops working at once, and the page moves to a new address."}
+                        />
+                      </form>
+                    )}
+                    {linkStatus === "active" && (
+                      <form action={revokeClientLink}>
+                        <input type="hidden" name="roleId" value={role.id} />
+                        <ConfirmSubmitButton label="Close the link" confirmText={`Close this link? ${clientName} can no longer open the page. You can make a new link later.`} />
+                      </form>
+                    )}
+                  </div>
+                )}
+              </div>
+        </div>
+      </section>
+      ) }] : []),
       ]} />
     </fieldset>
   );

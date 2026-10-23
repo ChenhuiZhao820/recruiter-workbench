@@ -22,9 +22,8 @@ async function guest(browser: Browser) {
 }
 
 async function panel(page: Page) {
-  const details = page.locator("details.client-link");
-  if ((await details.getAttribute("open")) === null) await details.locator("summary").first().click();
-  return details;
+  await page.getByRole("tab", { name: /^Client link/ }).click();
+  return page.locator("div.client-link");
 }
 
 async function linkFor(page: Page, email: string) {

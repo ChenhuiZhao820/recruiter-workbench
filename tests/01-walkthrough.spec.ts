@@ -97,7 +97,7 @@ test("02 create a role", async ({ page }) => {
   // One part of the role at a time: Candidates first, the others a tab away,
   // and the address remembers the choice without a reload.
   const tabs = page.getByRole("tablist", { name: "Role" });
-  await expect(tabs.getByRole("tab")).toHaveText(["Briefing", "Candidates", "Searches"]);
+  await expect(tabs.getByRole("tab")).toHaveText(["Briefing", "Candidates", "Searches", /^Client link/]);
   await expect(tabs.getByRole("tab", { name: "Candidates" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText("No briefing yet")).toBeHidden();
   await tabs.getByRole("tab", { name: "Briefing" }).click();
@@ -390,11 +390,13 @@ test("08b candidates are found by name, forgivingly, and sorted, A to Z first", 
   await expect(page.getByText("No one on this role matches")).toBeVisible();
   await page.getByRole("button", { name: "Clear the search" }).click();
   await expect(names).toHaveText(["Alice Example", "Bob Sample", "Cara Test"]);
-  const sort = page.getByLabel("Sort candidates");
-  await expect(sort).toHaveValue("az");
-  await sort.selectOption({ label: "Z to A" });
+  const sort = page.getByRole("button", { name: /^Sort candidates:/ });
+  await expect(sort).toHaveText("A to Z");
+  await sort.click();
+  await page.getByRole("option", { name: "Z to A" }).click();
   await expect(names).toHaveText(["Cara Test", "Bob Sample", "Alice Example"]);
-  await sort.selectOption({ label: "Recently added" });
+  await sort.click();
+  await page.getByRole("option", { name: "Recently added" }).click();
   await expect(names).toHaveText(["Cara Test", "Bob Sample", "Alice Example"]);
 });
 

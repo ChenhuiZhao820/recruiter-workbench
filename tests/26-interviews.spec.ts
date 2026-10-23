@@ -65,9 +65,10 @@ test("I1 a role's weekly hours set before still serve its interview link, and th
   await onLink(roleId, "Imogen Achterberg");
   await onLink(otherRoleId, "Sam Okafor");
   await page.goto(`/roles/${roleId}`);
-  const panel = page.locator("details.client-link");
-  await expect(panel.locator("summary").first()).toContainText(/Client link\s*· \d+ (person|people)/);
-  await panel.locator("summary").first().click();
+  const tab = page.getByRole("tab", { name: /^Client link/ });
+  await expect(tab).toContainText(/Client link\s*\d+/);
+  await tab.click();
+  const panel = page.locator("div.client-link");
   await expect(panel.getByText("Interview hours")).toHaveCount(0);
   await expect(panel.getByText("Before an interview")).toHaveCount(0);
   await expect(panel.getByRole("button", { name: /book straight away/ })).toHaveCount(0);

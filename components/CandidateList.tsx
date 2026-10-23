@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useId, useMemo, useState, type ReactNode } from "react";
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import { compareNames, nameMatches } from "@/lib/name-match.mjs";
 
@@ -16,6 +16,59 @@ const SORTS: Record<string, { label: string; compare: Compare }> = {
   stage: { label: "By stage", compare: (a, b) => a.stageRank - b.stageRank || byName(a, b) },
 };
 type SortId = keyof typeof SORTS;
+
+// The sort as a small menu of its own, in the page's type, in place of the
+// browser's native list. Arrow keys move, Enter or a click picks, Esc closes.
+function SortMenu({ id, value, onChange }: { id: string; value: SortId; onChange: (value: SortId) => void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const ids = Object.keys(SORTS);
+
+  useEffect(() => {
+    if (!open) return;
+    list.current?.querySelector<HTMLElement>("[aria-selected='true']")?.focus();
+    const away = (event: MouseEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+
+  function pick(next: string) {
+    onChange(next);
+    setOpen(false);
+    root.current?.querySelector<HTMLElement>("button")?.focus();
+  }
+  function move(event: KeyboardEvent<HTMLUListElement>) {
+    const options = Array.from(list.current?.querySelectorAll<HTMLElement>("[role='option']") ?? []);
+    const at = options.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "Escape") { event.preventDefault(); setOpen(false); root.current?.querySelector<HTMLElement>("button")?.focus(); }
+    else if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); options[(at + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length]?.focus(); }
+    else if (event.key === "Home" || event.key === "End") { event.preventDefault(); options[event.key === "Home" ? 0 : options.length - 1]?.focus(); }
+    else if (event.key === "Tab") setOpen(false);
+  }
+
+  return (
+    <div ref={root} className="sort-menu">
+      <button id={id} type="button" className="sort-menu-button" aria-haspopup="listbox" aria-expanded={open} aria-label={`Sort candidates: ${SORTS[value].label}`} onClick={() => setOpen(!open)}>
+        <Icon name="sort" size={16} />
+        <span>{SORTS[value].label}</span>
+        <Icon name="down" size={14} className="sort-menu-chevron" />
+      </button>
+      {open && (
+        <ul ref={list} role="listbox" aria-label="Sort candidates" className="sort-menu-list" onKeyDown={move}>
+          {ids.map((option) => (
+            <li key={option} role="none">
+              <button type="button" role="option" aria-selected={option === value} className="sort-menu-option" onClick={() => pick(option)}>
+                {SORTS[option].label}
+                {option === value && <Icon name="check" size={14} />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 // The role's candidates as one list, found by name and put in the order asked
 // for (A to Z to begin with). Rows are rendered on the server; this only
@@ -52,14 +105,7 @@ export function CandidateList({ rows }: { rows: CandidateListRow[] }) {
             </button>
           )}
         </div>
-        <div className="candidate-sort">
-          <Icon name="sort" size={16} />
-          <label htmlFor={sortId} className="sr-only">Sort candidates</label>
-          <select id={sortId} value={sort} onChange={(event) => setSort(event.target.value as SortId)}>
-            {Object.entries(SORTS).map(([id, option]) => <option key={id} value={id}>{option.label}</option>)}
-          </select>
-          <Icon name="down" size={14} />
-        </div>
+        <SortMenu id={sortId} value={sort} onChange={setSort} />
         <p role="status" aria-live="polite" className="candidate-tools-count">
           {filtering ? `${shown.length} of ${rows.length}` : ""}
         </p>

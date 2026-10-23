@@ -8,6 +8,8 @@ import { normalizeProfileUrl } from "@/lib/urls";
 import { findOrCreatePerson, isSuppressed, personSearchText } from "@/lib/people";
 import { canonicalProfileUrl, cleanEmail, cleanMemberId } from "@/lib/person-keys.mjs";
 import { revalidatePath } from "next/cache";
+import { assertUsable, MAX_FILE_BYTES, readWorkbook, SheetError } from "@/lib/sheet-read.mjs";
+import { cleanRows, prepareTable } from "@/lib/people-import.mjs";
 
 function revalidateCandidate(roleId: string) {
   revalidatePath(`/roles/${roleId}`);
@@ -176,4 +178,64 @@ export async function deleteCandidate(formData: FormData) {
   const candidate = await db.candidate.delete({ where: { id, role: { userId: user.id } } });
   await dropIfOrphan(candidate.personId);
   revalidateCandidate(candidate.roleId);
+}
+
+// Importing a role's candidates from a client's file. The client's columns are
+// matched to ours by heading (and by what the cells hold, as the People import
+// does); a column of theirs we have no field for is left out, and a field of
+// ours their file has no column for stays empty. Nothing is guessed beyond the
+// four things a candidate row holds: name, profile link, headline, notes.
+export type CsvImportState = FormState & { added?: number; skipped?: { existing: number; noName: number; repeated: number }; ignored?: string[] };
+
+export async function importCandidatesCsv(_prev: CsvImportState, formData: FormData): Promise<CsvImportState> {
+  const user = await requireWritableWorkspace();
+  const roleId = String(formData.get("roleId") ?? "");
+  const role = roleId ? await db.role.findUnique({ where: { id: roleId, userId: user.id }, select: { id: true } }) : null;
+  if (!role) return { error: "That role could not be found." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a CSV file first." };
+  if (file.size > MAX_FILE_BYTES) return { error: `That file is larger than ${MAX_FILE_BYTES / 1024 / 1024} MB. Split it into smaller files.` };
+
+  let prepared;
+  try {
+    const { sheets } = readWorkbook(new Uint8Array(await file.arrayBuffer()));
+    prepared = prepareTable(sheets);
+    assertUsable(sheets[prepared.sheetIndex], prepared.table.body.length);
+  } catch (error) {
+    if (error instanceof SheetError) return { error: error.message };
+    throw error;
+  }
+  if (prepared.needsName) return { error: "No column in that file looks like a name, so nobody was added. Name a column \"Name\" or \"Full name\" and try again." };
+
+  // Fields a candidate has; everything else in the file is theirs alone.
+  const OURS = new Set(["fullName", "firstName", "lastName", "profileUrl", "headline", "company", "notes"]);
+  const mapping = prepared.mapping.map((field) => (OURS.has(field) ? field : ""));
+  const ignored = prepared.header.filter((label, column) => !mapping[column] && String(label).trim());
+  const rows = cleanRows(prepared.body, prepared.header, mapping, { swapNames: prepared.style.swap, fixCase: prepared.style.fixCase, keepOther: false, nameFromEmail: false });
+
+  const onRole = new Set((await db.candidate.findMany({ where: { roleId, role: { userId: user.id }, profileUrl: { not: null } }, select: { profileUrl: true } })).map((c) => c.profileUrl));
+  const skipped = { existing: 0, noName: 0, repeated: 0 };
+  const seen = new Set<string>();
+  const fresh: { name: string; profileUrl: string | null; headline: string | null; notes: string | null }[] = [];
+  for (const row of rows) {
+    if (row.error) { skipped.noName += 1; continue; }
+    const profileUrl = normalizeProfileUrl(row.profileUrl ?? "");
+    if (profileUrl && onRole.has(profileUrl)) { skipped.existing += 1; continue; }
+    const key = profileUrl ?? "";
+    if (key && seen.has(key)) { skipped.repeated += 1; continue; }
+    if (key) seen.add(key);
+    fresh.push({ name: row.name, profileUrl, headline: row.headline, notes: row.notes });
+  }
+  if (fresh.length === 0) return { notice: "Nobody was added: everyone in the file was already on this role or had no name.", added: 0, skipped, ignored };
+
+  await db.$transaction(async (tx) => {
+    for (const row of fresh) {
+      const person = await findOrCreatePerson(tx, user.id, { fullName: row.name, profileUrl: row.profileUrl, headline: row.headline });
+      await tx.candidate.create({
+        data: { role: { connect: { id: roleId, userId: user.id } }, person: { connect: { id: person.id } }, fullName: row.name, profileUrl: row.profileUrl, headline: row.headline, notes: row.notes },
+      });
+    }
+  }, { timeout: 60_000, maxWait: 10_000 });
+  revalidateCandidate(roleId);
+  return { notice: `Added ${fresh.length} ${fresh.length === 1 ? "candidate" : "candidates"}.`, added: fresh.length, skipped, ignored };
 }

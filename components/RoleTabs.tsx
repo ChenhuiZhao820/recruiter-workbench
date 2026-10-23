@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ROLE_TABS, type RoleTab } from "@/lib/role-tabs";
+import type { RoleTab } from "@/lib/role-tabs";
 
 // A role page shows one of its three parts at a time, chosen from a row of
 // plain words with a line under the one on screen. Every part stays rendered,
@@ -54,31 +54,34 @@ export function RoleTabs({ initial, tabs }: { initial: RoleTab; tabs: { id: Role
   }, []);
 
   function keys(event: KeyboardEvent<HTMLDivElement>) {
-    const at = ROLE_TABS.indexOf(active);
-    const next = event.key === "ArrowRight" ? at + 1 : event.key === "ArrowLeft" ? at - 1 : event.key === "Home" ? 0 : event.key === "End" ? ROLE_TABS.length - 1 : null;
+    const ids = tabs.map((tab) => tab.id);
+    const at = ids.indexOf(active);
+    const next = event.key === "ArrowRight" ? at + 1 : event.key === "ArrowLeft" ? at - 1 : event.key === "Home" ? 0 : event.key === "End" ? ids.length - 1 : null;
     if (next === null) return;
     event.preventDefault();
-    choose(ROLE_TABS[(next + ROLE_TABS.length) % ROLE_TABS.length], true);
+    choose(ids[(next + ids.length) % ids.length], true);
   }
 
   return (
     <div className="role-tabs">
       <div ref={list} role="tablist" aria-label="Role" className="role-tablist" onKeyDown={keys}>
         {tabs.map((tab) => (
-          <button
+          // Not a <button>: a read-only view disables everything in the page's
+          // fieldset, and looking at another part of a role is not a change.
+          <div
             key={tab.id}
             id={`role-tab-${tab.id}`}
-            type="button"
             role="tab"
             aria-selected={active === tab.id}
             aria-controls={`role-panel-${tab.id}`}
             tabIndex={active === tab.id ? 0 : -1}
             className="role-tab"
             onClick={() => choose(tab.id)}
+            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(tab.id); } }}
           >
             {tab.label}
             {tab.count !== undefined && tab.count > 0 && <span className="role-tab-count tabular">{tab.count}</span>}
-          </button>
+          </div>
         ))}
         <span ref={line} aria-hidden="true" className="role-tab-line" />
       </div>

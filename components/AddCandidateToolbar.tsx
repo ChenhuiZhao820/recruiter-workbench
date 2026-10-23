@@ -32,6 +32,7 @@ export function AddCandidateToolbar({ form, importForm, readOnly = false, childr
 
   return (
     <>
+      <div className="role-toolbar">{children}</div>
       <div className="role-toolbar">
         <div ref={root} className="split-button">
           <button type="button" className="btn-primary split-button-main" aria-expanded={panel === "add"} aria-controls={addId} onClick={() => toggle("add")}>
@@ -48,7 +49,6 @@ export function AddCandidateToolbar({ form, importForm, readOnly = false, childr
             </ul>
           )}
         </div>
-        {children}
       </div>
       <div id={addId} hidden={panel !== "add"} className="add-candidate-panel">{form}</div>
       <div id={importId} hidden={panel !== "import"} className="add-candidate-panel">{importForm}</div>

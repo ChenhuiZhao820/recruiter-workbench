@@ -46,9 +46,8 @@ function row(page: Page, name: string) {
 }
 
 async function openPanel(page: Page) {
-  const panel = page.locator("details.client-link");
-  if (!(await panel.getAttribute("open").then((v) => v !== null))) await panel.locator("summary").first().click();
-  return panel;
+  await page.getByRole("tab", { name: /^Client link/ }).click();
+  return page.locator("div.client-link");
 }
 
 async function linkOf(page: Page) {
@@ -70,6 +69,7 @@ test("L1 a consented candidate is put forward in one click, and the client reads
   const { candidate } = await personOn(roleId, "Imogen Achterberg");
   await page.goto(`/roles/${roleId}`);
   await expect((await openPanel(page)).getByText("A page Halden Systems Ltd opens without signing in, to see who you put forward and choose who to interview.")).toBeVisible();
+  await page.getByRole("tab", { name: "Candidates" }).click();
   await row(page, "Imogen Achterberg").getByRole("button", { name: "Put forward to Halden Systems Ltd" }).click();
   await skipNoCv(page);
   await expect(row(page, "Imogen Achterberg").getByText("On the client link")).toBeVisible();
@@ -160,6 +160,7 @@ test("L3 the page reads live: taking someone off, do not contact and rejection a
   try {
     await client.page.goto(link);
     await expect(client.page.locator(".client-entry")).toHaveCount(2);
+    await page.getByRole("tab", { name: "Candidates" }).click();
     await row(page, "Sam Okafor").getByRole("button", { name: "Take off" }).click();
     await page.getByRole("dialog", { name: "Take Sam Okafor off the client link?" }).getByRole("button", { name: "Confirm" }).click();
     await expect(row(page, "Sam Okafor").getByText("On the client link")).toHaveCount(0);

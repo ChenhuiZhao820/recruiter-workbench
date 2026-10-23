@@ -70,8 +70,7 @@ test("T2 people search filters on confirmed details, shows the facts, and flags 
 
   await page.goto("/people");
   // Pro accounts start in Match; Search is chosen by hand.
-  await page.getByRole("button", { name: "Match", exact: true }).click();
-  await page.getByRole("menuitemradio", { name: /^Search/ }).click();
+  await page.getByRole("radio", { name: "Search" }).click();
   // Filters are chips under the box: each says its value once set, and its
   // cross clears it without opening anything.
   const filters = page.getByRole("group", { name: "Filters" });
@@ -132,7 +131,7 @@ test("T4 a revisit reminder is set on the person, shows in Follow-ups the week i
 
   const later = await person("Wren Castellanos");
   await db.person.update({ where: { id: later.id }, data: { revisitOn: new Date(Date.now() + 30 * DAY) } });
-  await page.goto("/followups");
+  await page.goto("/followups?tab=revisit");
   const due = page.getByRole("region", { name: "Due to revisit" });
   await expect(due.getByText("Rosalind Achebe-Moss")).toBeVisible();
   await expect(due.getByText("Bonus pays out this month")).toBeVisible();

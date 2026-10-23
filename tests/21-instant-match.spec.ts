@@ -70,7 +70,7 @@ test("IM1 a brief becomes chips, people and one-thing-off, and only the brief go
   const before = await db.usageEvent.count({ where: { userId: TEST_ADMIN_ID, kind: "match_brief_read" } });
   // People opens in Match for a Pro account: no extra page, no extra click.
   await page.goto("/people");
-  await expect(page.getByRole("button", { name: "Match", exact: true })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Match" })).toBeChecked();
   await expect(page.getByRole("button", { name: "Find matches" })).toBeDisabled();
   await readBrief(page);
   await expect(page).toHaveURL(/\/people\?c=/);
@@ -276,7 +276,7 @@ test("IM9 Lite accounts do not get Instant Match at all", async ({ browser }) =>
     await expect(basic.page.getByRole("heading", { level: 1, name: "People" })).toBeVisible();
     // Search only: no mode to choose, no brief box, no filters.
     await expect(basic.page.getByRole("combobox", { name: "Search people by name" })).toBeVisible();
-    await expect(basic.page.getByRole("button", { name: "Match", exact: true })).toHaveCount(0);
+    await expect(basic.page.getByRole("radio", { name: "Match" })).toHaveCount(0);
     await expect(basic.page.getByLabel("Paste a job description, or describe who you need")).toHaveCount(0);
     await expect(basic.page.getByRole("group", { name: "Filters" })).toHaveCount(0);
     const response = await basic.page.goto("/people/match");
@@ -310,8 +310,7 @@ test("IM10 a read-only view shows the match but reads no brief and changes nothi
     await page.goto("/people");
     // Without a match on screen a read-only view starts in Search.
     await expect(page.getByRole("combobox", { name: "Search people" })).toBeVisible();
-    await page.getByRole("button", { name: "Search", exact: true }).click();
-    await page.getByRole("menuitemradio", { name: /^Match/ }).click();
+    await page.getByRole("radio", { name: "Match" }).click();
     await expect(page.getByText("This is a read-only view.")).toBeVisible();
     const api = await page.request.post("/api/match/criteria", { headers: { origin: BASE }, data: { brief: BRIEF } });
     expect(api.status()).toBe(403);
@@ -338,8 +337,7 @@ test("IM11 Instant Match fits a phone without sideways scrolling", async ({ page
 test("IM12 a long paste in Search switches to Match and reads nothing until Enter; a role starts a match in one click", async ({ page }) => {
   const before = await db.usageEvent.count({ where: { userId: TEST_ADMIN_ID, kind: "match_brief_read" } });
   await page.goto("/people");
-  await page.getByRole("button", { name: "Match", exact: true }).click();
-  await page.getByRole("menuitemradio", { name: /^Search/ }).click();
+  await page.getByRole("radio", { name: "Search" }).click();
   const search = page.getByRole("combobox", { name: "Search people" });
   await search.focus();
   await page.evaluate((text) => {
@@ -363,8 +361,7 @@ test("IM12 a long paste in Search switches to Match and reads nothing until Ente
   });
   await expect(box).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  await page.getByRole("menuitemradio", { name: /^Match/ }).click();
+  await page.getByRole("radio", { name: "Match" }).click();
   // Choosing Search did not throw the brief away.
   await expect(box).toHaveValue(BRIEF);
   await box.fill("");

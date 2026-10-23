@@ -183,7 +183,7 @@ test("I5 the client sees the interview on their page, and 'Can't make this time'
   }
   expect((await db.candidate.findUniqueOrThrow({ where: { id: imogen.id } })).stage).toBe("submitted");
   expect(await db.interviewSlot.count({ where: { booking: { candidateId: imogen.id } } })).toBe(0);
-  await page.goto("/followups");
+  await page.goto("/followups?tab=client");
   await expect(page.getByRole("region", { name: "Client wants to meet" }).getByText("Imogen Achterberg")).toBeVisible();
 
   // Her link offers the booking form again.

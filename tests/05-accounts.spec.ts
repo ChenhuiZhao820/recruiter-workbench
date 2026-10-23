@@ -337,7 +337,6 @@ test("A6 forged form IDs cannot edit foreign records or attach a foreign role", 
   const cases: { url: string; selector: string; own: string; foreign: string; change: Record<string, string>; verify: () => Promise<unknown>; field: string; value: string }[] = [
     { url: `/roles/${a.role.id}/edit`, selector: 'form:has(input[name="title"])', own: a.role.id, foreign: b.role.id, change: { title: "Own role updated" }, verify: () => db.role.findUniqueOrThrow({ where: { id: a.role.id } }), field: "title", value: "Own role updated" },
     { url: `/searches/${a.search.id}/edit`, selector: 'form:has(input[name="name"])', own: a.search.id, foreign: b.search.id, change: { name: "Own search updated" }, verify: () => db.savedSearch.findUniqueOrThrow({ where: { id: a.search.id } }), field: "name", value: "Own search updated" },
-    { url: "/templates", selector: `form:has(input[value="${a.template.id}"]):has(input[name="name"])`, own: a.template.id, foreign: b.template.id, change: { name: "Own template updated" }, verify: () => db.messageTemplate.findUniqueOrThrow({ where: { id: a.template.id } }), field: "name", value: "Own template updated" },
   ];
   for (const entry of cases) {
     const form = await snapshotForm(alice.page, entry.url, entry.selector);
@@ -365,6 +364,22 @@ test("A6 forged form IDs cannot edit foreign records or attach a foreign role", 
     data: Buffer.from(saved.replace(a.candidate.id, b.candidate.id), "latin1"),
   });
   expect(await forged.text()).toContain("could not be found");
+  // A template is edited in a dialog the same way: capture the real save and
+  // replay it with the other account's template in it.
+  await alice.page.goto("/templates");
+  await alice.page.getByRole("button", { name: `Edit ${a.template.name}` }).click();
+  await alice.page.getByRole("dialog").getByLabel("Name", { exact: true }).fill("Own template updated");
+  const templateSave = alice.page.waitForRequest((request) => request.method() === "POST" && Boolean(request.headers()["next-action"]));
+  await alice.page.getByRole("dialog").getByRole("button", { name: "Save template" }).click();
+  const templateRequest = await templateSave;
+  await expect.poll(async () => (await db.messageTemplate.findUniqueOrThrow({ where: { id: a.template.id } })).name).toBe("Own template updated");
+  const savedTemplate = templateRequest.postDataBuffer()!.toString("latin1");
+  expect(savedTemplate.split(a.template.id).length - 1).toBeGreaterThanOrEqual(1);
+  const forgedTemplate = await alice.page.request.post("/templates", {
+    headers: { Origin: BASE, "Next-Action": templateRequest.headers()["next-action"], "Content-Type": templateRequest.headers()["content-type"] },
+    data: Buffer.from(savedTemplate.split(a.template.id).join(b.template.id), "latin1"),
+  });
+  expect(await forgedTemplate.text()).toContain("could not be found");
   expect(await db.role.findUnique({ where: { id: b.role.id } })).toEqual(b.role);
   expect(await db.savedSearch.findUnique({ where: { id: b.search.id } })).toEqual(b.search);
   expect(await db.messageTemplate.findUnique({ where: { id: b.template.id } })).toEqual(b.template);

@@ -425,9 +425,9 @@ test("10 create a message template", async ({ page }) => {
   await expect(page.locator("[data-form-message='notice']")).toContainText("First outreach");
   // In the library it is one line until it is opened.
   await page.goto("/templates");
-  const saved = page.locator("details", { hasText: "First outreach" }).first();
+  const saved = page.locator("li.template-card", { hasText: "First outreach" }).first();
   await expect(saved.locator("mark", { hasText: "{{first_name}}" })).toBeHidden();
-  await saved.locator("summary").first().click();
+  await saved.getByRole("button", { name: /^Show First outreach/ }).click();
   await expect(saved.locator("mark", { hasText: "{{first_name}}" })).toBeVisible();
 });
 
@@ -517,15 +517,18 @@ test("13 follow-up buckets fill from stages and backdated timestamps", async ({ 
   const repliedBucket = page.getByRole("region", { name: "Replied, waiting on you" });
   await expect(repliedBucket.getByText("Alice Example")).toBeVisible();
   const bookingBucket = page.getByRole("region", { name: "Said yes, never booked" });
+  await page.getByRole("tab", { name: /^Said yes/ }).click();
   await expect(bookingBucket.getByText("Bob Sample")).toBeVisible();
   await expect(bookingBucket.getByText("3 days ago")).toBeVisible();
   const quietBucket = page.getByRole("region", { name: "Went quiet" });
+  await page.getByRole("tab", { name: /^Went quiet/ }).click();
   await expect(quietBucket.getByText("Cara Test")).toBeVisible();
   await expect(quietBucket.getByText("6 days ago")).toBeVisible();
 });
 
 test("14 bucket row actions, the double-nudge guard, and nudging a booking", async ({ page }) => {
-  await page.goto("/followups");
+  // One group at a time: the address says which, and a reload keeps it.
+  await page.goto("/followups?tab=booking");
   const bookingBucket = page.getByRole("region", { name: "Said yes, never booked" });
   const quietBucket = page.getByRole("region", { name: "Went quiet" });
   const repliedBucket = page.getByRole("region", { name: "Replied, waiting on you" });
@@ -557,7 +560,7 @@ test("14 bucket row actions, the double-nudge guard, and nudging a booking", asy
   expect(bobDb!.stage).toBe("booking_pending");
   expect(bobDb!.nudgeCount).toBe(1);
   // The chase timer resets, so they drop out of the bucket for now...
-  await page.goto("/followups");
+  await page.goto("/followups?tab=booking");
   await expect(bookingBucket.getByText("Bob Sample")).toHaveCount(0);
   // ...and come back still marked as having said yes once it lapses again.
   await backdateCandidate("Bob Sample", { lastActivityAt: daysAgo(3) });
@@ -566,7 +569,7 @@ test("14 bucket row actions, the double-nudge guard, and nudging a booking", asy
   await expect(bookingBucket.getByText("Said yes, still no booking")).toBeVisible();
 
   // Cara: nudge, then verify she leaves 'Went quiet' and the guard holds.
-  await page.goto("/followups");
+  await page.goto("/followups?tab=quiet");
   await quietBucket
     .locator("li.card", { hasText: "Cara Test" })
     .getByRole("link", { name: "Draft nudge" })
@@ -574,7 +577,7 @@ test("14 bucket row actions, the double-nudge guard, and nudging a booking", asy
   await page.waitForURL(/\/outreach/);
   await markAsSent(page);
 
-  await page.goto("/followups");
+  await page.goto("/followups?tab=quiet");
   await expect(quietBucket.getByText("Cara Test")).toHaveCount(0);
 
   // Even if she has been quiet long enough again, a recent nudge keeps her out.
@@ -589,6 +592,7 @@ test("14 bucket row actions, the double-nudge guard, and nudging a booking", asy
   await expect(quietBucket.getByText("Contacted, nudged 1x, still quiet")).toBeVisible();
 
   // Replied bucket: 'They said yes' moves Alice out.
+  await page.getByRole("tab", { name: /^Replied/ }).click();
   await repliedBucket
     .locator("li.card", { hasText: "Alice Example" })
     .getByRole("button", { name: "They said yes" })
@@ -598,11 +602,13 @@ test("14 bucket row actions, the double-nudge guard, and nudging a booking", asy
   expect(aliceDb!.stage).toBe("booking_pending");
 
   // Quiet bucket: 'They replied' moves Cara to the replied bucket.
+  await page.getByRole("tab", { name: /^Went quiet/ }).click();
   await quietBucket
     .locator("li.card", { hasText: "Cara Test" })
     .getByRole("button", { name: "They replied" })
     .click();
   await expect(quietBucket.getByText("Cara Test")).toHaveCount(0);
+  await page.getByRole("tab", { name: /^Replied/ }).click();
   await expect(repliedBucket.getByText("Cara Test")).toBeVisible();
 });
 
@@ -615,9 +621,11 @@ test("15 home screen counts match the buckets", async ({ page }) => {
 
   // Bob still counts as a booking to chase: the nudge in test 14 must not have
   // demoted him out of "Said yes, never booked".
+  await page.getByRole("tab", { name: /^Said yes/ }).click();
   await expect(
     page.getByRole("region", { name: "Said yes, never booked" }).getByText("Bob Sample")
   ).toBeVisible();
+  await page.getByRole("tab", { name: /^Replied/ }).click();
   await expect(
     page.getByRole("region", { name: "Replied, waiting on you" }).getByText("Cara Test")
   ).toBeVisible();

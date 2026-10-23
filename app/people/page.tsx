@@ -51,7 +51,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
 
   const cutoff = reviewCutoff(now);
   const lastImport = features.peopleImport && !readOnly ? await recentBatch(owner.id) : null;
-  const [found, total, toReview] = await Promise.all([
+  const [found, toReview] = await Promise.all([
     db.person.findMany({
       where,
       orderBy: features.peopleSearch && hasFactFilters(filters) ? [{ factsConfirmedAt: "desc" }, { updatedAt: "desc" }] : { updatedAt: "desc" },
@@ -65,7 +65,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
         },
       },
     }),
-    db.person.count({ where: { userId: owner.id } }),
     features.privacy
       ? db.person.count({
           where: {
@@ -134,11 +133,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
         searchPlaceholder={features.peopleSearch ? "Name, skill, place or a confirmed detail" : "Search by name or headline"}
       />
 
-      {matching && match ? <InstantMatch data={match} /> : (<>
+      {matching && match ? <InstantMatch data={match} /> : !searching ? null : (<>
 
       <div className="directory-label">
         <h2>
-          {searching ? "Matching people" : "All people"} <span>{searching ? people.length : total}</span>
+          Matching people <span>{people.length}</span>
         </h2>
       </div>
 
@@ -200,9 +199,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Param
             );
           })}
         </ul>
-      )}
-      {!searching && total > PAGE_SIZE && (
-        <p className="section-caption mt-4">Showing the {PAGE_SIZE} most recently updated of {total}. Search to find anyone else.</p>
       )}
       </>)}
     </div>

@@ -57,7 +57,8 @@ test("P1 the same profile on two roles is one person, whichever way the link was
 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "People" }).click();
   await expect(page).toHaveURL(/\/people$/);
-  // Two people share the name; the list shows both, each with their own roles.
+  // Two people share the name; searching shows both, each with their own roles.
+  await page.goto("/people?q=Imogen");
   await expect(page.getByRole("link", { name: "Imogen Achterberg", exact: true })).toHaveCount(2);
   await page.locator(".person-row", { hasText: "People Test Platform Lead" }).getByRole("link", { name: "Imogen Achterberg" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Imogen Achterberg" })).toBeVisible();
@@ -204,8 +205,9 @@ test("P8 typing suggests people ranked by where the words were found, opens one 
 
   await page.goto("/people");
   // Pro accounts start in Match; Search is chosen by hand.
-  await page.getByRole("button", { name: "Match", exact: true }).click();
-  await page.getByRole("menuitemradio", { name: /^Search/ }).click();
+  await page.getByRole("radio", { name: "Search" }).click();
+  // Park the pointer: a list opening under it would hover (and select) a row.
+  await page.mouse.move(2, 2);
   const box = page.getByRole("combobox", { name: "Search people" });
   await box.fill("marrow");
   const list = page.getByRole("listbox", { name: "Suggested people" });
@@ -223,8 +225,7 @@ test("P8 typing suggests people ranked by where the words were found, opens one 
 
   // Escape closes the list; Enter with nothing chosen runs the full search.
   await page.goto("/people");
-  await page.getByRole("button", { name: "Match", exact: true }).click();
-  await page.getByRole("menuitemradio", { name: /^Search/ }).click();
+  await page.getByRole("radio", { name: "Search" }).click();
   await box.fill("marrowby");
   await expect(options.first()).toHaveText(/Thaddeus Marrowby/);
   await box.press("Escape");

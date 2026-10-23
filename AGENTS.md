@@ -137,11 +137,11 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   forgiving of case, accents, partial words, word order and a slip or two)
   and a sort, A to Z by default, also Z to A, recently active, recently added
   and by stage (`components/CandidateList.tsx`, which only chooses what shows
-  and writes nothing). Above it, one toolbar row: Add a candidate, which opens
-  the fields under the row and pushes the list down
-  (`components/AddCandidateToolbar.tsx`), the Client link as a panel floating
-  under the row (`components/PopoverDetails.tsx`), Send outreach and Match this
-  role on People. The role page lists no database matches of its own; Instant
+  and writes nothing). Above it, one row: the search, the sort, the count and,
+  at the right on that same row, Send outreach and Match this role on People
+  (`AddCandidateToolbar` hands them to `CandidateList` as `actions`; the search
+  is wide, up to 560px). Below the row, Add a candidate opens its fields and
+  pushes the list down (`components/AddCandidateToolbar.tsx`). The role page lists no database matches of its own; Instant
   Match on People does that. In a read-only view the add fields show open and
   disabled by the page's fieldset, so what cannot be done reads as refused
   rather than missing.
@@ -173,8 +173,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   what the client said in place of "On the client link" once they said it
   ("<client> wants to meet" in the accent, "Not for <client>" in red), "No CV
   (Upload)" in red, and Take off, which asks first like Remove.
-- `/templates` is a library, not a workbench: each saved template is a collapsed
-  `details` showing only its name and kind, opened to read, edit or delete it,
+- `/templates` is a library, not a workbench: each saved template is a row
+  (`components/TemplateRow.tsx`) showing its name and kind, opened to read, with
+  a pencil (Edit, a dialog) and a bin (Delete, "Delete <name>?") beside the name
+  like a candidate's row,
   and writing a new one lives on `/templates/new` behind a New template button,
   the way a role or a search does. The list of gaps this app can fill belongs on
   that form, next to the box being typed into, not above the library.
@@ -276,7 +278,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   anyone already written to today cannot be ticked; nudged twice starts
   unticked with a suggestion to mark them rejected. It is advisory, not a cap:
   there is no pace limit on a run. Entry points are "Follow up in batches" and
-  "Go through these one by one" on Follow-ups (`?only=r|m|b|q`).
+  "Go through these one by one" on Follow-ups (`?only=r|m|b|q`). The page
+  itself shows its groups as the role page does: plain-word tabs (Replied,
+  Client wants to meet, Booking, Went quiet, Due to revisit), the busiest
+  first, held in `?tab=`, with no numbered badges.
 - The address is the whole run: `c=<group>.<candidateId>` in order,
   `tm`/`tb`/`tq` the template per group, `i` the position. Ids are scoped to
   the owner before anything renders; foreign, unknown and do-not-contact ids
@@ -1026,8 +1031,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 
 - A Pro feature (`instantMatch` in `FEATURE_TIERS`) on the People page
   itself. One box (`components/PeopleBox.tsx`) replaces the search bar: Match
-  is where a Pro account starts, and Search is chosen by hand from the mode
-  menu. Pasting into Search something longer than `LONG_PASTE` (150
+  is where a Pro account starts, and Search is chosen by hand on a sliding
+  two-option toggle (Match | Search, `role="radiogroup"`). Pasting into Search something longer than `LONG_PASTE` (150
   characters) or with a line break moves it to Match and says so, with
   "search instead". Match calls the model only on Enter or the arrow, never on
   a paste or a mode change; Search never calls it. A read-only view, or an
@@ -1037,7 +1042,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   the open roles that have a description ("Match <role>", `?role=` puts the
   description in the box), and during a match its requirements. The match
   replaces the people list on the same page (`/people?c=…`); "All people"
-  clears it. `/people/match` only redirects to People with the same address
+  clears it. People lists nobody until there is a search or a match: no default
+  list, no AI privacy note and no "briefs left" line (only the used-up and
+  read-only notes remain, because they explain a disabled box). Import people
+  and New shortlist open as overlay popups over People (parallel slot
+  `app/@modal`, intercepting routes, `components/Overlay.tsx`); the same
+  addresses are full pages when loaded directly. `/people/match` only redirects to People with the same address
   state, so links already sent keep working. The page data comes from
   `loadMatchPage` (`lib/match-page.ts`).
 - The model does one thing: words in, criteria out (`lib/match-model.mjs`,

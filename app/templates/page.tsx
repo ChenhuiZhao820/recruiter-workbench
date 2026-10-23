@@ -1,13 +1,9 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { getWorkspace } from "@/lib/workspace";
-import { deleteTemplate, updateTemplate } from "@/app/actions/templates";
-import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { isKnownPlaceholder, placeholderSplitPattern } from "@/lib/render";
 import { templateKindLabel } from "@/lib/templates";
-import { MessageBodyField } from "@/components/MessageBodyField";
-import { ActionForm } from "@/components/ActionForm";
-import { Icon } from "@/components/Icon";
+import { TemplateRow } from "@/components/TemplateRow";
 
 export const dynamic = "force-dynamic";
 
@@ -61,59 +57,10 @@ export default async function TemplatesPage() {
         // spines, not by every page at once.
         <ul className="space-y-3">
           {templates.map((t) => (
-            <li key={t.id}>
-              <details className="group rounded border border-line bg-surface">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded p-4 hover:bg-sunken [&::-webkit-details-marker]:hidden">
-                  <span className="flex flex-wrap items-center gap-3">
-                    <span className="text-lg">{t.name}</span>
-                    <span className="chip">{templateKindLabel(t.kind)}</span>
-                  </span>
-                  <Icon
-                    name="down"
-                    size={18}
-                    className="shrink-0 text-ink/60 group-open:rotate-180 group-open:text-accent"
-                  />
-                </summary>
-                <div className="space-y-3 px-4 pb-4">
-                  <p className="font-mono text-xs tabular text-ink-soft">{t.body.length} chars</p>
-                  <BodyWithHighlights body={t.body} />
-                  <div className="flex flex-wrap gap-2">
-                    <form action={deleteTemplate}>
-                      <input type="hidden" name="id" value={t.id} />
-                      <ConfirmSubmitButton
-                        label="Delete"
-                        confirmText={`Delete the template "${t.name}"? This cannot be undone.`}
-                      />
-                    </form>
-                  </div>
-                  <details>
-                    <summary className="cursor-pointer text-sm text-ink/70">Edit</summary>
-                    <ActionForm action={updateTemplate} className="mt-2 space-y-2">
-                      <input type="hidden" name="id" value={t.id} />
-                      <div>
-                        <label htmlFor={`tname-${t.id}`} className="field-label">
-                          Name
-                        </label>
-                        <input
-                          id={`tname-${t.id}`}
-                          name="name"
-                          defaultValue={t.name}
-                          required
-                          className="field-input"
-                        />
-                      </div>
-                      <MessageBodyField
-                        idPrefix={`t-${t.id}`}
-                        defaultKind={t.kind}
-                        defaultBody={t.body}
-                      />
-                      <button type="submit" className="btn-secondary">
-                        Save template
-                      </button>
-                    </ActionForm>
-                  </details>
-                </div>
-              </details>
+            <li key={t.id} className="card template-card">
+              <TemplateRow id={t.id} name={t.name} kind={t.kind} kindLabel={templateKindLabel(t.kind)} body={t.body}>
+                <BodyWithHighlights body={t.body} />
+              </TemplateRow>
             </li>
           ))}
         </ul>

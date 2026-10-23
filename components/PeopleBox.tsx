@@ -187,7 +187,6 @@ export function PeopleBox({
                   void read();
                 }
               }}
-              aria-describedby="people-box-help"
             />
           </>
         ) : (
@@ -219,25 +218,15 @@ export function PeopleBox({
         )}
         <div className="people-box-foot">
           {canMatch ? (
-            <Popover
-              name="Choose how to find people"
-              align="start"
-              className="people-mode"
-              label={<><Icon name={mode === "match" ? "spark" : "search"} size={15} />{mode === "match" ? "Match" : "Search"}<Icon name="down" size={12} /></>}
-            >
-              {(close) => (
-                <div className="im-menu" role="menu">
-                  <button type="button" role="menuitemradio" aria-checked={mode === "match"} className="im-menu-item people-mode-item" onClick={() => { close(); switchTo("match"); }}>
-                    <span className="people-mode-name"><Icon name="spark" size={14} />Match{mode === "match" && <Icon name="check" size={13} />}</span>
-                    <span className="im-menu-sub">Paste a job description; Retrivr reads it and finds who fits.{readOnly ? " Your own workspace only." : ` ${readsLeft} left this month.`}</span>
-                  </button>
-                  <button type="button" role="menuitemradio" aria-checked={mode === "search"} className="im-menu-item people-mode-item" onClick={() => { close(); switchTo("search"); }}>
-                    <span className="people-mode-name"><Icon name="search" size={14} />Search{mode === "search" && <Icon name="check" size={13} />}</span>
-                    <span className="im-menu-sub">Names, skills, places and confirmed details, as you type. Free.</span>
-                  </button>
-                </div>
-              )}
-            </Popover>
+            <div role="radiogroup" aria-label="Choose how to find people" className="mode-toggle" data-mode={mode}>
+              <span className="mode-toggle-thumb" aria-hidden="true" />
+              <button type="button" role="radio" aria-checked={mode === "match"} className="mode-toggle-option" title={readOnly ? "Matching a brief works in your own workspace" : `Paste a job description; Retrivr reads it and finds who fits. ${readsLeft} left this month.`} onClick={() => switchTo("match")}>
+                <Icon name="spark" size={14} />Match
+              </button>
+              <button type="button" role="radio" aria-checked={mode === "search"} className="mode-toggle-option" title="Names, skills, places and confirmed details, as you type. Free." onClick={() => switchTo("search")}>
+                <Icon name="search" size={14} />Search
+              </button>
+            </div>
           ) : <span />}
           <div className="people-box-actions">
             {mode === "match" && <span className={`people-box-count tabular ${tooLong ? "text-rose-700" : ""}`}>{brief.length > 0 ? `${brief.length.toLocaleString("en-GB")} / ${MAX_BRIEF_CHARS.toLocaleString("en-GB")}` : ""}</span>}
@@ -312,15 +301,13 @@ export function PeopleBox({
         </div>
       )}
 
-      <p id="people-box-help" className="im-fineprint" hidden={hasMatch}>
-        {mode === "match"
-          ? readOnly
+      {mode === "match" && !hasMatch && (readOnly || readsLeft <= 0) && (
+        <p className="im-fineprint">
+          {readOnly
             ? "This is a read-only view. Briefs are read only in your own workspace."
-            : readsLeft <= 0
-              ? "You have used this month’s briefs. Switch to Search, or edit the criteria of a match by hand."
-              : <>Only what you type here is sent to the AI to be read. The people in your database never leave Retrivr, and the brief is not saved. {readsLeft} {readsLeft === 1 ? "brief" : "briefs"} left this month.</>
-          : null}
-      </p>
+            : "You have used this month’s briefs. Switch to Search, or edit the criteria of a match by hand."}
+        </p>
+      )}
     </section>
   );
 }

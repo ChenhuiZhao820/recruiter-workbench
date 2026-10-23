@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   description: "A focused workspace for your recruiting pipeline. Keep roles, candidate context and thoughtful follow-ups together — with you in control.",
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   const session = await getSession();
   const workspace = session ? await getWorkspace() : null;
   // Setup belongs to the signed-in account, so an admin reading someone else's
@@ -70,6 +70,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           unreadActivity={unreadActivity}
           ownerId={workspace?.owner.id}
         >{children}</ApplicationShell>
+        {modal}
       </body>
     </html>
   );

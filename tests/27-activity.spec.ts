@@ -144,7 +144,7 @@ test("A3 an answer on a custom shortlist shows on the role's row and Follow-ups,
 
   const me = await recruiter(browser);
   try {
-    await me.page.goto("/followups");
+    await me.page.goto("/followups?tab=client");
     const section = me.page.getByRole("region", { name: "Wants to meet, from a shortlist" });
     await expect(section).toContainText("Tobiah Lindqvist");
     // Follow-ups goes straight to arranging it.
@@ -167,7 +167,7 @@ test("A3 an answer on a custom shortlist shows on the role's row and Follow-ups,
     expect((await db.candidate.findUniqueOrThrow({ where: { id: candidate.id } })).stage).toBe("submitted");
 
     // Now it is the role's answer, it is in the usual group, not this one.
-    await me.page.goto("/followups");
+    await me.page.goto("/followups?tab=client");
     await expect(me.page.getByRole("region", { name: "Wants to meet, from a shortlist" })).toHaveCount(0);
     await expect(me.page.getByRole("region", { name: "Client wants to meet" })).toContainText("Tobiah Lindqvist");
 

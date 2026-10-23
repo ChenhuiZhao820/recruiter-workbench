@@ -370,17 +370,25 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   `GET /api/capture/email/[id]` with the extension key, never cookies; the
   rules are the workbench's (`claimLookup`/`launchLookup` in
   `lib/email-finder.ts`, shared with `/api/email-finder`). Beside the name
-  sits Company name, read from the profile on the same click (the top card's
-  "Current company" button, else the first Experience entry unless it is an
-  employment type, else "at X" in the headline) and editable; a new profile
-  empties it like the other read fields. The panel sends the profile address
+  sits Company name, read from the profile on the same click and editable; a
+  new profile empties it like the other read fields. LinkedIn's 2026 profile
+  page has no h1 and only throwaway class names, so the reader goes by
+  `componentkey` hooks: the header is the section around
+  `topcard-logo-image-referencekey` (name in its h2, then the headline and
+  "Company · School" lines), and the current employer is the first
+  `entity-collection-item` under the Experience anchor while it runs to the
+  present, named by its logo's alt text. The older page's selectors are still
+  tried first. `tests/extension-reader.test.mjs` runs the reader in Chromium
+  against `tests/fixtures/linkedin/profile-2026.html` (fictional, offline). The panel sends the profile address
   it read and, while Company name is not empty, the name and company too,
   to the workbench and nobody else; the workbench asks Enrow; nobody asks
-  LinkedIn. With a company the search is by name and company first and the
-  address only when the name is a single word; the panel's Settings has a
-  sliding "Find email by" choice (Company name, the default, or LinkedIn
-  link; `emailBy` in extension storage, sent as `prefer`) that puts the
-  address first instead. Never retried on its own. The setup screen no
+  LinkedIn. The search is by the LinkedIn address first, by name and company
+  only when there is no member address; the panel's Settings has a sliding
+  "Find email by" choice (LinkedIn link, the default and on the left, or
+  Company name; `emailBy` in extension storage, sent as `prefer`) that puts
+  name and company first instead, falling back to the address when the name
+  is a single word. A request without `prefer: "company"` is link first.
+  Never retried on its own. The setup screen no
   longer carries the paragraph about allowed workbench addresses; a refused
   address still says so when Connect is pressed. A person this account already keeps is
   searched as that person (do not contact refused, a kept email returned

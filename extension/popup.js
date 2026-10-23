@@ -11,7 +11,7 @@
 
 const el = (id) => document.getElementById(id);
 
-const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "", filled: { name: "", headline: "", company: "" }, waiting: false, leftName: "", settleUrl: "", settleTries: 0, finder: null, found: "", kept: false, finding: false, findRun: 0, emailBy: "company" };
+const state = { url: "", token: "", account: null, roleScope: "", roles: [], profileRead: false, saving: false, saved: false, savedRoleId: "", surface: "popup", profileUrl: "", memberId: "", stale: false, existingRoleId: "", filled: { name: "", headline: "", company: "" }, waiting: false, leftName: "", settleUrl: "", settleTries: 0, finder: null, found: "", kept: false, finding: false, findRun: 0, emailBy: "linkedin" };
 const fields = ["role", "name", "headline", "company", "profile", "email", "notes"];
 const controls = ["settings", "open-role", "reread", "find-email"];
 // Where Retrivr actually lives. A package built by scripts/package-extension.mjs
@@ -54,7 +54,27 @@ function readProfile() {
     }
   };
 
-  const heading = document.querySelector("main h1") || document.querySelector("h1");
+  // LinkedIn's profile page as redesigned in 2026 has no h1 and no class name
+  // that lasts a deploy, only componentkey attributes. Its header is the
+  // section around the profile photo's link: the name in an h2, and under it
+  // two lines of their own, the headline and "Company · School". The older
+  // page, with its h1 and named classes, is still read first.
+  const photo = pick('[componentkey="topcard-logo-image-referencekey"]');
+  const card = photo && photo.closest("section");
+  const cardName = card && card.querySelector("h2");
+  let cardLines = [];
+  for (let node = cardName && cardName.parentElement; node && node !== card; node = node.parentElement) {
+    // "· 3rd" sits beside the name; the lines wanted are the first block
+    // further out that has paragraphs of its own.
+    const own = [...node.children].filter((child) => child.tagName === "P")
+      .map((child) => clean(child.textContent)).filter((text) => text && !text.startsWith("·"));
+    if (own.length) {
+      cardLines = own;
+      break;
+    }
+  }
+
+  const heading = pick("main h1") || pick("h1") || cardName;
   let name = clean(heading && heading.textContent);
 
   // The tab title is "Name | LinkedIn", sometimes with a leading notification
@@ -72,6 +92,7 @@ function readProfile() {
   let headline = "";
   const headlineNode = document.querySelector("main .text-body-medium");
   if (headlineNode) headline = clean(headlineNode.textContent);
+  if (!headline) headline = cardLines[0] || "";
   if (!headline) {
     const meta = document.querySelector('meta[name="description"]');
     if (meta) headline = clean(meta.getAttribute("content")).slice(0, 160);
@@ -89,21 +110,44 @@ function readProfile() {
   }
 
   // Where they work now, for Find email: a name and a company find people a
-  // LinkedIn address does not. The top card's "Current company" button names
-  // it; failing that, the first entry under Experience; failing that, "at X"
-  // in the headline. Only ever a suggestion in a field the recruiter can edit.
+  // LinkedIn address does not. Only ever a suggestion in a field the
+  // recruiter can edit. In order: the old header's "Current company" button;
+  // the first Experience entry while it still runs to the present; the
+  // header's "Company · School" line; the old Experience markup; "at X" in
+  // the headline.
   let company = "";
   const current = pick('button[aria-label^="Current company"]') || pick('[aria-label^="Current company"]');
   if (current) {
     const label = clean(current.getAttribute("aria-label"));
     company = clean((label.match(/^Current company:?\s*(.+?)(?:\.\s*Click\b.*)?$/i) || [])[1]);
   }
+  // A run of roles at one employer, and a role's own line, put the time or the
+  // employment type where a company could be; neither is a company.
+  const notCompany = /^(full-time|part-time|self-employed|freelance|contract|internship|apprenticeship|seasonal|\d)/i;
+  if (!company) {
+    const anchor = pick('[componentkey="ProfileNullStateCardAnchor_Experience"]') ||
+      pick('[componentkey^="Profile_Top_Level_ExperienceTopLevelSection"]');
+    const section = anchor && anchor.closest("section");
+    const entry = section && section.querySelector('[componentkey^="entity-collection-item"]');
+    // Only a role that has not ended is where they work now.
+    if (entry && /\b(present|current)\b|至今|现在|aujourd|heute|actualidad|atual|oggi|heden/i.test(clean(entry.textContent))) {
+      // The employer's logo is labelled with its name, the same for a single
+      // role and for several at one employer.
+      const logo = entry.querySelector('img[alt$=" logo"]');
+      company = clean(logo && logo.getAttribute("alt")).replace(/\s+logo$/i, "");
+      if (!company) {
+        // No logo: a single role reads title, company; several read company, time.
+        const lines = [...entry.querySelectorAll("p")].map((node) => clean(node.textContent)).filter(Boolean);
+        const guess = (lines[1] && !notCompany.test(lines[1]) ? lines[1] : lines[0] || "").split(" · ")[0];
+        if (guess && !notCompany.test(guess)) company = guess;
+      }
+    }
+  }
+  if (!company && cardLines[1]) company = cardLines[1].split(" · ")[0];
   if (!company) {
     const entry = pick('section:has(> #experience) li .t-14.t-normal > span[aria-hidden="true"]');
     const first = clean(entry && entry.textContent).split(" · ")[0];
-    // A run of roles at one employer puts the employment type where the
-    // company would be; that is not a company.
-    if (first && !/^(full-time|part-time|self-employed|freelance|contract|internship|apprenticeship|seasonal|\d)/i.test(first)) company = first;
+    if (first && !notCompany.test(first)) company = first;
   }
   if (!company) {
     const at = /(?:^|\s)(?:at\s+|@\s*)(.+)$/i.exec(headline);
@@ -635,8 +679,8 @@ async function findEmail() {
   showFinder();
   try {
     // A name and a company are sent alongside the address only while the
-    // company box holds something; the workbench searches by them first unless
-    // Settings says the LinkedIn link comes first.
+    // company box holds something; the workbench searches by the LinkedIn link
+    // first unless Settings says the company name comes first.
     const company = el("company").value.trim();
     const search = company
       ? { profileUrl: link, fullName: el("name").value.trim(), company, prefer: state.emailBy }
@@ -788,10 +832,10 @@ function showSetup(message) {
 }
 
 // Which search Find email tries first when the company box is filled in. The
-// company name by default: it finds people a LinkedIn address does not.
+// LinkedIn link by default; the company name finds some people it does not.
 function showEmailBy() {
-  el("email-by-company").checked = state.emailBy !== "linkedin";
-  el("email-by-linkedin").checked = state.emailBy === "linkedin";
+  el("email-by-linkedin").checked = state.emailBy !== "company";
+  el("email-by-company").checked = state.emailBy === "company";
 }
 
 function clearAccount() {
@@ -1022,7 +1066,7 @@ el("settings").addEventListener("click", () => showSetup(""));
 for (const id of ["email-by-company", "email-by-linkedin"]) {
   el(id).addEventListener("change", async () => {
     if (!el(id).checked) return;
-    state.emailBy = el(id).value === "linkedin" ? "linkedin" : "company";
+    state.emailBy = el(id).value === "company" ? "company" : "linkedin";
     showEmailBy();
     await remember({ emailBy: state.emailBy });
   });
@@ -1128,7 +1172,7 @@ el("save").addEventListener("click", async () => {
 (async function start() {
   await applySurface();
   const preference = await recall(["emailBy"]);
-  state.emailBy = preference.emailBy === "linkedin" ? "linkedin" : "company";
+  state.emailBy = preference.emailBy === "company" ? "company" : "linkedin";
   try {
     const stored = await chrome.storage.local.get(["url", "token"]);
     state.url = stored.url || "";

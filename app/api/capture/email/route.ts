@@ -32,14 +32,14 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as { profileUrl?: unknown; fullName?: unknown; company?: unknown; prefer?: unknown } | null;
   const profileUrl = normalizeProfileUrl(typeof body?.profileUrl === "string" ? body.profileUrl : "");
-  // A company in the panel means a name-and-company search, first unless the
-  // recruiter chose the LinkedIn link first in the panel's settings; either
-  // way the other is what is left when the first has too little to go on.
+  // The LinkedIn address first, unless the recruiter chose the company name
+  // first in the panel's settings and the panel has one; either way the other
+  // is what is left when the first has too little to go on.
   const fullName = typeof body?.fullName === "string" ? body.fullName.slice(0, 200) : "";
   const company = typeof body?.company === "string" ? body.company : null;
   const byName = company ? lookupRequest({ fullName, profileUrl: "" }, company) : null;
   const byLink = lookupRequest({ fullName: "", profileUrl });
-  const search = body?.prefer === "linkedin" ? byLink ?? byName : byName ?? byLink;
+  const search = body?.prefer === "company" ? byName ?? byLink : byLink ?? byName;
   if (!search) return fail(400, company ? "Add their full name to search by name and company." : "Open a LinkedIn profile to search for its email.");
 
   const canonical = canonicalProfileUrl(profileUrl);

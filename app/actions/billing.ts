@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { appOrigin } from "@/lib/auth";
 import { requireOwnAccount } from "@/lib/workspace";
 import { billingConfigured, hasLiveSubscription, stripe } from "@/lib/billing";
-import { CHECKOUT_PLANS, INTERVALS, priceFor } from "@/lib/billing-core.mjs";
+import { CHECKOUT_PLANS, INTERVALS, portalFlow, priceFor } from "@/lib/billing-core.mjs";
 
 // Starting a subscription, and everything after it, happens on Stripe's own
 // pages: Checkout to pay, the customer portal to change plan, cancel, update
@@ -22,7 +22,11 @@ export async function startCheckout(form: FormData) {
   const account = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { id: true, email: true, stripeCustomerId: true, stripeSubscriptionId: true, billingStatus: true } });
   // Already paying: a change of plan is the portal's job, so nobody ends up
   // with two subscriptions.
-  if (hasLiveSubscription(account)) return openBillingPortal();
+  if (hasLiveSubscription(account)) {
+    const change = new FormData();
+    change.set("flow", "update");
+    return openBillingPortal(change);
+  }
   const tax = process.env.STRIPE_TAX === "1";
   const session = await stripe().checkout.sessions.create({
     mode: "subscription",
@@ -40,10 +44,25 @@ export async function startCheckout(form: FormData) {
   redirect(session.url);
 }
 
-export async function openBillingPortal() {
+// The portal's home page, or one of its flows (change plan, cancel, update the
+// card) when the form names one. A flow Stripe refuses - a portal not
+// configured for it, a subscription already gone - falls back to the home page.
+export async function openBillingPortal(form?: FormData) {
   const user = await requireOwnAccount();
-  const account = await db.user.findUnique({ where: { id: user.id }, select: { stripeCustomerId: true } });
+  const account = await db.user.findUnique({ where: { id: user.id }, select: { stripeCustomerId: true, stripeSubscriptionId: true, billingStatus: true } });
   if (!billingConfigured() || !account?.stripeCustomerId) redirect("/billing");
-  const session = await stripe().billingPortal.sessions.create({ customer: account.stripeCustomerId, return_url: `${appOrigin()}/billing` });
-  redirect(session.url);
+  const flow = portalFlow(form instanceof FormData ? String(form.get("flow") ?? "") : "");
+  const subscription = hasLiveSubscription(account) ? account.stripeSubscriptionId : null;
+  const return_url = `${appOrigin()}/billing`;
+  const flow_data = flow === "payment" ? { type: "payment_method_update" as const }
+    : flow === "update" && subscription ? { type: "subscription_update" as const, subscription_update: { subscription } }
+    : flow === "cancel" && subscription ? { type: "subscription_cancel" as const, subscription_cancel: { subscription } }
+    : null;
+  let url: string | null = null;
+  if (flow_data) {
+    url = await stripe().billingPortal.sessions.create({ customer: account.stripeCustomerId, return_url, flow_data: { ...flow_data, after_completion: { type: "redirect", redirect: { return_url } } } })
+      .then((session) => session.url).catch(() => null);
+  }
+  url ??= (await stripe().billingPortal.sessions.create({ customer: account.stripeCustomerId, return_url })).url;
+  redirect(url);
 }

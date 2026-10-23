@@ -1202,6 +1202,26 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   account already paying goes to Stripe's customer portal instead, which also
   changes plan, cancels, updates the card and holds invoices. `STRIPE_TAX=1`
   turns on Stripe Tax at checkout. Nothing on these pages changes a plan.
+- `/billing` is the billing portal, Billing in the workspace sidebar between
+  Notifications and Settings, under three plain-word tabs (`RoleTabs`,
+  `?tab=invoices|plans`; Plans is the default for an account with no plan).
+  Overview: the plan with its status and renewal day, what it includes (one
+  chip per `FEATURE_TIERS` feature the account has, never one it lacks),
+  this month's credits (`lib/billing-usage.ts`, read with the
+  same counts the features refuse by), and, for a live subscription, Change
+  plan, Update card and Cancel, each a portal flow (`openBillingPortal` with
+  `flow` update/payment/cancel, `portalFlow` in `lib/billing-core.mjs`; any
+  other value, or a flow Stripe refuses, opens the portal's home page).
+  Invoices: billing details (with the missing parts of the address) and the
+  last 24 invoices, read from Stripe on each visit with a three-second limit
+  and never stored; a failure says Stripe could not be reached and keeps the
+  portal button. Links out go only to Stripe's hosts (`stripeLink`, loopback
+  outside production); drafts are not listed. Plans: the homepage's prices
+  with a Monthly/Yearly switch (`PlanPicker`); a paying account's choice goes
+  through `startCheckout` to the change-plan flow, never a second
+  subscription. Retrivr has no credits, credit packs, pausing, renew-now or
+  referral programme, so the page offers none. An administrator's read-only
+  view of another account shows only that billing is each account's own.
 - `POST /api/billing/webhook` is the only thing that does. It checks the
   signature (`STRIPE_WEBHOOK_SECRET`) over the raw body, records each event id
   in `StripeEvent` so a redelivery does nothing, and never applies an event's
@@ -1215,7 +1235,10 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
 - Outside production `CAPTURE_TEST_STRIPE_BASE_URL` sends the SDK to the local
   stand-in in `tests/anthropic-stub.mjs`. `tests/billing.test.mjs` covers the
   mapping; `tests/30-signup-billing.spec.ts` pays, redelivers, forges, fails a
-  card past its grace, cancels and tries someone else's customer.
+  card past its grace, cancels and tries someone else's customer;
+  `tests/34-billing-portal.spec.ts` covers the sidebar, the tabs, credits,
+  invoices and details from the stub, each portal flow, a forged flow, a
+  Stripe outage, a cancelled plan, the read-only view and phone width.
 
 ## Account classification
 

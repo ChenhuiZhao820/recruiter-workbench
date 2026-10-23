@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { db } from "@/lib/db";
-import { CHECKOUT_PLANS, LIVE_STATUSES, customerId, priceFor, shouldApply, subscriptionFields } from "@/lib/billing-core.mjs";
+import { CHECKOUT_PLANS, LIVE_STATUSES, billingDetails, customerId, invoiceRow, priceFor, shouldApply, subscriptionFields } from "@/lib/billing-core.mjs";
 
 // Stripe holds the card and the subscription; Retrivr keeps a copy of what it
 // means on the user row, written only here, from Stripe's own answer: every
@@ -59,4 +59,29 @@ export async function syncSubscription(subscriptionId: string, fallbackUserId?: 
 
 export function hasLiveSubscription(user: { stripeSubscriptionId: string | null; billingStatus: string | null }) {
   return Boolean(user.stripeSubscriptionId && LIVE_STATUSES.includes(user.billingStatus ?? ""));
+}
+
+// The billing portal reads the customer and their invoices from Stripe on
+// each visit and keeps nothing. A slow or failing Stripe leaves the page
+// standing with a note, never waiting past a few seconds.
+const READ = { timeout: 3_000, maxNetworkRetries: 0 } as const;
+
+export type BillingDetails = NonNullable<ReturnType<typeof billingDetails>>;
+export type InvoiceRow = NonNullable<ReturnType<typeof invoiceRow>>;
+
+export async function loadBillingDetails(customer: string): Promise<BillingDetails | null | "unavailable"> {
+  try {
+    return billingDetails(await stripe().customers.retrieve(customer, { expand: ["tax_ids"] }, READ));
+  } catch {
+    return "unavailable";
+  }
+}
+
+export async function loadInvoices(customer: string): Promise<InvoiceRow[] | "unavailable"> {
+  try {
+    const list = await stripe().invoices.list({ customer, limit: 24 }, READ);
+    return list.data.map((invoice) => invoiceRow(invoice)).filter((row): row is InvoiceRow => row !== null);
+  } catch {
+    return "unavailable";
+  }
 }

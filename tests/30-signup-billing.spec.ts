@@ -191,7 +191,7 @@ test("SU4 an ended trial is a read-only workspace; paying through Stripe opens i
   await page.goto("/billing");
   await expect(page.getByRole("heading", { name: "Choose a plan" })).toBeVisible();
   await expect(page.locator("article").filter({ has: page.getByRole("heading", { name: "Pro Max", exact: true }) })).toHaveCount(1);
-  await page.locator("article").filter({ has: page.getByRole("heading", { name: "Basic", exact: true }) }).getByRole("button", { name: /month/ }).click();
+  await page.locator("article").filter({ has: page.getByRole("heading", { name: "Basic", exact: true }) }).getByRole("button", { name: "Choose Basic" }).click();
   await expect(page).toHaveURL(/localhost:8766\/stripe-checkout\/cs_test_/);
   const checkout = (await (await page.request.get(`${STUB}/__stripe`)).json()).lastCheckout;
   expect(checkout).toMatchObject({ mode: "subscription", "line_items[0][price]": "price_BasicMonthly", client_reference_id: user.id, customer_email: address, "subscription_data[metadata][userId]": user.id });
@@ -211,7 +211,7 @@ test("SU4 an ended trial is a read-only workspace; paying through Stripe opens i
 
   await page.goto("/billing");
   await expect(page.getByText("Basic, billed monthly")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Manage billing/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Change plan" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Choose a plan" })).toHaveCount(0);
   await page.goto(`/roles/${role.id}`);
   await expect(page.getByRole("status").filter({ hasText: "Your trial has ended" })).toHaveCount(0);

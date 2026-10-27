@@ -58,7 +58,7 @@ export async function regenerateCaptureToken(): Promise<FormState & { token?: st
     const generated = await db.$transaction(async (tx) => {
       const account = await tx.user.findUnique({
         where: { id: user.id },
-        select: { role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true },
+        select: { role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true, promoProFrom: true, promoProUntil: true },
       });
       if (!account || !canUseExtension(account)) return null;
       const secret = newCaptureToken();

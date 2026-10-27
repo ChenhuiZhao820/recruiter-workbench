@@ -39,6 +39,10 @@ model User {
   billingCancelAtPeriodEnd Boolean                 @default(false)
   billingPastDueSince      DateTime?
   billingSyncedAt          DateTime?
+  // A promo code's window of free Pro (lib/promo-core.mjs), read by
+  // getAccountTier only while the account would otherwise have less.
+  promoProFrom             DateTime?
+  promoProUntil            DateTime?
   authSessions             AuthSession[]
   authAccounts             AuthAccount[]
   roles            Role[]
@@ -150,6 +154,18 @@ model PendingSignup {
 model TrialClaim {
   keyHash   String   @id
   createdAt DateTime @default(now())
+}
+
+// A promo code redeemed, under the same hash of the address as TrialClaim and
+// kept for good, so an address redeems a code once even after deleting the
+// account. No user and no address: the window itself is on the user.
+model PromoRedemption {
+  id        String   @id @default(cuid())
+  promoId   String
+  keyHash   String
+  createdAt DateTime @default(now())
+
+  @@unique([promoId, keyHash])
 }
 
 // Stripe events already applied, so a redelivery does nothing.

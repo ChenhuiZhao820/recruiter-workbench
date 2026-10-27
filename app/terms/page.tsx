@@ -25,6 +25,7 @@ export default function TermsPage() {
 
     <Section id="trial" title="2. The free trial">
       <p>A new account gets {TRIAL_DAYS} days of the Pro plan, with no card needed. Each email address gets one trial, even if the account is deleted and made again. The trial has smaller monthly limits on AI features than paid Pro.</p>
+      <p>A promo code, when we publish one, gives the Pro plan for the period it states, with no card needed, until its stated deadline. Each email address can use a code once. On a trial it makes the whole trial that long rather than adding to it; an account that already has Pro cannot use it. The period has paid Pro&rsquo;s limits, except that email searches are counted over the whole period rather than each month. When it ends, the account goes back to the plan it would otherwise have.</p>
       <p>When the trial ends without a plan, your workspace becomes read-only. Nothing is deleted: you can still sign in, read, export and delete your data, and choose a plan at any time to carry on.</p>
     </Section>
 

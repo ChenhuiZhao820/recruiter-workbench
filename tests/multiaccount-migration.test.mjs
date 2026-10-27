@@ -26,7 +26,7 @@ const ephemeralTables = ["Session", "ActivationToken", "LoginThrottle", "AuthSes
 // Accepted in a source, never copied: calendar tokens, AI counters, slot
 // locks (rebuilt from bookings), shortlist links (issued again) and import
 // batches (undone only where they ran).
-const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch", "InterviewSlot", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent", "EmailLookup"];
+const notImportedTables = ["CalendarConnection", "IntegrationConnection", "AiUsage", "BookedSlot", "ImportBatch", "InterviewSlot", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent", "EmailLookup", "PromoRedemption"];
 // Tables a source written before them may lack.
 const optionalTables = ["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "PersonNote", "Shortlist", "ShortlistItem"];
 const modelFor = (table) => table[0].toLowerCase() + table.slice(1);
@@ -375,6 +375,36 @@ test("SQLite sources from before self-serve accounts project an administrator's 
   await assert.rejects(readAccounts(partial), /columns/);
 });
 
+test("SQLite sources from before promo codes import with no promo window, and a window travels", async () => {
+  const path = join(directory, "pre-promo-source.db");
+  await copyFile(sourcePath, path);
+  const sqlite = new DatabaseSync(path);
+  try {
+    for (const column of ["promoProFrom", "promoProUntil"]) sqlite.exec(`ALTER TABLE "User" DROP COLUMN "${column}"`);
+    sqlite.exec('DROP TABLE IF EXISTS "PromoRedemption"');
+  } finally { sqlite.close(); }
+  const legacy = await readAccounts(path);
+  for (const row of legacy.User) assert.equal(row.promoProUntil, null);
+  await withTarget(async (db) => {
+    await importAccounts(db, legacy, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, legacy, adminEmail);
+  });
+  const partial = join(directory, "partial-promo-source.db");
+  await copyFile(sourcePath, partial);
+  const half = new DatabaseSync(partial);
+  try { half.exec('ALTER TABLE "User" DROP COLUMN "promoProUntil"'); } finally { half.close(); }
+  await assert.rejects(readAccounts(partial), /columns/);
+
+  const input = structuredClone(source);
+  Object.assign(input.User.find((row) => row.role === "recruiter"), { promoProFrom: createdAt, promoProUntil: updatedAt });
+  await withTarget(async (db) => {
+    await importAccounts(db, input, adminEmail, { provider: "sqlite", confirmed: true });
+    await verifyAccounts(db, input, adminEmail);
+    const moved = await db.user.findFirstOrThrow({ where: { role: "recruiter" } });
+    assert.equal(moved.promoProUntil?.getTime(), updatedAt.getTime());
+  });
+});
+
 test("a self-serve account's plan and Stripe link travel with it", async () => {
   const input = structuredClone(source);
   Object.assign(input.User.find((row) => row.role === "recruiter"), {
@@ -674,6 +704,7 @@ test("every nonempty target model is refused without modifying existing rows", a
     PendingSignup: { email: "new@fixture.invalid", name: "New", passwordHash, termsVersion: "1", createdAt: createdAt.getTime(), expiresAt: updatedAt.getTime() },
     AuthAccount: { id: "fixture-auth-account", accountId: "google-sub", providerId: "google", userId: "fixture-user-admin", createdAt: createdAt.getTime(), updatedAt: updatedAt.getTime() },
     TrialClaim: { keyHash: "fixture-claim", createdAt: createdAt.getTime() },
+    PromoRedemption: { id: "fixture-promo", promoId: "trial2026", keyHash: "fixture-claim", createdAt: createdAt.getTime() },
     StripeEvent: { id: "evt_fixture", type: "customer.subscription.updated", receivedAt: createdAt.getTime() },
     EmailLookup: { id: "fixture-email-lookup", userId: "fixture-user-admin", personId: "fixture-person-admin", method: "linkedin", status: "found", createdAt: createdAt.getTime() },
   };

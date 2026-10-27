@@ -11,7 +11,7 @@ export default async function AdminPage() {
   await requireAdmin();
   const { readOnly } = await getWorkspace();
   const users = await db.user.findMany({
-    select: { id: true, name: true, email: true, role: true, accountTier: true, trialExpiresAt: true },
+    select: { id: true, name: true, email: true, role: true, accountTier: true, trialExpiresAt: true, promoProFrom: true, promoProUntil: true },
     orderBy: { createdAt: "asc" },
   });
   return <div className="space-y-6">

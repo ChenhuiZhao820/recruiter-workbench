@@ -15,13 +15,15 @@ export type SessionUser = {
   billingPlan: string | null;
   billingStatus: string | null;
   billingPastDueSince: Date | null;
+  promoProFrom: Date | null;
+  promoProUntil: Date | null;
 };
 
 // Everything getAccountTier reads comes with the user, so a plan is decided
 // from the same row on every request.
 export const publicUserSelect = {
   id: true, email: true, name: true, role: true, active: true, accountTier: true, trialExpiresAt: true,
-  signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true,
+  signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true, promoProFrom: true, promoProUntil: true,
 } as const;
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
 

@@ -13,7 +13,7 @@ export const accountColumns = {
   User: { id: "id", email: "email", name: "text", role: "userRole", accountTier: "accountTier", trialExpiresAt: "date?", active: "bool", passwordHash: "password?", authVersion: "int", createdAt: "date", updatedAt: "date",
     emailVerified: "bool", image: "text?", signupSource: "signupSource", termsVersion: "text?", termsAcceptedAt: "date?",
     stripeCustomerId: "text?", stripeSubscriptionId: "text?", billingPlan: "text?", billingInterval: "text?", billingStatus: "text?",
-    billingPeriodEnd: "date?", billingCancelAtPeriodEnd: "bool", billingPastDueSince: "date?", billingSyncedAt: "date?" },
+    billingPeriodEnd: "date?", billingCancelAtPeriodEnd: "bool", billingPastDueSince: "date?", billingSyncedAt: "date?", promoProFrom: "date?", promoProUntil: "date?" },
   ExtensionAccess: { userId: "id", codeHash: "discard", expiresAt: "date?", activatedAt: "date?", createdAt: "date", updatedAt: "date" },
   Role: { ...legacyColumns.Role, userId: "id", status: "roleStatus", budgetMin: "int?", budgetMax: "int?", budgetCurrency: "text?", importBatchId: "discard",
     clientReviewFirst: "bool", interviewWindows: "text", interviewTimezone: "text?", interviewDurationMins: "int?", interviewLocation: "text?" },
@@ -60,7 +60,7 @@ export const accountColumns = {
 };
 // Tables a source may not have yet: it was written before they existed.
 const optionalTables = new Set(["ExtensionAccess", "Person", "Screening", "Booking", "UsageEvent", "Suppression", "CalendarConnection", "AiUsage", "BookedSlot", "PersonNote", "IntegrationConnection", "ImportBatch", "Shortlist", "ShortlistItem", "ShortlistAccess", "InterviewSlot", "Notification", "InterviewOffer", "PersonCv", "EmailLookup",
-  "AuthSession", "AuthAccount", "AuthVerification", "PendingSignup", "TrialClaim", "StripeEvent"]);
+  "AuthSession", "AuthAccount", "AuthVerification", "PendingSignup", "TrialClaim", "StripeEvent", "PromoRedemption"]);
 // Accepted in a source but never copied. Calendar and integration tokens are
 // encrypted with the source deployment's key and must be reconnected; monthly
 // AI counters start again; booked-slot and interview-slot locks are rebuilt
@@ -89,6 +89,9 @@ const notImportedColumns = {
   // to the deployment that saw them.
   TrialClaim: { keyHash: "text", createdAt: "date" },
   StripeEvent: { id: "id", type: "text", receivedAt: "date" },
+  // Which addresses redeemed a promo code, likewise. The account's own window
+  // (User.promoProUntil) travels with it, and that alone refuses a second go.
+  PromoRedemption: { id: "id", promoId: "text", keyHash: "text", createdAt: "date" },
   // Email searches count against this deployment's allowance, with this
   // deployment's provider ids; the count starts again after a move.
   EmailLookup: { id: "id", userId: "id", personId: "id?", method: "text", status: "text", reason: "text?", enrowId: "text?", createdAt: "date", finishedAt: "date?" },
@@ -129,6 +132,7 @@ const lateColumns = {
       billingStatus: { value: null, sql: "NULL" }, billingPeriodEnd: { value: null, sql: "NULL" }, billingCancelAtPeriodEnd: { value: false, sql: "0" },
       billingPastDueSince: { value: null, sql: "NULL" }, billingSyncedAt: { value: null, sql: "NULL" },
     },
+    { promoProFrom: { value: null, sql: "NULL" }, promoProUntil: { value: null, sql: "NULL" } },
   ],
   Role: [
     { budgetMin: { value: null, sql: "NULL" }, budgetMax: { value: null, sql: "NULL" }, budgetCurrency: { value: null, sql: "NULL" } },
@@ -386,7 +390,7 @@ async function verifyData(db, validated) {
     }
     if (canonical(actual, Object.keys(columns), table) !== canonical(expected, Object.keys(columns), table)) throw new SafeError(`Imported ${model} content or ownership does not match the snapshot.`);
   }
-  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent", "EmailLookup"]) {
+  for (const table of [...Object.keys(ephemeralColumns), "CalendarConnection", "IntegrationConnection", "AiUsage", "ImportBatch", "ShortlistAccess", "Notification", "InterviewOffer", "PersonCv", "AuthAccount", "TrialClaim", "StripeEvent", "EmailLookup", "PromoRedemption"]) {
     if (await db[modelFor(table)].count()) throw new SafeError("Unexpected session, activation, throttle, calendar, usage-counter or shortlist-link state in target.");
   }
   const held = validated.data.booking.filter((booking) => booking.status === "booked");

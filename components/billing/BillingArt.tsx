@@ -3,11 +3,11 @@ import type { AccountTier } from "@/lib/account-tiers";
 // The billing page's drawings: line art in ink with one cobalt accent, inline
 // so nothing is fetched. Decoration only; each is hidden from screen readers.
 
-const MARK_LETTERS: Record<AccountTier, string> = { none: "–", lite: "L", basic: "B", pro: "P", trial: "P", promax: "P+", admin: "A" };
+const MARK_LETTERS: Record<AccountTier, string> = { none: "–", lite: "L", basic: "B", pro: "P", trial: "P", promo: "P", promax: "P+", admin: "A" };
 
 // The plan's letter inside nested rounded squares, one ring per step up.
 export function PlanMark({ tier }: { tier: AccountTier }) {
-  const rings = { none: 1, lite: 2, basic: 3, pro: 4, trial: 4, promax: 5, admin: 5 }[tier];
+  const rings = { none: 1, lite: 2, basic: 3, pro: 4, trial: 4, promo: 4, promax: 5, admin: 5 }[tier];
   return <svg className="billing-mark" width="76" height="76" viewBox="0 0 76 76" fill="none" aria-hidden="true">
     {Array.from({ length: rings }, (_, i) => <rect key={i} x={2 + i * 5} y={2 + i * 5} width={72 - i * 10} height={72 - i * 10} rx={20 - i * 3} stroke={i === rings - 1 ? "var(--color-accent)" : "currentColor"} strokeOpacity={i === rings - 1 ? 1 : 0.28 + i * 0.12} strokeWidth="1.5" />)}
     <text x="38" y="38" dominantBaseline="central" textAnchor="middle" fontSize={MARK_LETTERS[tier].length > 1 ? 17 : 21} fontWeight="650" fill="currentColor" style={{ letterSpacing: "-0.04em" }}>{MARK_LETTERS[tier]}</text>

@@ -51,6 +51,7 @@ export default async function AccountPage() {
             <div className="min-w-0">
               <p className="settings-label"><span>Plan</span><span className={`settings-status${tier === "none" ? "" : " is-on"}`}>{accountTierLabels[tier]}</span></p>
               {tier === "trial" && user.trialExpiresAt && <p className="settings-hint">Pro features until {formatWhen(user.trialExpiresAt)}.</p>}
+              {tier === "promo" && user.promoProUntil && <p className="settings-hint">Pro features until {formatWhen(user.promoProUntil)}, from a promo code.</p>}
               {user.role !== "admin" && user.signupSource !== "self" && user.accountTier === "trial" && tier === "basic" && <p className="settings-hint">Trial expired. Your account now uses Basic. Your workspace data is unchanged.</p>}
             </div>
             {!viewing && user.role !== "admin" && <Link href="/billing" className="btn-secondary">Manage billing</Link>}

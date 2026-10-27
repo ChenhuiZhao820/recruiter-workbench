@@ -10,7 +10,7 @@
 // LEGAL_VERSION is the date of the text. Change it whenever the wording
 // changes, and set TERMS_VERSION on the server to the same value, so each
 // account records which version it agreed to.
-export const LEGAL_VERSION = "2026-10-22";
+export const LEGAL_VERSION = "2026-10-27";
 
 export type Operator = {
   legalName: string | null;        // who the contract is with: the person's full name, or the company once registered

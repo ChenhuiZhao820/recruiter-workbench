@@ -13,6 +13,8 @@ import { Icon } from "@/components/Icon";
 import { RoleTabs } from "@/components/RoleTabs";
 import { PlanPicker } from "@/components/billing/PlanPicker";
 import { InvoiceArt, PlanMark, PlansArt } from "@/components/billing/BillingArt";
+import { PromoCodeForm } from "@/components/billing/PromoCodeForm";
+import { PROMO, promoEndsAt } from "@/lib/promo-core.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +40,7 @@ const PLAN_FEATURES: { label: string; icon: Parameters<typeof Icon>[0]["name"]; 
 // plans it can move to. Paying, changing plan, cancelling and the card all
 // happen on Stripe's pages; nothing here changes a plan (the webhook does).
 // Open with or without a plan, never in an administrator's read-only view.
-export default async function BillingPage({ searchParams }: { searchParams: { checkout?: string; error?: string; tab?: string } }) {
+export default async function BillingPage({ searchParams }: { searchParams: { checkout?: string; error?: string; tab?: string; promo?: string } }) {
   const session = await getSession();
   if (!session) redirect("/login");
   if (session.viewUserId && session.viewUserId !== session.user.id) {
@@ -49,6 +51,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { ch
     select: {
       id: true, role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true,
       billingPastDueSince: true, billingInterval: true, billingPeriodEnd: true, billingCancelAtPeriodEnd: true, stripeCustomerId: true, stripeSubscriptionId: true,
+      promoProFrom: true, promoProUntil: true,
     },
   });
   const now = new Date();
@@ -68,13 +71,21 @@ export default async function BillingPage({ searchParams }: { searchParams: { ch
   const mayBuy = configured && user.role === "recruiter";
   const tab: BillingTab = (BILLING_TABS as readonly string[]).includes(searchParams.tab ?? "") ? searchParams.tab as BillingTab : tier === "none" ? "plans" : "overview";
   const included = tier === "none" ? [] : PLAN_FEATURES.filter((item) => canUseFeature(user, item.feature, now));
-  const daysLeft = user.trialExpiresAt ? Math.max(1, Math.ceil((user.trialExpiresAt.getTime() - now.getTime()) / 86_400_000)) : 0;
+  const freeUntil = tier === "promo" ? user.promoProUntil : user.trialExpiresAt;
+  const daysLeft = freeUntil ? Math.max(1, Math.ceil((freeUntil.getTime() - now.getTime()) / 86_400_000)) : 0;
+  // The promo code is offered to an account below Pro (or on a trial) that has
+  // not redeemed it, until 30 days after it stops working, so a late arrival
+  // is told it expired rather than finding nothing. The server decides again.
+  const promoEnded = user.promoProUntil && user.promoProUntil <= now ? user.promoProUntil : null;
+  const offerPromo = user.role === "recruiter" && !user.promoProUntil && !["pro", "promax"].includes(tier) &&
+    now.getTime() < promoEndsAt().getTime() + 30 * 86_400_000;
+  const promoForm = (id: string, open: boolean) => offerPromo ? <div className="billing-promo"><PromoCodeForm id={id} open={open} /></div> : null;
 
   const status = tier === "admin" ? null
     : user.billingStatus === "past_due" && live ? { label: "Payment failed", tone: "bad" }
     : live && user.billingCancelAtPeriodEnd ? { label: "Ending", tone: "warn" }
     : live ? { label: "Active", tone: "good" }
-    : tier === "trial" ? { label: `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`, tone: "accent" }
+    : tier === "trial" || tier === "promo" ? { label: `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`, tone: "accent" }
     : tier === "none" ? { label: "Read-only", tone: "bad" }
     : { label: "Set up by Retrivr", tone: "plain" };
 
@@ -84,17 +95,18 @@ export default async function BillingPage({ searchParams }: { searchParams: { ch
         <PlanMark tier={tier} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="billing-plan-name">{tier === "none" ? "No plan" : `${accountTierLabels[tier]}${tier === "admin" || tier === "trial" ? "" : " plan"}`}</h2>
+            <h2 className="billing-plan-name">{tier === "none" ? "No plan" : `${accountTierLabels[tier]}${tier === "admin" || tier === "trial" || tier === "promo" ? "" : " plan"}`}</h2>
             {status && <span className={`billing-pill billing-pill-${status.tone}`}>{status.label}</span>}
           </div>
           {tier === "admin" && <p className="billing-plan-line">Administrators have every feature and no plan to pay for.</p>}
           {tier === "trial" && user.trialExpiresAt && <p className="billing-plan-line">Pro features until {formatDay(user.trialExpiresAt)}. Choose a plan before then to carry straight on.</p>}
-          {tier === "none" && <p className="billing-plan-line">{user.trialExpiresAt ? "Your trial has ended." : "This address has had a trial before, so this account starts without one."} Your workspace is read-only until you choose a plan: everything you saved is still here to read, export or delete.</p>}
+          {tier === "promo" && user.promoProUntil && <p className="billing-plan-line">Pro features until {formatDay(user.promoProUntil)}, from the code {PROMO.code}. Choose a plan before then to carry straight on.</p>}
+          {tier === "none" && <p className="billing-plan-line">{promoEnded ? `Your free Pro from the code ${PROMO.code} ended on ${formatDay(promoEnded)}.` : user.trialExpiresAt ? "Your trial has ended." : "This address has had a trial before, so this account starts without one."} Your workspace is read-only until you choose a plan: everything you saved is still here to read, export or delete.</p>}
           {paidPlan && <p className="billing-plan-line">
             {accountTierLabels[paidPlan]}, billed {interval === "yearly" ? "yearly" : "monthly"} through Stripe.
             {user.billingPeriodEnd ? <> Your plan will {user.billingCancelAtPeriodEnd ? "end" : "renew automatically"} on {formatDay(user.billingPeriodEnd)}.</> : null}
           </p>}
-          {!live && tier !== "admin" && tier !== "trial" && tier !== "none" && <p className="billing-plan-line">Your plan was set up by Retrivr. You can still subscribe; a subscription takes over from it.</p>}
+          {!live && tier !== "admin" && tier !== "trial" && tier !== "promo" && tier !== "none" && <p className="billing-plan-line">Your plan was set up by Retrivr. You can still subscribe; a subscription takes over from it.</p>}
           {user.billingStatus === "past_due" && live && <p role="status" className="billing-plan-line text-rose-900">The last payment failed. Stripe will try again; update your card to keep your plan.</p>}
         </div>
         <a href="#choose-plan" className="billing-plans-link"><PlansArt /><span>Plans &amp; prices<Icon name="arrow" size={15} /></span></a>
@@ -103,6 +115,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { ch
         {included.map((item) => <li key={item.label}><Icon name={item.icon} size={17} />{item.label}</li>)}
         <li><Icon name="grid" size={17} />Chrome extension</li>
       </ul>}
+      {promoForm("promo-overview", tab === "overview" && searchParams.promo === "1")}
     </section>
 
     {usage.lines.length > 0 && <section className="card billing-card space-y-4" aria-labelledby="usage-heading">
@@ -148,7 +161,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { ch
   </div>;
 
   const invoicesPanel = !stripeCustomer
-    ? <section className="card billing-card billing-empty"><InvoiceArt /><div><h2 className="section-heading">No invoices yet</h2><p className="section-caption">{configured ? "Invoices appear here once you subscribe to a plan." : "Paying online is not set up yet."} {tier === "trial" || tier === "admin" ? "" : <>Questions about a bill: <Link href="/welcome#contact" className="text-accent underline">write to us</Link>.</>}</p></div></section>
+    ? <section className="card billing-card billing-empty"><InvoiceArt /><div><h2 className="section-heading">No invoices yet</h2><p className="section-caption">{configured ? "Invoices appear here once you subscribe to a plan." : "Paying online is not set up yet."} {tier === "trial" || tier === "promo" || tier === "admin" ? "" : <>Questions about a bill: <Link href="/welcome#contact" className="text-accent underline">write to us</Link>.</>}</p></div></section>
     : <div className="space-y-6">
       <section className="card billing-card" aria-labelledby="details-heading">
         <div className="billing-section-head">
@@ -216,6 +229,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { ch
       ? <PlanPicker offered={offered} current={paidPlan} interval={interval} live={live} mayBuy={mayBuy} />
       : <p className="card text-sm text-ink-soft">Paying online is not set up yet. <Link href="/welcome#contact" className="text-accent underline">Write to us</Link> and we will sort out your plan.</p>}
     <p className="section-caption">A team account or custom work: <Link href="/welcome#contact" className="text-accent underline">write to us</Link>.</p>
+    {promoForm("promo-plans", tab === "plans" && searchParams.promo === "1")}
   </section>;
 
   return <div className="max-w-5xl">
@@ -227,6 +241,9 @@ export default async function BillingPage({ searchParams }: { searchParams: { ch
       </div>
     </header>
 
+    {(searchParams.promo === "done" || searchParams.promo === "trial") && tier === "promo" && user.promoProUntil && <p role="status" className="auth-success mb-6"><Icon name="check" size={17} />{searchParams.promo === "trial"
+      ? `Your Pro trial now runs until ${formatDay(user.promoProUntil)}: 30 days from when it started.`
+      : `Pro is on until ${formatDay(user.promoProUntil)}. Everything Pro includes is open now.`}</p>}
     {searchParams.checkout === "done" && <p role="status" className="auth-success mb-6"><Icon name="check" size={17} />Thank you. Stripe is confirming the payment; your plan appears here within a minute. Reload if it has not.</p>}
     {searchParams.error && <p role="alert" className="mb-6 rounded border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900">That plan could not be started. Try again, or write to us.</p>}
 

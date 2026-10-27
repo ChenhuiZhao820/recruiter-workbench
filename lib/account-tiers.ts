@@ -5,12 +5,16 @@
 // how beta accounts made by hand keep what they had), or for seven days as a
 // Pro trial. A self-serve account with none of those has no plan: it can still
 // sign in, read, export and delete, but not work (see lib/workspace.ts).
+// On top of all that, a promo code (lib/promo-core.mjs) can open a window of
+// free Pro, which counts only while the account would otherwise have less.
 
 export const PAID_PLANS = ["lite", "basic", "pro", "promax"] as const;
 export type PaidPlan = (typeof PAID_PLANS)[number];
 // What an administrator can store in accountTier.
 export type RecruiterTier = PaidPlan | "trial";
-export type AccountTier = "admin" | PaidPlan | "trial" | "none";
+// "promo" is Pro from a promo code: Pro's features, its allowances counted
+// over the whole window rather than per month.
+export type AccountTier = "admin" | PaidPlan | "trial" | "promo" | "none";
 
 export type TierAccount = {
   role: string;
@@ -20,14 +24,16 @@ export type TierAccount = {
   billingPlan?: string | null;
   billingStatus?: string | null;
   billingPastDueSince?: Date | null;
+  promoProFrom?: Date | null;
+  promoProUntil?: Date | null;
 };
 
 export const accountTierLabels: Record<AccountTier, string> = {
-  admin: "Admin", promax: "Pro Max", pro: "Pro", basic: "Basic", lite: "Lite", trial: "Pro trial", none: "No plan",
+  admin: "Admin", promax: "Pro Max", pro: "Pro", basic: "Basic", lite: "Lite", trial: "Pro trial", promo: "Pro trial", none: "No plan",
 };
 
 // A trial is the Pro feature set with its own, smaller AI allowances.
-export const PLAN_RANK: Record<AccountTier, number> = { none: 0, lite: 1, basic: 2, pro: 3, trial: 3, promax: 4, admin: 5 };
+export const PLAN_RANK: Record<AccountTier, number> = { none: 0, lite: 1, basic: 2, pro: 3, trial: 3, promo: 3, promax: 4, admin: 5 };
 
 export const TRIAL_DAYS = 7;
 // A failed renewal keeps the plan this long while Stripe retries the card.
@@ -46,7 +52,22 @@ export function billedPlan(account: TierAccount, now = new Date()): PaidPlan | n
   return null;
 }
 
+// Whether a promo code's window is open now (it is set by app/actions/promo.ts).
+export function promoActive(account: Pick<TierAccount, "promoProFrom" | "promoProUntil">, now = new Date()): boolean {
+  if (!account.promoProUntil || account.promoProUntil <= now) return false;
+  return !account.promoProFrom || account.promoProFrom <= now;
+}
+
 export function getAccountTier(account: TierAccount, now = new Date()): AccountTier {
+  const tier = baseAccountTier(account, now);
+  // A promo window lifts anything below Pro, and takes over a trial (the code
+  // makes a trial 30 days long, with Pro's allowances); it never lowers a plan.
+  if ((PLAN_RANK[tier] < PLAN_RANK.pro || tier === "trial") && promoActive(account, now)) return "promo";
+  return tier;
+}
+
+// The plan without any promo code.
+export function baseAccountTier(account: TierAccount, now = new Date()): AccountTier {
   if (account.role === "admin") return "admin";
   if (account.role !== "recruiter") return "none";
   const billed = billedPlan(account, now);

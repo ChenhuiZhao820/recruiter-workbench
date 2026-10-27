@@ -23,7 +23,7 @@ export function PromoCodeForm({ id, open: startOpen = false }: { id: string; ope
   if (!open) return <button type="button" className="promo-toggle" aria-expanded="false" onClick={() => { setOpen(true); requestAnimationFrame(() => input.current?.focus()); }}>Have a promo code?</button>;
 
   return <form action={action} className="promo-form">
-    <label htmlFor={field} className="field-label">Promo code</label>
+    <label htmlFor={field} className="promo-label">Promo code</label>
     <div className="promo-row">
       <input
         ref={input} id={field} name="code" type="text" value={code} onChange={(event) => setCode(event.target.value)}

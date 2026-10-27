@@ -1551,6 +1551,9 @@ span.hover-tip { display: inline-flex; }
 .promo-toggle { font-size: 14px; font-weight: 500; color: var(--color-accent); text-decoration: underline; text-underline-offset: 3px; }
 .promo-toggle:hover { color: var(--color-accent-hard); }
 .promo-form { max-width: 440px; }
+/* The page's heading face and ink, a step down from a section heading, so the
+   field reads as its own small section rather than a footnote. */
+.promo-label { display: block; margin-bottom: 10px; font-family: var(--font-display); font-size: 16px; font-weight: 550; letter-spacing: -.03em; color: var(--color-ink); }
 .promo-row { display: flex; gap: 10px; align-items: stretch; }
 .promo-input { flex: 1 1 auto; font-family: var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
 .promo-input::placeholder { text-transform: none; letter-spacing: 0; }

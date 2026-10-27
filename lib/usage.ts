@@ -5,7 +5,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 // never a name, a transcript, a message or any other content.
 export const USAGE_KINDS = ["screening_confirmed", "ai_field_edited", "quote_missing", "booking_link_used", "client_email_sent", "reply_suggested", "people_imported",
   "match_brief_read", "match_adjusted", "match_loosened", "match_not_fit", "match_handoff", "match_briefing_saved", "shortlist_viewed", "client_decision", "shortlist_created", "interview_booked", "interview_arranged", "interview_offered",
-  "email_search_started", "email_found", "email_not_found"] as const;
+  "email_search_started", "email_found", "email_not_found", "promo_redeemed"] as const;
 export type UsageKind = (typeof USAGE_KINDS)[number];
 
 type Client = PrismaClient | Prisma.TransactionClient;

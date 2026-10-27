@@ -57,6 +57,8 @@ async function statusFor(userId: string, ownerRole: string): Promise<OnboardingS
         billingPlan: true,
         billingStatus: true,
         billingPastDueSince: true,
+        promoProFrom: true,
+        promoProUntil: true,
         authAccounts: { select: { id: true }, take: 1 },
         settings: { select: { recruiterName: true, calendarLink: true, captureTokenHash: true } },
       },

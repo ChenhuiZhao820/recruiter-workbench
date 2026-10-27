@@ -1273,6 +1273,47 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   invoices and details from the stub, each portal flow, a forged flow, a
   Stripe outage, a cancelled plan, the read-only view and phone width.
 
+## Promo codes
+
+- One code, `TRIAL2026`, until 15 November 2026 at 23:59 UK time (GMT then,
+  so it works while `now < 2026-11-16T00:00:00Z`). The rules are
+  `lib/promo-core.mjs` (`tests/promo.test.mjs`): typed in any case, with
+  spaces, dashes or full-width letters. It is redeemed on `/billing` only,
+  from a quiet "Have a promo code?" under the current plan and under the
+  plans, offered to an account below Pro or on a trial that has not redeemed
+  it, until 30 days after the deadline so a late arrival is told it expired.
+  The read-only banner of an account with no plan links there while the code
+  works. Never in an administrator's read-only view. Nothing goes to Stripe,
+  and Checkout offers no promotion-code box of its own (`startCheckout` does
+  not set `allow_promotion_codes`), so Billing is the one place a code goes.
+- `redeemPromoCode` (`app/actions/promo.ts`, the account's own, plan or not,
+  through `requireOwnAccount`) decides everything again from the database, in
+  one serializable transaction, and answers in this order: not the code;
+  already used (a `PromoRedemption` row for the address hashed like
+  `TrialClaim`, or a window already on the account); expired; already Pro (Pro,
+  Pro Max, Admin, paid or granted: refused and not spent); a trial already 30
+  days long (refused, not spent). Otherwise it sets `User.promoProFrom` and
+  `promoProUntil`: 30 days from now, or, on a trial, 30 days from the account's
+  creation, which is when a trial starts (30 in all, not 30 more). It writes a
+  nameless `promo.redeemed` audit event and a `promo_redeemed` usage event,
+  then goes to the overview, which says until when. Ten tries an hour per
+  account, on the login throttle table.
+- The window is the `promo` tier ("Pro trial"): Pro's features and allowances,
+  with email searches counted over the whole window, like a trial's
+  (`allowanceStart`). The banner and the plan card count its days. When it
+  closes the account is what it would otherwise be: Basic for an account an
+  administrator made, no plan for a self-serve one. A subscription bought
+  during it takes over if it is Pro or more. `PromoRedemption` keeps no user
+  and stays when the account is deleted, so a new account at the same address
+  cannot redeem again; it is not exported or imported, and the window on the
+  user travels with `scripts/import-accounts.mjs` (`lateColumns`).
+- `20261028000000_promo_codes` adds the two nullable `User` columns and
+  `PromoRedemption` (additive). It has not been applied anywhere yet; the
+  hosted database needs it, the usual way and with approval, before this
+  version is served. The terms describe promo codes (section 2).
+  `tests/35-promo-code.spec.ts` plays it with the deadline moved to 2099
+  (`CAPTURE_TEST_PROMO_ENDS_AT`, honoured outside production only).
+
 ## Account classification
 
 - Preserve `User.role` (`admin` / `recruiter`) as the administrative boundary.
@@ -1285,7 +1326,9 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   order: Admin; a Stripe subscription that is active, trialing, or past due for
   under seven days; a trial strictly before its expiry; a plan an administrator
   granted; then, for an account an administrator made, Basic (so beta accounts
-  keep exactly what they had), and for a self-serve one, `none`. No scheduled
+  keep exactly what they had), and for a self-serve one, `none`. Over that, a
+  promo code's window (`promo`, see Promo codes) makes a result below Pro, or a
+  trial, Pro while it is open, and never lowers one. No scheduled
   job, no data write. The stored values remain for history; do not authorize by
   a raw column or cache an entitlement in a session or browser.
 - `none` is the account's own read-only workspace: `getWorkspace()` returns

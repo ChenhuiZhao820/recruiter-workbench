@@ -24,9 +24,11 @@ export function emailFinderMonthlyCap(): number | null {
 
 export async function emailAllowance(account: TierAccount & { id: string }, client: Client = db, now = new Date()): Promise<Allowance> {
   const tier = getAccountTier(account, now);
-  const trial = tier === "trial";
-  const createdAt = trial ? (await client.user.findUnique({ where: { id: account.id }, select: { createdAt: true } }))?.createdAt ?? null : null;
-  const since = allowanceStart(tier, now, createdAt);
+  // A trial and a promo code's 30 days each have one allowance for the whole
+  // of it, and the pages say so the same way.
+  const trial = tier === "trial" || tier === "promo";
+  const row = trial ? await client.user.findUnique({ where: { id: account.id }, select: { createdAt: true, promoProFrom: true } }) : null;
+  const since = allowanceStart(tier, now, row?.createdAt ?? null, row?.promoProFrom ?? null);
   const rows = await client.emailLookup.findMany({
     where: { userId: account.id, createdAt: { gte: since }, OR: [{ status: "found" }, { status: "pending", createdAt: { gte: new Date(now.getTime() - PENDING_COUNTS_MS) } }] },
     select: { status: true, createdAt: true },

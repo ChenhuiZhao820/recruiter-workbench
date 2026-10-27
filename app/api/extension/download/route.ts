@@ -19,7 +19,7 @@ export async function GET() {
   }
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true },
+    select: { role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true, promoProFrom: true, promoProUntil: true },
   });
   if (!user || !canUseExtension(user)) {
     return NextResponse.json({ error: "Choose a plan in Billing before downloading the extension." }, { status: 403, headers });

@@ -35,7 +35,9 @@ export async function startCheckout(form: FormData) {
     ...(account.stripeCustomerId ? { customer: account.stripeCustomerId, ...(tax ? { customer_update: { address: "auto", name: "auto" } } : {}) } : { customer_email: account.email }),
     subscription_data: { metadata: { userId: account.id } },
     metadata: { userId: account.id },
-    allow_promotion_codes: true,
+    // No promotion-code box on Stripe's page: Retrivr's promo codes are
+    // redeemed on Billing (app/actions/promo.ts), and one place for a code
+    // means nobody types TRIAL2026 where it cannot work.
     ...(tax ? { automatic_tax: { enabled: true }, tax_id_collection: { enabled: true } } : {}),
     success_url: `${appOrigin()}/billing?checkout=done`,
     cancel_url: `${appOrigin()}/billing`,

@@ -11,7 +11,7 @@ export async function authorizeCapture(request: Request) {
   if (!token || !/^[A-Za-z0-9_-]{24,128}$/.test(token)) return null;
   const settings = await db.settings.findUnique({
     where: { captureTokenHash: hashToken(token) },
-    select: { user: { select: { id: true, email: true, name: true, role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true } } },
+    select: { user: { select: { id: true, email: true, name: true, role: true, active: true, accountTier: true, trialExpiresAt: true, signupSource: true, billingPlan: true, billingStatus: true, billingPastDueSince: true, promoProFrom: true, promoProUntil: true } } },
   });
   return settings && canUseExtension(settings.user) ? settings.user : null;
 }

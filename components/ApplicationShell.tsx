@@ -28,8 +28,9 @@ type Identity = { name: string; email: string; role: string };
 export function ApplicationShell({ user, viewing, plan = null, setupPending = false, releasePending = false, unreadActivity = 0, ownerId, children }: {
   user: Identity | null;
   viewing: { name: string; email: string } | null;
-  // A trial's days left, or a plan that has ended (the workspace is then read-only).
-  plan?: { ended: boolean; daysLeft: number } | null;
+  // A trial's days left, or a plan that has ended (the workspace is then
+  // read-only), and whether the promo code can still be redeemed.
+  plan?: { ended: boolean; daysLeft: number; promo?: boolean } | null;
   // Setup is only advertised while it is unfinished; a finished workspace
   // keeps the page but loses the nav entry.
   setupPending?: boolean;
@@ -112,7 +113,7 @@ export function ApplicationShell({ user, viewing, plan = null, setupPending = fa
       <div className="workspace-topbar"><div className="breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>{pageName}</strong></div><span className="workspace-status">{releasePending && <Link href="/whats-new" className="topbar-news">What&rsquo;s new</Link>}{user && <ActivityBell unread={unread} />}<span className="status-dot" />{viewing || plan?.ended ? "Read-only" : "Private workspace"}</span></div>
       {plan && !pathname.startsWith("/billing") && <div role="status" className={`plan-banner${plan.ended ? " plan-banner-ended" : ""}`}><p>{plan.ended
         ? "Your trial has ended. Everything you saved is here to read, export or delete; choose a plan to keep working."
-        : `Pro trial: ${plan.daysLeft} ${plan.daysLeft === 1 ? "day" : "days"} left.`}</p><Link href="/billing" className="btn-secondary">{plan.ended ? "Choose a plan" : "See plans"}</Link></div>}
+        : `Pro trial: ${plan.daysLeft} ${plan.daysLeft === 1 ? "day" : "days"} left.`}</p>{plan.promo && <Link href="/billing?tab=plans&promo=1" className="plan-banner-promo">Have a promo code?</Link>}<Link href="/billing" className="btn-secondary">{plan.ended ? "Choose a plan" : "See plans"}</Link></div>}
       {viewing && <div role="status" className="readonly-banner"><Icon name="eye" /><p>Read-only workspace: <strong>{viewing.name}</strong> ({viewing.email}). You are still signed in as {user.name}.</p><form action={stopViewing}><button type="submit" className="btn-secondary">Return to my workspace</button></form></div>}
       <main id="main-content" key={ownerId} className="workspace-main">{children}</main>
       <footer className="workspace-footer"><span>Retrivr — recruiting, in focus.</span><span>Prepared by software. Decided by you.</span></footer>

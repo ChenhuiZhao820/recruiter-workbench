@@ -83,6 +83,9 @@ export default defineConfig({
         STRIPE_PRICE_PROMAX_MONTHLY: "price_ProMaxMonthly",
         STRIPE_PRICE_PROMAX_YEARLY: "price_ProMaxYearly",
         CAPTURE_TEST_STRIPE_BASE_URL: "http://localhost:8766",
+        // The promo code stops working on 16 November 2026; the suite keeps
+        // playing it after that. The deadline itself is in tests/promo.test.mjs.
+        CAPTURE_TEST_PROMO_ENDS_AT: "2099-01-01T00:00:00.000Z",
       },
     },
   ],

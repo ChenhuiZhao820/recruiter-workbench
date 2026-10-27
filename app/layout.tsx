@@ -7,6 +7,7 @@ import { ApplicationShell } from "@/components/ApplicationShell";
 import { hasSeenCurrentRelease } from "@/lib/release";
 import { unreadCount } from "@/lib/notifications";
 import { getAccountTier } from "@/lib/account-tiers";
+import { promoEndsAt } from "@/lib/promo-core.mjs";
 import "./globals.css";
 
 // Vendored rather than fetched from Google at build time: next/font/google
@@ -48,11 +49,13 @@ export default async function RootLayout({ children, modal }: { children: React.
   const unreadRelease = Boolean(setup && !setup.untouched && !(await hasSeenCurrentRelease(workspace!.owner.id)));
   // The release is one more notification on the bell until it is read.
   const unreadActivity = (workspace ? await unreadCount(workspace.owner.id) : 0) + (unreadRelease ? 1 : 0);
-  // The account's own plan, said once at the top: days left on a trial, or
-  // that it has ended. Never for an administrator viewing someone else.
+  // The account's own plan, said once at the top: days left on a trial (or a
+  // promo code's free Pro), or that it has ended, with the promo code offered
+  // while it still works. Never for an administrator viewing someone else.
   const ownTier = workspace && (workspace.noPlan || !workspace.readOnly) ? getAccountTier(workspace.user) : null;
-  const plan = workspace?.noPlan ? { ended: true, daysLeft: 0 }
-    : ownTier === "trial" && workspace?.user.trialExpiresAt ? { ended: false, daysLeft: Math.max(1, Math.ceil((workspace.user.trialExpiresAt.getTime() - Date.now()) / 86_400_000)) }
+  const freeUntil = ownTier === "trial" ? workspace?.user.trialExpiresAt : ownTier === "promo" ? workspace?.user.promoProUntil : null;
+  const plan = workspace?.noPlan ? { ended: true, daysLeft: 0, promo: !workspace.user.promoProUntil && new Date() < promoEndsAt() }
+    : freeUntil ? { ended: false, daysLeft: Math.max(1, Math.ceil((freeUntil.getTime() - Date.now()) / 86_400_000)) }
     : null;
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>

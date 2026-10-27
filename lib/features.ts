@@ -64,12 +64,13 @@ export function followUpRunLimit(account: TierAccount & { active: boolean }, now
 // Monthly allowances per plan, for the AI features and the email finder. A
 // deployment may lower them all with the CAPTURE_*_MONTHLY_CAP variables (see
 // the *MonthlyCap functions), never raise them. The trial's email searches
-// last the whole trial rather than a month (lib/enrow-core.mjs).
+// last the whole trial rather than a month, and a promo code's its whole
+// 30 days (lib/enrow-core.mjs).
 export const MONTHLY_QUOTAS: Record<"screening" | "replies" | "matches" | "emails", Record<AccountTier, number>> = {
-  screening: { none: 0, lite: 0, basic: 30, trial: 10, pro: 120, promax: 300, admin: 120 },
-  replies: { none: 0, lite: 0, basic: 0, trial: 30, pro: 300, promax: 300, admin: 300 },
-  matches: { none: 0, lite: 0, basic: 300, trial: 30, pro: 300, promax: 300, admin: 300 },
-  emails: { none: 0, lite: 0, basic: 0, trial: 50, pro: 250, promax: 1000, admin: 1000 },
+  screening: { none: 0, lite: 0, basic: 30, trial: 10, promo: 120, pro: 120, promax: 300, admin: 120 },
+  replies: { none: 0, lite: 0, basic: 0, trial: 30, promo: 300, pro: 300, promax: 300, admin: 300 },
+  matches: { none: 0, lite: 0, basic: 300, trial: 30, promo: 300, pro: 300, promax: 300, admin: 300 },
+  emails: { none: 0, lite: 0, basic: 0, trial: 50, promo: 250, pro: 250, promax: 1000, admin: 1000 },
 };
 
 export function monthlyQuota(account: TierAccount, kind: keyof typeof MONTHLY_QUOTAS, ceiling: number | null, now = new Date()): number {

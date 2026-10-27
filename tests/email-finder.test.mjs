@@ -99,10 +99,10 @@ test("found searches count, recent pending ones hold a place, and nothing else i
   assert.equal(emailSourceLabel(null), "Added by you");
 });
 
-test("the plans' allowances are Pro 250, Pro Max 1,000 and the trial 50, and only Pro and up have the finder", async () => {
+test("the plans' allowances are Pro 250 (and a promo code's 30 days), Pro Max 1,000 and the trial 50, and only Pro and up have the finder", async () => {
   const features = await read("lib/features.ts");
   assert.match(features, /emailFinder: "pro"/);
-  assert.match(features, /emails: \{ none: 0, lite: 0, basic: 0, trial: 50, pro: 250, promax: 1000, admin: 1000 \}/);
+  assert.match(features, /emails: \{ none: 0, lite: 0, basic: 0, trial: 50, promo: 250, pro: 250, promax: 1000, admin: 1000 \}/);
 });
 
 test("the routes check the origin, refuse read-only views and claim the allowance in one serializable transaction", async () => {

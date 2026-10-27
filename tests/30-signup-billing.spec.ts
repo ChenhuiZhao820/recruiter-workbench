@@ -195,6 +195,8 @@ test("SU4 an ended trial is a read-only workspace; paying through Stripe opens i
   await expect(page).toHaveURL(/localhost:8766\/stripe-checkout\/cs_test_/);
   const checkout = (await (await page.request.get(`${STUB}/__stripe`)).json()).lastCheckout;
   expect(checkout).toMatchObject({ mode: "subscription", "line_items[0][price]": "price_BasicMonthly", client_reference_id: user.id, customer_email: address, "subscription_data[metadata][userId]": user.id });
+  // Promo codes are redeemed on Billing, never on Stripe's page.
+  expect(checkout).not.toHaveProperty("allow_promotion_codes");
 
   // Paying is only real once Stripe's signed webhook says so.
   const subId = `sub_${randomUUID().replace(/-/g, "").slice(0, 14)}`;

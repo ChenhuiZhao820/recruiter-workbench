@@ -1308,9 +1308,8 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   cannot redeem again; it is not exported or imported, and the window on the
   user travels with `scripts/import-accounts.mjs` (`lateColumns`).
 - `20261028000000_promo_codes` adds the two nullable `User` columns and
-  `PromoRedemption` (additive). It has not been applied anywhere yet; the
-  hosted database needs it, the usual way and with approval, before this
-  version is served. The terms describe promo codes (section 2).
+  `PromoRedemption` (additive); see Hosting for when it was applied. The
+  terms describe promo codes (section 2).
   `tests/35-promo-code.spec.ts` plays it with the deadline moved to 2099
   (`CAPTURE_TEST_PROMO_ENDS_AT`, honoured outside production only).
 
@@ -1702,6 +1701,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   with a channel; Prisma reports 15 migrations and no difference. The local
   account database has not received it. Find email stays off until
   `ENROW_API_KEY` is set on the service.
+- On 2026-10-27, `20261028000000_promo_codes` (nullable `User.promoProFrom`
+  and `promoProUntil`; `PromoRedemption`) was applied and registered on the
+  hosted database the same way, through WSL
+  (`prisma/private-local/migrate-hosted-promo-codes.mjs`, counts only),
+  checked against the reviewed file's SHA-256: a dump from a locked snapshot,
+  restored into a disposable database and rehearsed, then one transaction.
+  Every existing table came out unchanged, the new table empty and no account
+  with a promo window; Prisma reports 16 migrations and no difference. The
+  local account database has not received it.
 
 ## Searches and LinkedIn industry filters
 

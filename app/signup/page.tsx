@@ -3,12 +3,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { signupConfig } from "@/lib/signup-config";
+import { publicPage } from "@/lib/seo";
 import { AuthFrame } from "@/components/AuthFrame";
 import { SignupPanel } from "@/components/SignupForms";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Create your Retrivr account" };
+export const metadata: Metadata = publicPage("/signup", "Create your Retrivr account");
 
 export default async function SignupPage({ searchParams }: { searchParams: { error?: string } }) {
   if (await getSession()) redirect("/");

@@ -189,6 +189,30 @@ async function inspectPricing(page: Page) {
   await expectNoOverflow(page);
 }
 
+// What a search engine or a link preview reads: the language, one canonical
+// address, the card, and JSON-LD that claims nothing the page does not.
+async function inspectSearchTags(page: Page) {
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-GB");
+  const head = page.locator("head");
+  // Next writes the root without its slash; it is the same address.
+  await expect(head.locator('link[rel="canonical"]')).toHaveAttribute("href", BASE);
+  await expect(head.locator('meta[property="og:url"]')).toHaveAttribute("content", BASE);
+  await expect(head.locator('meta[property="og:title"]')).toHaveAttribute("content", "Retrivr");
+  await expect(head.locator('meta[property="og:description"]')).toHaveAttribute("content", /recruiting pipeline/);
+  await expect(head.locator('meta[property="og:image"]')).toHaveAttribute("content", `${BASE}/brand/og-card.png`);
+  await expect(head.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary_large_image");
+  await expect(head.locator('meta[name="robots"]')).toHaveCount(0);
+  const card = await page.request.get("/brand/og-card.png");
+  expect(card.status()).toBe(200);
+  expect(card.headers()["content-type"]).toBe("image/png");
+  const scripts = page.locator('script[type="application/ld+json"]');
+  await expect(scripts).toHaveCount(1);
+  const graph = JSON.parse(await scripts.textContent() ?? "{}")["@graph"] as { "@type": string; offers?: Record<string, unknown> }[];
+  expect(graph.map((node) => node["@type"])).toEqual(["Organization", "WebSite", "SoftwareApplication"]);
+  expect(graph[2].offers).toMatchObject({ priceCurrency: "GBP", lowPrice: 5.99, highPrice: 99.99 });
+  expect(JSON.stringify(graph)).not.toMatch(/aggregateRating|review/i);
+}
+
 async function inspectFaq(page: Page) {
   const details = page.locator("#faq details").first();
   const summary = details.locator("summary");
@@ -209,6 +233,7 @@ for (const scenario of scenarios) {
     await expect(page).toHaveURL(`${BASE}/`);
     await expect(page).toHaveTitle("Retrivr");
     await expect(page.getByRole("heading", { level: 1, name: HERO })).toBeVisible();
+    await inspectSearchTags(page);
     if (scenario.name === "reduced motion") expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
     await inspectPublicNavigation(page, scenario.mobile);
     await page.screenshot({ path: testInfo.outputPath("homepage.png"), fullPage: true });

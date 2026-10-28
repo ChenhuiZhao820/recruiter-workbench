@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalDocument, Section } from "@/components/LegalDocument";
 import { OPERATOR, detail, operatorName } from "@/lib/legal";
+import { publicPage } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Privacy policy · Retrivr" };
+export const metadata: Metadata = publicPage("/privacy", "Privacy policy · Retrivr");
 
 // What Retrivr keeps about the recruiters who use it, and what it does with
 // the people in their workspaces. Every statement here is something the

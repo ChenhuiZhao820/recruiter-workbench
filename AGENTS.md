@@ -102,6 +102,15 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   other three carry `PAGES_UPDATED`, which is moved by hand when their copy
   changes. `/welcome` (the homepage again) and the signed booking and client
   pages are never listed.
+- The same five pages, and `/welcome`, take their metadata from `publicPage`
+  in `lib/seo.ts`: a canonical address (`/welcome` names `/`), Open Graph and
+  a `summary_large_image` Twitter card with `public/brand/og-card.png`
+  (1200 x 630, the homepage's heading on its grid). The root layout sets
+  `metadataBase` from `APP_ORIGIN` and `<html lang="en-GB">`. The anonymous
+  homepage also carries JSON-LD (`homeStructuredData`): the organisation, the
+  site and the product with the price range from `lib/plan-prices.ts` - never
+  a rating, review or customer count it cannot show. Private pages get none
+  of this. `tests/06-design.spec.ts` D1 reads the tags.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
   on the homepage it renders only the skip link, because `MarketingHome` brings
   its own Retrivr header and footer. `MarketingHome` is a port of the reviewed

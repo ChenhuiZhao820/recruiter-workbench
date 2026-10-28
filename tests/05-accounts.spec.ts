@@ -128,7 +128,7 @@ test("A1 unauthenticated workspaces redirect and a website cookie is not an exte
     await page.goto(route);
     await expect(page).toHaveURL(`${BASE}/login`);
     await expect(page.getByRole("heading", { name: "Sign in to Retrivr" })).toBeVisible();
-    await expect(page).toHaveTitle("Retrivr");
+    await expect(page).toHaveTitle("Sign in · Retrivr");
     await expect(page.getByRole("banner").getByRole("link", { name: "Retrivr", exact: true })).toBeVisible();
   }
   const actor = await accounts.create();

@@ -11,7 +11,7 @@ import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = publicPage("/login", "Retrivr");
+export const metadata: Metadata = publicPage("/login", "Sign in · Retrivr");
 
 const ERRORS: Record<string, string> = {
   provider: "That Google or Microsoft account is not linked to a Retrivr account. New here? Create an account first.",

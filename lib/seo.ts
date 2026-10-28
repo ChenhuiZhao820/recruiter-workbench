@@ -6,6 +6,9 @@ import { tiers } from "@/lib/plan-prices";
 // private, and a workspace page is never crawled, so neither gets a card.
 // Relative addresses resolve against metadataBase, which the root layout sets
 // from APP_ORIGIN.
+// The anonymous homepage's title: the name, then what it is in the words
+// UK recruiters search for. Signed in, / keeps the plain workspace name.
+export const HOME_TITLE = "Retrivr · Recruitment CRM for sourcing, outreach and shortlists";
 export const SITE_DESCRIPTION = "A focused workspace for your recruiting pipeline. Keep roles, candidate context and thoughtful follow-ups together — with you in control.";
 
 // public/brand/og-card.png: the homepage's heading on its grid, 1200 x 630.

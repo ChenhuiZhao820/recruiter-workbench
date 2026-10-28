@@ -102,6 +102,16 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   other three carry `PAGES_UPDATED`, which is moved by hand when their copy
   changes. `/welcome` (the homepage again) and the signed booking and client
   pages are never listed.
+- `/robots.txt` is `app/robots.ts`: everything but `/api/` is open, the
+  sitemap is named at `APP_ORIGIN`, and the search crawlers (OAI-SearchBot,
+  Claude-SearchBot, PerplexityBot, Googlebot, Bingbot) have their own group so
+  tightening `*` cannot shut them out. Training crawlers (GPTBot, ClaudeBot,
+  Google-Extended) are allowed by decision: they reach only public pages.
+  Booking and client links are never disallowed - a crawler must fetch them
+  to read their `noindex`.
+- The anonymous homepage's title is `HOME_TITLE` ("Retrivr · Recruitment CRM
+  for sourcing, outreach and shortlists"); sign-in is "Sign in · Retrivr".
+  Signed in, `/` keeps the plain "Retrivr".
 - The same five pages, and `/welcome`, take their metadata from `publicPage`
   in `lib/seo.ts`: a canonical address (`/welcome` names `/`), Open Graph and
   a `summary_large_image` Twitter card with `public/brand/og-card.png`

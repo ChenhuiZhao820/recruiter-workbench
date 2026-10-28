@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { getSession } from "@/lib/auth";
+import { appOrigin, getSession } from "@/lib/auth";
+import { SITE_DESCRIPTION } from "@/lib/seo";
 import { getOnboardingStatus } from "@/lib/onboarding";
 import { getWorkspace } from "@/lib/workspace";
 import { ApplicationShell } from "@/components/ApplicationShell";
@@ -32,10 +33,11 @@ const mono = localFont({
   fallback: ["ui-monospace", "SFMono-Regular", "Consolas", "monospace"],
 });
 
-export const metadata: Metadata = {
-  title: "Retrivr",
-  description: "A focused workspace for your recruiting pipeline. Keep roles, candidate context and thoughtful follow-ups together — with you in control.",
-};
+// A function, so APP_ORIGIN is read when a page is asked for: it is the base
+// that canonical, Open Graph and Twitter addresses resolve against.
+export async function generateMetadata(): Promise<Metadata> {
+  return { metadataBase: new URL(appOrigin()), title: "Retrivr", description: SITE_DESCRIPTION };
+}
 
 export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   const session = await getSession();
@@ -58,7 +60,7 @@ export default async function RootLayout({ children, modal }: { children: React.
     : freeUntil ? { ended: false, daysLeft: Math.max(1, Math.ceil((freeUntil.getTime() - Date.now()) / 86_400_000)) }
     : null;
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en-GB" className={`${sans.variable} ${mono.variable}`}>
       <body style={{
         ["--font-display" as string]: "var(--font-sans)",
         ["--font-body" as string]: "var(--font-sans)",

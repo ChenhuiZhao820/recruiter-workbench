@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { appOrigin, getSession } from "@/lib/auth";
+import { HOME_TITLE, homeStructuredData, publicPage } from "@/lib/seo";
 import { getWorkspace } from "@/lib/workspace";
 import { getFollowUpBuckets } from "@/lib/followups";
 import { getOnboardingStatus } from "@/lib/onboarding";
@@ -14,11 +15,16 @@ export const dynamic = "force-dynamic";
 
 // Anonymous visitors get the Retrivr homepage; the workspace keeps its name.
 export async function generateMetadata(): Promise<Metadata> {
-  return await getSession() ? {} : { title: "Retrivr" };
+  return await getSession() ? {} : publicPage("/", HOME_TITLE);
 }
 
 export default async function RolesPage() {
-  if (!await getSession()) return <MarketingHome signupOpen={signupConfig().open} />;
+  if (!await getSession()) {
+    return <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: homeStructuredData(appOrigin()) }} />
+      <MarketingHome signupOpen={signupConfig().open} />
+    </>;
+  }
   const { owner, readOnly } = await getWorkspace();
   const setup = readOnly ? null : await getOnboardingStatus();
   const [roles, closedRoles, buckets, searchCount] = await Promise.all([

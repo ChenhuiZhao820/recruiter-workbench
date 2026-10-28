@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { signupConfig } from "@/lib/signup-config";
+import { publicPage } from "@/lib/seo";
 import { LoginForm } from "@/components/AccountForms";
 import { AuthFrame } from "@/components/AuthFrame";
 import { ProviderButtons } from "@/components/SignupForms";
@@ -10,7 +11,7 @@ import { Icon } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Retrivr" };
+export const metadata: Metadata = publicPage("/login", "Sign in · Retrivr");
 
 const ERRORS: Record<string, string> = {
   provider: "That Google or Microsoft account is not linked to a Retrivr account. New here? Create an account first.",

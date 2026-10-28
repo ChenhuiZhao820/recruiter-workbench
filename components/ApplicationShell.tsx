@@ -49,6 +49,13 @@ export function ApplicationShell({ user, viewing, plan = null, setupPending = fa
   const unread = useUnreadActivity(unreadActivity);
   // The terms and privacy policy read the same signed in or not.
   const publicPage = !user || pathname === "/welcome" || pathname === "/terms" || pathname === "/privacy";
+  // Every workspace page is titled Retrivr. Next 14 does not apply the next
+  // page's title when a server action redirects, so arriving from sign-in or
+  // sign-up the tab would keep "Sign in · Retrivr" until a reload.
+  const inWorkspace = !publicPage && !pathname.startsWith("/book/") && !pathname.startsWith("/s/");
+  useEffect(() => {
+    if (inWorkspace && document.title !== "Retrivr") document.title = "Retrivr";
+  }, [inWorkspace, pathname]);
   const active = (href: string) => href === "/" ? pathname === "/" || pathname.startsWith("/roles") : pathname.startsWith(href);
   const items = setupPending ? [setupNavigation, ...navigation] : navigation;
   const pageName = items.find((item) => active(item.href))?.label ?? (pathname.startsWith("/getting-started") ? setupNavigation.label : pathname.startsWith("/admin") ? "Accounts" : pathname.startsWith("/account") ? "Your account" : pathname.startsWith("/whats-new") ? "What’s new" : pathname.startsWith("/candidates/") && pathname.endsWith("/screening") ? "Screening" : pathname.startsWith("/candidates/") && pathname.endsWith("/interview") ? "Interview" : "Outreach");

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalDocument, Section } from "@/components/LegalDocument";
 import { OPERATOR, detail, operatorName } from "@/lib/legal";
+import { publicPage } from "@/lib/seo";
 import { PAST_DUE_GRACE_DAYS, TRIAL_DAYS } from "@/lib/account-tiers";
 
-export const metadata: Metadata = { title: "Terms of service · Retrivr" };
+export const metadata: Metadata = publicPage("/terms", "Terms of service · Retrivr");
 
 // Written for recruiters and small agencies using Retrivr in their business.
 // Every promise here is something the software does (see AGENTS.md); change

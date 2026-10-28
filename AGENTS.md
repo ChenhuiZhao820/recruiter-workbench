@@ -96,6 +96,38 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   address and contact email are filled in both pages say they are a draft and
   `signupConfig()` will not open sign-up on them.
   All other business routes still require authentication.
+- `/sitemap.xml` is `app/sitemap.ts`: the homepage, `/signup`, `/login`,
+  `/terms` and `/privacy` at `APP_ORIGIN`, for Google Search Console and Bing
+  Webmaster Tools. Terms and privacy carry `LEGAL_VERSION` as their date; the
+  other three carry `PAGES_UPDATED`, which is moved by hand when their copy
+  changes. `/welcome` (the homepage again) and the signed booking and client
+  pages are never listed.
+- `/robots.txt` is `app/robots.ts`: everything but `/api/` is open, the
+  sitemap is named at `APP_ORIGIN`, and the search crawlers (OAI-SearchBot,
+  Claude-SearchBot, PerplexityBot, Googlebot, Bingbot) have their own group so
+  tightening `*` cannot shut them out. Training crawlers (GPTBot, ClaudeBot,
+  Google-Extended) are allowed by decision: they reach only public pages.
+  Booking and client links are never disallowed - a crawler must fetch them
+  to read their `noindex`.
+- The anonymous homepage's title is `HOME_TITLE` ("Retrivr · Less admin for
+  solo & boutique recruiters"); sign-in is "Sign in · Retrivr". Signed in,
+  `/` keeps the plain "Retrivr". The audience is solo & boutique recruiters (the
+  talent database plan's "individual and small-studio recruiters"), never
+  large agencies: the title, `SITE_DESCRIPTION` (under 160 characters: who it
+  is for and what it gives them - time on candidates and clients, not admin)
+  and the sentence under the hero heading ("Retrivr is the recruiting
+  workspace for solo & boutique recruiters that ...") all say so. Search copy
+  sells that result, not a category: Retrivr is not positioned as a CRM. The
+  homepage footer links to Privacy and Terms.
+- The same five pages, and `/welcome`, take their metadata from `publicPage`
+  in `lib/seo.ts`: a canonical address (`/welcome` names `/`), Open Graph and
+  a `summary_large_image` Twitter card with `public/brand/og-card.png`
+  (1200 x 630, the homepage's heading on its grid). The root layout sets
+  `metadataBase` from `APP_ORIGIN` and `<html lang="en-GB">`. The anonymous
+  homepage also carries JSON-LD (`homeStructuredData`): the organisation, the
+  site and the product with the price range from `lib/plan-prices.ts` - never
+  a rating, review or customer count it cannot show. Private pages get none
+  of this. `tests/06-design.spec.ts` D1 reads the tags.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
   on the homepage it renders only the skip link, because `MarketingHome` brings
   its own Retrivr header and footer. `MarketingHome` is a port of the reviewed

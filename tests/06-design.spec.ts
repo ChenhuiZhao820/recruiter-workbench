@@ -7,6 +7,7 @@ const BASE = "http://localhost:3100";
 const PASSWORD = "TEST-ONLY-design-password-3100!";
 const EMPTY_STATE = { cookies: [], origins: [] };
 const HERO = /Good recruiting\.\s*Without the busywork\./;
+const HOME_TITLE = "Retrivr · Less admin for solo & boutique recruiters";
 type Actor = { id: string; email: string; page: Page };
 type Design = {
   guest: (options?: BrowserContextOptions) => Promise<Page>;
@@ -189,6 +190,36 @@ async function inspectPricing(page: Page) {
   await expectNoOverflow(page);
 }
 
+// What a search engine or a link preview reads: the language, one canonical
+// address, the card, and JSON-LD that claims nothing the page does not.
+async function inspectSearchTags(page: Page) {
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-GB");
+  const head = page.locator("head");
+  // Next writes the root without its slash; it is the same address.
+  await expect(head.locator('link[rel="canonical"]')).toHaveAttribute("href", BASE);
+  await expect(head.locator('meta[property="og:url"]')).toHaveAttribute("content", BASE);
+  await expect(head.locator('meta[property="og:title"]')).toHaveAttribute("content", HOME_TITLE);
+  await expect(head.locator('meta[name="description"]')).toHaveAttribute("content", /^For solo & boutique recruiters: spend your time on candidates and clients, not admin\. /);
+  await expect(head.locator('meta[property="og:description"]')).toHaveAttribute("content", /^For solo & boutique recruiters: spend your time on candidates and clients, not admin\. /);
+  // The page itself says what Retrivr is and who it is for, under the heading.
+  await expect(page.locator(".lp-hero-copy h1 + p")).toHaveText(/^Retrivr is the recruiting workspace for solo & boutique recruiters that /);
+  const footer = page.getByRole("navigation", { name: "Footer" });
+  await expect(footer.getByRole("link", { name: "Privacy", exact: true })).toHaveAttribute("href", "/privacy");
+  await expect(footer.getByRole("link", { name: "Terms", exact: true })).toHaveAttribute("href", "/terms");
+  await expect(head.locator('meta[property="og:image"]')).toHaveAttribute("content", `${BASE}/brand/og-card.png`);
+  await expect(head.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary_large_image");
+  await expect(head.locator('meta[name="robots"]')).toHaveCount(0);
+  const card = await page.request.get("/brand/og-card.png");
+  expect(card.status()).toBe(200);
+  expect(card.headers()["content-type"]).toBe("image/png");
+  const scripts = page.locator('script[type="application/ld+json"]');
+  await expect(scripts).toHaveCount(1);
+  const graph = JSON.parse(await scripts.textContent() ?? "{}")["@graph"] as { "@type": string; offers?: Record<string, unknown> }[];
+  expect(graph.map((node) => node["@type"])).toEqual(["Organization", "WebSite", "SoftwareApplication"]);
+  expect(graph[2].offers).toMatchObject({ priceCurrency: "GBP", lowPrice: 5.99, highPrice: 99.99 });
+  expect(JSON.stringify(graph)).not.toMatch(/aggregateRating|review/i);
+}
+
 async function inspectFaq(page: Page) {
   const details = page.locator("#faq details").first();
   const summary = details.locator("summary");
@@ -207,8 +238,9 @@ for (const scenario of scenarios) {
     const page = await design.guest(scenario.options);
     await page.goto("/");
     await expect(page).toHaveURL(`${BASE}/`);
-    await expect(page).toHaveTitle("Retrivr");
+    await expect(page).toHaveTitle(HOME_TITLE);
     await expect(page.getByRole("heading", { level: 1, name: HERO })).toBeVisible();
+    await inspectSearchTags(page);
     if (scenario.name === "reduced motion") expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
     await inspectPublicNavigation(page, scenario.mobile);
     await page.screenshot({ path: testInfo.outputPath("homepage.png"), fullPage: true });
@@ -330,7 +362,7 @@ for (const scenario of scenarios.filter((entry) => entry.name !== "reduced motio
     await page.goto("/login");
     await expect(page.getByRole("heading", { level: 1, name: "Sign in to Retrivr", exact: true })).toBeVisible();
     // Sign-in carries the new name throughout, the tab title included.
-    await expect(page).toHaveTitle("Retrivr");
+    await expect(page).toHaveTitle("Sign in · Retrivr");
     expect(await page.locator("body").innerText()).not.toMatch(/capture/i);
     await page.screenshot({ path: testInfo.outputPath("login.png"), fullPage: true });
     const email = page.getByLabel("Email", { exact: true });

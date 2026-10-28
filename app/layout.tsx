@@ -58,7 +58,7 @@ export default async function RootLayout({ children, modal }: { children: React.
     : freeUntil ? { ended: false, daysLeft: Math.max(1, Math.ceil((freeUntil.getTime() - Date.now()) / 86_400_000)) }
     : null;
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en-GB" className={`${sans.variable} ${mono.variable}`}>
       <body style={{
         ["--font-display" as string]: "var(--font-sans)",
         ["--font-body" as string]: "var(--font-sans)",

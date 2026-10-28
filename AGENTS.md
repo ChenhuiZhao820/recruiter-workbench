@@ -96,6 +96,12 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   address and contact email are filled in both pages say they are a draft and
   `signupConfig()` will not open sign-up on them.
   All other business routes still require authentication.
+- `/sitemap.xml` is `app/sitemap.ts`: the homepage, `/signup`, `/login`,
+  `/terms` and `/privacy` at `APP_ORIGIN`, for Google Search Console and Bing
+  Webmaster Tools. Terms and privacy carry `LEGAL_VERSION` as their date; the
+  other three carry `PAGES_UPDATED`, which is moved by hand when their copy
+  changes. `/welcome` (the homepage again) and the signed booking and client
+  pages are never listed.
 - `ApplicationShell` selects public navigation or the responsive workspace sidebar;
   on the homepage it renders only the skip link, because `MarketingHome` brings
   its own Retrivr header and footer. `MarketingHome` is a port of the reviewed

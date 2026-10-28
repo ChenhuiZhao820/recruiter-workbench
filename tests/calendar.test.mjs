@@ -30,7 +30,10 @@ test("a stored token reads back only with the right key and unaltered", () => {
   assert.notEqual(encryptToken(key, "same"), encryptToken(key, "same"));
   assert.equal(decryptToken(otherKey, sealed), null);
   const [v, iv, tag, data] = sealed.split(".");
-  assert.equal(decryptToken(key, [v, iv, tag, data.slice(0, -2) + (data.endsWith("A") ? "BB" : "AA")].join(".")), null);
+  // Change the first character: all six of its bits are ciphertext. The last
+  // one carries padding bits too, so changing it can decode to the same bytes.
+  const altered = (data[0] === "A" ? "B" : "A") + data.slice(1);
+  assert.equal(decryptToken(key, [v, iv, tag, altered].join(".")), null);
   assert.equal(decryptToken(key, "not a token"), null);
 });
 

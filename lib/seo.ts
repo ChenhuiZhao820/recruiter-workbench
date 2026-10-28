@@ -6,10 +6,13 @@ import { tiers } from "@/lib/plan-prices";
 // private, and a workspace page is never crawled, so neither gets a card.
 // Relative addresses resolve against metadataBase, which the root layout sets
 // from APP_ORIGIN.
-// The anonymous homepage's title: the name, then what it is in the words
-// UK recruiters search for. Signed in, / keeps the plain workspace name.
-export const HOME_TITLE = "Retrivr · Recruitment CRM for sourcing, outreach and shortlists";
-export const SITE_DESCRIPTION = "A focused workspace for your recruiting pipeline. Keep roles, candidate context and thoughtful follow-ups together — with you in control.";
+// The anonymous homepage's title: the name, what it is in the words UK
+// recruiters search for, and who it is for - independent recruiters, not
+// agencies. Signed in, / keeps the plain workspace name.
+export const HOME_TITLE = "Retrivr · Recruitment CRM for independent recruiters";
+// Who it is for and what it does, under 160 characters so a results page
+// shows all of it.
+export const SITE_DESCRIPTION = "A recruitment CRM for independent recruiters: save LinkedIn profiles from Chrome, run outreach, summarise screening calls and send clients one shortlist link.";
 
 // public/brand/og-card.png: the homepage's heading on its grid, 1200 x 630.
 const CARD = { url: "/brand/og-card.png", width: 1200, height: 630, alt: "Retrivr: good recruiting, without the busywork." };

@@ -59,7 +59,7 @@ export function MarketingHome({ signedIn = false, signupOpen = false }: { signed
           <div className="lp-hero-copy">
                   <span className="lp-eyebrow lp-hero-label"><span className="lp-dot"></span>The recruiter’s workspace</span>
                   <h1>Good recruiting.<br /><span>Without the busywork.</span></h1>
-                  <p>From the first profile to the client’s yes. Retrivr keeps every step in one place, and you make every move.</p>
+                  <p>Retrivr is a recruitment CRM for independent recruiters that keeps every step in one place, from the first profile to the client’s yes, while you make every move.</p>
                   <div className="lp-hero-actions">
                     <a href={signupOpen && !signedIn ? "/signup" : "#pricing"} className="lp-btn lp-btn-primary">Try Pro free for 7 days<svg><use href="#lp-i-arrow"/></svg></a>
                     <a href="#how" className="lp-btn">See how it works<svg><use href="#lp-i-down"/></svg></a>
@@ -256,7 +256,7 @@ export function MarketingHome({ signedIn = false, signupOpen = false }: { signed
     <div className="lp-wrap" style={{ borderTop: "1px solid var(--line)" }}>
       <footer className="lp-site-footer">
         <a href="#top" className="lp-brand" aria-label="Retrivr"><Image className="lp-logo lp-logo-sm" src="/brand/retrivr-logo.png" alt="Retrivr" width={953} height={215} unoptimized /></a>
-        <nav aria-label="Footer"><a href="#how">Features</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><a href="#contact">Contact</a><Link href={account.href}>{account.label}</Link></nav>
+        <nav aria-label="Footer"><a href="#how">Features</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><a href="#contact">Contact</a><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href={account.href}>{account.label}</Link></nav>
         <span>© 2026 Retrivr</span>
       </footer>
     </div>

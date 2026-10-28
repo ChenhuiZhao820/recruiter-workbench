@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // The day the homepage, sign-in or sign-up last changed in a way worth a
 // search engine's second look. Change it with them: Google Search Console and
 // Bing re-crawl by lastmod, and a date that moves on every request is ignored.
-const PAGES_UPDATED = "2026-10-21";
+const PAGES_UPDATED = "2026-10-28";
 
 // Only what anyone may read. /welcome is the homepage again, and booking and
 // client pages are signed, private and noindex; everything else needs a session.

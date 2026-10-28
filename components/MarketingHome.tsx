@@ -59,7 +59,7 @@ export function MarketingHome({ signedIn = false, signupOpen = false }: { signed
           <div className="lp-hero-copy">
                   <span className="lp-eyebrow lp-hero-label"><span className="lp-dot"></span>The recruiter’s workspace</span>
                   <h1>Good recruiting.<br /><span>Without the busywork.</span></h1>
-                  <p>Retrivr is a recruitment CRM for independent recruiters that keeps every step in one place, from the first profile to the client’s yes, while you make every move.</p>
+                  <p>Retrivr is the recruiting workspace for solo & boutique recruiters that keeps every step in one place, from the first profile to the client’s yes, while you make every move.</p>
                   <div className="lp-hero-actions">
                     <a href={signupOpen && !signedIn ? "/signup" : "#pricing"} className="lp-btn lp-btn-primary">Try Pro free for 7 days<svg><use href="#lp-i-arrow"/></svg></a>
                     <a href="#how" className="lp-btn">See how it works<svg><use href="#lp-i-down"/></svg></a>

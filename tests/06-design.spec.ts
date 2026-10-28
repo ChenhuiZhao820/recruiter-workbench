@@ -7,7 +7,7 @@ const BASE = "http://localhost:3100";
 const PASSWORD = "TEST-ONLY-design-password-3100!";
 const EMPTY_STATE = { cookies: [], origins: [] };
 const HERO = /Good recruiting\.\s*Without the busywork\./;
-const HOME_TITLE = "Retrivr · Recruitment CRM for independent recruiters";
+const HOME_TITLE = "Retrivr · Less admin for solo & boutique recruiters";
 type Actor = { id: string; email: string; page: Page };
 type Design = {
   guest: (options?: BrowserContextOptions) => Promise<Page>;
@@ -199,10 +199,10 @@ async function inspectSearchTags(page: Page) {
   await expect(head.locator('link[rel="canonical"]')).toHaveAttribute("href", BASE);
   await expect(head.locator('meta[property="og:url"]')).toHaveAttribute("content", BASE);
   await expect(head.locator('meta[property="og:title"]')).toHaveAttribute("content", HOME_TITLE);
-  await expect(head.locator('meta[name="description"]')).toHaveAttribute("content", /^A recruitment CRM for independent recruiters: /);
-  await expect(head.locator('meta[property="og:description"]')).toHaveAttribute("content", /^A recruitment CRM for independent recruiters: /);
+  await expect(head.locator('meta[name="description"]')).toHaveAttribute("content", /^For solo & boutique recruiters: spend your time on candidates and clients, not admin\. /);
+  await expect(head.locator('meta[property="og:description"]')).toHaveAttribute("content", /^For solo & boutique recruiters: spend your time on candidates and clients, not admin\. /);
   // The page itself says what Retrivr is and who it is for, under the heading.
-  await expect(page.locator(".lp-hero-copy h1 + p")).toHaveText(/^Retrivr is a recruitment CRM for independent recruiters that /);
+  await expect(page.locator(".lp-hero-copy h1 + p")).toHaveText(/^Retrivr is the recruiting workspace for solo & boutique recruiters that /);
   const footer = page.getByRole("navigation", { name: "Footer" });
   await expect(footer.getByRole("link", { name: "Privacy", exact: true })).toHaveAttribute("href", "/privacy");
   await expect(footer.getByRole("link", { name: "Terms", exact: true })).toHaveAttribute("href", "/terms");

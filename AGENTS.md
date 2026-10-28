@@ -109,14 +109,16 @@ keep requests scoped. Never add arbitrary HTTPS or LinkedIn host permissions.
   Google-Extended) are allowed by decision: they reach only public pages.
   Booking and client links are never disallowed - a crawler must fetch them
   to read their `noindex`.
-- The anonymous homepage's title is `HOME_TITLE` ("Retrivr · Recruitment CRM
-  for independent recruiters"); sign-in is "Sign in · Retrivr". Signed in,
-  `/` keeps the plain "Retrivr". The audience is independent recruiters (the
+- The anonymous homepage's title is `HOME_TITLE` ("Retrivr · Less admin for
+  solo & boutique recruiters"); sign-in is "Sign in · Retrivr". Signed in,
+  `/` keeps the plain "Retrivr". The audience is solo & boutique recruiters (the
   talent database plan's "individual and small-studio recruiters"), never
-  agency recruiters: the title, `SITE_DESCRIPTION` (under 160 characters:
-  who it is for and what it does) and the sentence under the hero heading
-  ("Retrivr is a recruitment CRM for independent recruiters that ...") all
-  say so. The homepage footer links to Privacy and Terms.
+  large agencies: the title, `SITE_DESCRIPTION` (under 160 characters: who it
+  is for and what it gives them - time on candidates and clients, not admin)
+  and the sentence under the hero heading ("Retrivr is the recruiting
+  workspace for solo & boutique recruiters that ...") all say so. Search copy
+  sells that result, not a category: Retrivr is not positioned as a CRM. The
+  homepage footer links to Privacy and Terms.
 - The same five pages, and `/welcome`, take their metadata from `publicPage`
   in `lib/seo.ts`: a canonical address (`/welcome` names `/`), Open Graph and
   a `summary_large_image` Twitter card with `public/brand/og-card.png`
